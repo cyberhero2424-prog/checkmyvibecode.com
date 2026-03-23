@@ -1253,7 +1253,7 @@ async function upvote(id) {
   if (p.voted) fireVoteEffects(id);
   updateStats();
 
-  // Persist to Supabase — check returned {error}, do not use try/catch
+  // Persist to Supabase — check {error} field from each response
   let dbError;
   if (p.voted) {
     const { error } = await sb.from('upvotes').insert([{ project_id: id, user_id: currentUser.id }]);

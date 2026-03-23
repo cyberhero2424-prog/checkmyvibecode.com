@@ -1,14 +1,16 @@
 import os
-from flask import Flask, Response
+from flask import Flask, Response, send_from_directory
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 
-SUPABASE_URL     = os.environ.get('SUPABASE_URL', '')
+SUPABASE_URL      = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
 
 @app.route('/')
 def index():
-    with open('checkmyvibecode-app.html', 'r', encoding='utf-8') as f:
+    with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
     config_script = (
         f'<script>'
@@ -19,7 +21,7 @@ def index():
 
 @app.route('/<path:path>')
 def static_files(path):
-    return app.send_static_file(path)
+    return send_from_directory(BASE_DIR, path)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
