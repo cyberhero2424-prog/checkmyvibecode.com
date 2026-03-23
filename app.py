@@ -34,7 +34,7 @@ def root_files(path):
     if filename.startswith('.') or filename in BLOCKED_NAMES:
         abort(404)
     safe_path = os.path.normpath(os.path.join(BASE_DIR, path))
-    if not safe_path.startswith(BASE_DIR):
+    if os.path.commonpath([BASE_DIR, safe_path]) != BASE_DIR:
         abort(404)
     if not os.path.isfile(safe_path):
         abort(404)
