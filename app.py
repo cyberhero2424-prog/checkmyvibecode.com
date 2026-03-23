@@ -1,8 +1,14 @@
 import json
 import os
-from flask import Flask, Response, send_from_directory
+from flask import Flask, Response, send_from_directory, abort
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, 'static')
+
+BLOCKED_NAMES = {'.env', '.git', 'app.py', 'requirements.txt'}
 
 app = Flask(__name__)
 
@@ -18,8 +24,20 @@ def index():
     html = html.replace('</head>', config_script + '</head>', 1)
     return Response(html, mimetype='text/html')
 
-@app.route('/<path:path>')
+@app.route('/static/<path:path>')
 def static_files(path):
+    return send_from_directory(STATIC_DIR, path)
+
+@app.route('/<path:path>')
+def root_files(path):
+    filename = os.path.basename(path)
+    if filename.startswith('.') or filename in BLOCKED_NAMES:
+        abort(404)
+    safe_path = os.path.normpath(os.path.join(BASE_DIR, path))
+    if not safe_path.startswith(BASE_DIR):
+        abort(404)
+    if not os.path.isfile(safe_path):
+        abort(404)
     return send_from_directory(BASE_DIR, path)
 
 if __name__ == '__main__':
