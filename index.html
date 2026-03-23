@@ -878,10 +878,18 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 /* ════════════════════════════════
    SUPABASE CLIENT
 ════════════════════════════════ */
+if (!window.SUPABASE_CONFIG) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const g = document.getElementById('grid');
+    if (g) g.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><div class="empty-text">App must be served via the Flask server (python3 app.py).</div></div>';
+  });
+  throw new Error('SUPABASE_CONFIG not injected. Open app via Flask, not directly.');
+}
 const sb = window.supabase.createClient(
   window.SUPABASE_CONFIG.url,
   window.SUPABASE_CONFIG.anonKey
 );
+let _realtimeChannel = null;
 
 /* ════════════════════════════════
    AUTH SYSTEM
@@ -1306,12 +1314,12 @@ function fireVoteEffects(id) {
    REALTIME
 ════════════════════════════════ */
 function subscribeToProjectUpdates() {
-  sb.channel('upvotes-live')
+  if (_realtimeChannel) return;
+  _realtimeChannel = sb.channel('upvotes-live')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'upvotes' }, async payload => {
       await refreshProjectCount(payload.new.project_id);
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'upvotes' }, async payload => {
-      // payload.old has the deleted row
       const pid = payload.old?.project_id;
       if (pid) await refreshProjectCount(pid);
     })

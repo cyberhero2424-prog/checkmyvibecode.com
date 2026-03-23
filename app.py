@@ -1,3 +1,4 @@
+import json
 import os
 from flask import Flask, Response, send_from_directory
 
@@ -12,10 +13,8 @@ SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
 def index():
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
-    config_script = (
-        f'<script>'
-        f'window.SUPABASE_CONFIG={{url:"{SUPABASE_URL}",anonKey:"{SUPABASE_ANON_KEY}"}};</script>\n'
-    )
+    config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
+    config_script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
     html = html.replace('</head>', config_script + '</head>', 1)
     return Response(html, mimetype='text/html')
 
