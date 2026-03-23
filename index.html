@@ -1106,7 +1106,8 @@ async function loadProjects() {
 }
 
 async function loadUserVotes(userId) {
-  const { data } = await sb.from('upvotes').select('project_id').eq('user_id', userId);
+  const { data, error } = await sb.from('upvotes').select('project_id').eq('user_id', userId);
+  if (error) { console.warn('loadUserVotes error:', error.message); return; }
   votedProjectIds = new Set((data || []).map(v => v.project_id));
   projects.forEach(p => { p.voted = votedProjectIds.has(p.id); });
   renderProjects();
@@ -1221,7 +1222,8 @@ function openDrawer(id) {
 }
 
 async function loadComments(projectId) {
-  const { data } = await sb.from('comments').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
+  const { data, error } = await sb.from('comments').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
+  if (error) { console.warn('loadComments error:', error.message); }
   const comments = (data || []).map(c => ({ author: c.author, text: c.body, time: new Date(c.created_at).toLocaleDateString() }));
   const p = projects.find(x => x.id === projectId);
   if (p) p.comments = comments;
