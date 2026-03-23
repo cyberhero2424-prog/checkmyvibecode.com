@@ -1,6 +1,6 @@
 import json
 import os
-from flask import Flask, Response, send_from_directory, abort
+from flask import Flask, Response, send_from_directory, abort, redirect, url_for
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,14 +9,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 
 BLOCKED_NAMES = {'.env', '.git', 'app.py', 'requirements.txt'}
+HTML_ENTRY_POINTS = {'index.html', 'checkmyvibecode-app.html'}
 
 app = Flask(__name__)
 
 SUPABASE_URL      = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
 
-@app.route('/')
-def index():
+def serve_app():
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
     config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
@@ -24,12 +24,19 @@ def index():
     html = html.replace('</head>', config_script + '</head>', 1)
     return Response(html, mimetype='text/html')
 
+@app.route('/')
+def index():
+    return serve_app()
+
 @app.route('/static/<path:path>')
 def static_files(path):
     return send_from_directory(STATIC_DIR, path)
 
 @app.route('/<path:path>')
 def root_files(path):
+    # Redirect HTML entry-point aliases back to / so they always get config injected
+    if path in HTML_ENTRY_POINTS:
+        return redirect(url_for('index'), code=301)
     filename = os.path.basename(path)
     if filename.startswith('.') or filename in BLOCKED_NAMES:
         abort(404)

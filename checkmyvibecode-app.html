@@ -1486,11 +1486,13 @@ async function submitProject() {
   const { data, error } = await sb.from('projects').insert([newProject]).select().single();
   if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit project →'; }
   if (error) { alert('Error submitting: ' + error.message); return; }
-  // Auto-upvote creator's own project
-  await sb.from('upvotes').insert([{ project_id: data.id, user_id: currentUser.id }]);
-  await sb.from('projects').update({ upvotes: 1 }).eq('id', data.id);
-  data.upvotes = 1;
-  votedProjectIds.add(data.id);
+  // Auto-upvote creator's own project; ignore error (e.g. duplicate) gracefully
+  const { error: uvErr } = await sb.from('upvotes').insert([{ project_id: data.id, user_id: currentUser.id }]);
+  if (!uvErr) {
+    await sb.from('projects').update({ upvotes: 1 }).eq('id', data.id);
+    data.upvotes = 1;
+    votedProjectIds.add(data.id);
+  }
   projects.unshift(mapProject(data));
   closeSubmit();
   ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_score','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
