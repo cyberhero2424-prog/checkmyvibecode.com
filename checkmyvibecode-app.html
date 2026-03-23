@@ -847,6 +847,34 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 </div>
 
 <script>
+/* ════════════════════════════════════════════════════════════════
+   SUPABASE SQL SCHEMA — run once in Supabase SQL Editor
+   ────────────────────────────────────────────────────────────────
+   create table projects (
+     id uuid default gen_random_uuid() primary key,
+     name text not null, description text not null, idea text,
+     build_time text, cost text, demo text default '#',
+     tools text[] default '{}', score int, author text not null,
+     emoji text default '🚀', cat text default 'app',
+     upvotes int default 1, featured boolean default false,
+     created_at timestamptz default now()
+   );
+   create table comments (
+     id uuid default gen_random_uuid() primary key,
+     project_id uuid references projects(id) on delete cascade,
+     author text not null, body text not null,
+     created_at timestamptz default now()
+   );
+   create table upvotes (
+     id uuid default gen_random_uuid() primary key,
+     project_id uuid references projects(id) on delete cascade,
+     user_id uuid references auth.users(id) on delete cascade,
+     created_at timestamptz default now(),
+     unique(project_id, user_id)
+   );
+   -- Enable realtime for upvotes table in Supabase Dashboard → Database → Replication
+════════════════════════════════════════════════════════════════ */
+
 /* ════════════════════════════════
    SUPABASE CLIENT
 ════════════════════════════════ */
@@ -1215,53 +1243,89 @@ function closeDrawer() { document.getElementById('drawerOverlay').classList.remo
 async function upvote(id) {
   if (!currentUser) { openAuth(); showToast('Please sign in to upvote!'); return; }
   const p = projects.find(x => x.id === id); if (!p) return;
+
+  // Optimistic UI update
+  const wasVoted = p.voted;
   p.voted = !p.voted;
   p.upvotes += p.voted ? 1 : -1;
   if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
-  ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+id); if(el) el.textContent=p.upvotes;});
+  updateVoteUI(id, p.voted, p.upvotes);
+  if (p.voted) fireVoteEffects(id);
+  updateStats();
+
+  // Persist to Supabase — check returned {error}, do not use try/catch
+  let dbError;
+  if (p.voted) {
+    const { error } = await sb.from('upvotes').insert([{ project_id: id, user_id: currentUser.id }]);
+    dbError = error;
+  } else {
+    const { error } = await sb.from('upvotes').delete().eq('project_id', id).eq('user_id', currentUser.id);
+    dbError = error;
+  }
+
+  if (dbError) {
+    // Revert optimistic update on failure (e.g. duplicate vote attempt)
+    p.voted = wasVoted;
+    p.upvotes += p.voted ? 1 : -1;
+    if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
+    updateVoteUI(id, p.voted, p.upvotes);
+    updateStats();
+    console.warn('Upvote error:', dbError.message);
+    return;
+  }
+
+  // Fetch authoritative count from DB to avoid race conditions from concurrent clients
+  const { count } = await sb.from('upvotes').select('*', { count: 'exact', head: true }).eq('project_id', id);
+  if (count !== null) {
+    p.upvotes = count;
+    await sb.from('projects').update({ upvotes: count }).eq('id', id);
+    updateVoteUI(id, p.voted, count);
+    updateStats();
+  }
+}
+
+function updateVoteUI(id, voted, count) {
+  ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+id); if(el) el.textContent=count;});
   ['ub-','dub-'].forEach(pre=>{
     const btn=document.getElementById(pre+id); if(!btn) return;
-    btn.classList.toggle('voted',p.voted);
+    btn.classList.toggle('voted', voted);
     btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop');
     btn.addEventListener('animationend',()=>btn.classList.remove('pop'),{once:true});
   });
-  if (p.voted) {
-    const btn=document.getElementById('ub-'+id);
-    if(btn){
-      const ring=document.createElement('div'); ring.className='burst-ring'; btn.appendChild(ring); ring.addEventListener('animationend',()=>ring.remove());
-      const lbl=document.createElement('div'); lbl.className='float-plus'; lbl.textContent='+1'; btn.appendChild(lbl); lbl.addEventListener('animationend',()=>lbl.remove());
-      spawnConfetti(btn);
-    }
-  }
-  updateStats();
-  try {
-    if (p.voted) {
-      await sb.from('upvotes').insert([{ project_id: id, user_id: currentUser.id }]);
-    } else {
-      await sb.from('upvotes').delete().eq('project_id', id).eq('user_id', currentUser.id);
-    }
-    await sb.from('projects').update({ upvotes: p.upvotes }).eq('id', id);
-  } catch (err) {
-    console.error('Upvote error:', err);
-    p.voted = !p.voted; p.upvotes += p.voted ? 1 : -1;
-    ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+id); if(el) el.textContent=p.upvotes;});
-  }
+}
+
+function fireVoteEffects(id) {
+  const btn = document.getElementById('ub-'+id);
+  if (!btn) return;
+  const ring=document.createElement('div'); ring.className='burst-ring'; btn.appendChild(ring); ring.addEventListener('animationend',()=>ring.remove());
+  const lbl=document.createElement('div'); lbl.className='float-plus'; lbl.textContent='+1'; btn.appendChild(lbl); lbl.addEventListener('animationend',()=>lbl.remove());
+  spawnConfetti(btn);
 }
 
 /* ════════════════════════════════
    REALTIME
 ════════════════════════════════ */
 function subscribeToProjectUpdates() {
-  sb.channel('projects-live')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects' }, payload => {
-      const p = projects.find(x => x.id === payload.new.id);
-      if (p) {
-        p.upvotes = payload.new.upvotes;
-        ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+p.id); if(el) el.textContent=p.upvotes;});
-        updateStats();
-      }
+  sb.channel('upvotes-live')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'upvotes' }, async payload => {
+      await refreshProjectCount(payload.new.project_id);
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'upvotes' }, async payload => {
+      // payload.old has the deleted row
+      const pid = payload.old?.project_id;
+      if (pid) await refreshProjectCount(pid);
     })
     .subscribe();
+}
+
+async function refreshProjectCount(projectId) {
+  const { count } = await sb.from('upvotes').select('*', { count: 'exact', head: true }).eq('project_id', projectId);
+  if (count === null) return;
+  const p = projects.find(x => x.id === projectId);
+  if (!p) return;
+  p.upvotes = count;
+  ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+p.id); if(el) el.textContent=count;});
+  updateStats();
 }
 
 function spawnConfetti(anchor) {
