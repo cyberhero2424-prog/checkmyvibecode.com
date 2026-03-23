@@ -12,6 +12,7 @@
   if(dark)document.documentElement.setAttribute('data-theme','dark');
 })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   --bg: #f8f8f6;
@@ -847,13 +848,23 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 
 <script>
 /* ════════════════════════════════
+   SUPABASE CLIENT
+════════════════════════════════ */
+const sb = window.supabase.createClient(
+  window.SUPABASE_CONFIG.url,
+  window.SUPABASE_CONFIG.anonKey
+);
+
+/* ════════════════════════════════
    AUTH SYSTEM
 ════════════════════════════════ */
 let currentUser = null;
+let votedProjectIds = new Set();
 
 function openAuth() {
   document.getElementById('authOverlay').classList.add('open');
-  setTimeout(()=>document.getElementById('authEmail').focus(), 300);
+  clearAuthError();
+  setTimeout(() => document.getElementById('authEmail').focus(), 300);
 }
 
 function closeAuth() {
@@ -865,44 +876,42 @@ function outsideAuthClose(e) {
 }
 
 function setAuthTab(tab) {
-  document.querySelectorAll('.auth-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('atab-'+tab).classList.add('active');
-  document.getElementById('loginForm').style.display = tab==='login'?'block':'none';
-  document.getElementById('signupForm').style.display = tab==='signup'?'block':'none';
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('atab-' + tab).classList.add('active');
+  document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+  clearAuthError();
 }
 
-function socialAuth(provider) {
-  // In production: redirect to OAuth provider
-  // For demo: simulate login
-  const mockUsers = {
-    github: { name:'GitHub User', handle:'@githubuser', email:'user@github.com', avatar:'GH' },
-    google: { name:'Google User', handle:'@googleuser', email:'user@gmail.com', avatar:'GO' }
-  };
-  loginUser(mockUsers[provider]);
-  showToast('✓ Signed in with ' + (provider==='github'?'GitHub':'Google') + '!');
+async function socialAuth(provider) {
+  showToast('OAuth sign-in coming soon! Please use email for now.');
 }
 
-function emailAuth() {
+async function emailAuth() {
   const email = document.getElementById('authEmail').value.trim();
   const pass  = document.getElementById('authPassword').value;
   if (!email || !pass) { showAuthError('Please fill in all fields.'); return; }
-  if (pass.length < 6) { showAuthError('Password too short.'); return; }
-  // Demo: simulate login
-  const handle = '@' + email.split('@')[0];
-  loginUser({ name: email.split('@')[0], handle, email, avatar: email[0].toUpperCase() });
-  showToast('✓ Signed in!');
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showAuthError(error.message); return; }
 }
 
-function emailSignUp() {
+async function emailSignUp() {
   const name   = document.getElementById('authName').value.trim();
-  const handle = document.getElementById('authHandle').value.trim() || '@' + name.toLowerCase().replace(/\s/g,'');
+  const handle = (document.getElementById('authHandle').value.trim() || ('@' + name.toLowerCase().replace(/\s/g, '')));
   const email  = document.getElementById('authEmailSU').value.trim();
   const pass   = document.getElementById('authPasswordSU').value;
   if (!name || !email || !pass) { showAuthError('Please fill in all fields.'); return; }
   if (pass.length < 8) { showAuthError('Password must be at least 8 characters.'); return; }
-  const avatar = name[0].toUpperCase();
-  loginUser({ name, handle, email, avatar });
-  showToast('🎉 Account created! Welcome, ' + name + '!');
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { name, handle } }
+  });
+  if (error) { showAuthError(error.message); return; }
+  if (data.session) {
+    showToast('🎉 Welcome, ' + name + '!');
+  } else {
+    showAuthError('✓ Check your email to confirm your account, then sign in!');
+  }
 }
 
 function showAuthError(msg) {
@@ -916,20 +925,25 @@ function showAuthError(msg) {
   err.textContent = msg;
 }
 
+function clearAuthError() {
+  const err = document.getElementById('authError');
+  if (err) err.textContent = '';
+}
+
 function loginUser(user) {
   currentUser = user;
   closeAuth();
   updateNavForUser();
-  // Pre-fill submit form with user handle
   const authorField = document.getElementById('f_author');
-  if (authorField) authorField.value = user.handle;
+  if (authorField && user.handle) authorField.value = user.handle;
 }
 
 function updateNavForUser() {
   if (currentUser) {
     document.getElementById('navLoginBtn').style.display = 'none';
-    document.getElementById('navAvatar').style.display = 'flex';
-    document.getElementById('navAvatar').textContent = currentUser.avatar;
+    const avatar = document.getElementById('navAvatar');
+    avatar.style.display = 'flex';
+    avatar.textContent = currentUser.avatar || (currentUser.name || 'U')[0].toUpperCase();
     document.getElementById('navSubmitBtn').style.display = 'flex';
     document.getElementById('dropdownName').textContent = currentUser.name;
     document.getElementById('dropdownEmail').textContent = currentUser.email;
@@ -938,6 +952,9 @@ function updateNavForUser() {
     document.getElementById('navAvatar').style.display = 'none';
     document.getElementById('navSubmitBtn').style.display = 'none';
     closeDropdown();
+    votedProjectIds = new Set();
+    projects.forEach(p => { p.voted = false; });
+    renderProjects();
   }
 }
 
@@ -949,17 +966,35 @@ function closeDropdown() {
   document.getElementById('userDropdown').classList.remove('open');
 }
 
-function signOut() {
-  currentUser = null;
-  updateNavForUser();
+async function signOut() {
+  await sb.auth.signOut();
   closeDropdown();
   showToast('👋 Signed out. See you soon!');
 }
 
 function requireAuth(callback) {
   if (currentUser) { callback(); }
-  else { openAuth(); showToast('Please sign in first to submit a project.'); }
+  else { openAuth(); showToast('Please sign in first!'); }
 }
+
+// Supabase auth state listener — handles login, logout, and page-refresh sessions
+sb.auth.onAuthStateChange(async (event, session) => {
+  if (session?.user) {
+    const user = session.user;
+    const meta = user.user_metadata || {};
+    loginUser({
+      id: user.id,
+      name: meta.name || meta.full_name || user.email.split('@')[0],
+      handle: meta.handle || ('@' + user.email.split('@')[0]),
+      email: user.email,
+      avatar: (meta.name || meta.full_name || user.email)[0].toUpperCase()
+    });
+    await loadUserVotes(user.id);
+  } else {
+    currentUser = null;
+    updateNavForUser();
+  }
+});
 
 // Close dropdown when clicking outside
 document.addEventListener('click', e => {
@@ -995,19 +1030,43 @@ function switchPage(page) {
 const THUMBS  = ['#f0fdf4','#eff6ff','#fdf4ff','#fffbeb','#fff1f2'];
 const AVATARS = ['🦊','🐙','🦁','🐬','🦅'];
 
-let projects = [
-  { id:1, name:'ExpenseTracker AI', cat:'app', desc:'Track spending with natural language. Just type "coffee 3.50" and it logs automatically. No forms, no fuss.', idea:'I kept forgetting to log expenses because every app felt like too much work. What if I could just talk to it?', buildTime:'4 hours', cost:'~$0.80 in Claude API', demo:'#', tools:['Claude','Bolt'], score:87, author:'@maria_builds', emoji:'💸', upvotes:94, voted:false, date:Date.now()-86400000, timeline:[{icon:'💡',label:'Got the idea',desc:'Frustrated with complex expense apps.'},{icon:'🤖',label:'Started with Claude',desc:'First working version in 20 minutes.'},{icon:'⚡',label:'Deployed with Bolt',desc:'Pushed to production, shared with friends.'},{icon:'✅',label:'Shipped!',desc:'4 hours total. Using it daily.'}], comments:[{author:'@devjake',text:'This is exactly what I needed!',time:'2h ago'},{author:'@sarah_v',text:'Love the NL input. So clean!',time:'5h ago'}] },
-  { id:2, name:'Pixel Dungeon RPG', cat:'game', desc:'A roguelike dungeon crawler built with ChatGPT in one weekend. Procedurally generated levels, 12 enemy types.', idea:'Always wanted to build a game but never knew how to code. Vibe coding made it possible.', buildTime:'~12 hours', cost:'~$3 in GPT-4 API', demo:'#', tools:['ChatGPT','Cursor'], score:62, author:'@gamedevtom', emoji:'🗡️', upvotes:71, voted:false, date:Date.now()-172800000, timeline:[{icon:'🎮',label:'Game concept',desc:'Wanted a simple roguelike with pixel art vibes.'},{icon:'🤖',label:'Built with ChatGPT',desc:'Generated game engine, combat system, level gen.'},{icon:'🎨',label:'Polished in Cursor',desc:'Refined UI and fixed edge cases.'},{icon:'✅',label:'Released!',desc:'Weekend project, totally playable.'}], comments:[{author:'@pixelfan',text:'Procedural generation is impressive!',time:'1d ago'}] },
-  { id:3, name:'ResumeForge', cat:'tool', desc:'Paste a job description + your experience, get a tailored resume in seconds. PDF export included.', idea:'My friend was spending 2 hours per resume. I built this to prove it could be done in 30 seconds.', buildTime:'6 hours', cost:'~$1.20 in Claude API', demo:'#', tools:['Claude','v0'], score:91, author:'@builderX', emoji:'📄', upvotes:143, voted:false, featured:true, featuredUntil:'7 days', date:Date.now()-259200000, timeline:[{icon:'😤',label:'Frustration',desc:'Watched a friend waste hours on resumes.'},{icon:'🛠️',label:'Built the core',desc:'Claude handles tailoring, v0 built the UI.'},{icon:'🖨️',label:'Added PDF export',desc:'Biggest challenge was getting PDF right.'},{icon:'✅',label:'Done in 6 hours',desc:'Friend uses it for every application.'}], comments:[{author:'@jobseeker22',text:'Used this for 5 applications. Game changer.',time:'2d ago'},{author:'@hrpro',text:'Tailoring quality is surprisingly good!',time:'3d ago'}] },
-  { id:4, name:'PlantParent', cat:'app', desc:'Photo your plant, get watering schedules and care tips. 100% browser-based, no install.', idea:'I killed three plants in a row. Built this so plant murderers like me can finally keep things alive.', buildTime:'5 hours', cost:'Free (no API needed)', demo:'#', tools:['Claude','Lovable'], score:78, author:'@greenthumbs', emoji:'🌱', upvotes:58, voted:false, date:Date.now()-345600000, timeline:[{icon:'🌵',label:'RIP cactus #3',desc:'Third dead plant was the last straw.'},{icon:'📸',label:'Image recognition',desc:'Claude Vision identifies plant species.'},{icon:'💧',label:'Care schedules',desc:'Personalized watering and sunlight schedules.'},{icon:'✅',label:'Shipped!',desc:'My plants are alive for the first time.'}], comments:[] }
-];
-
+let projects = [];
 let activeFilter = 'all', searchQuery = '', currentProject = null;
 const selectedTools = new Set();
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const scoreClass = s => !s?'':s>=75?'sp-great':s>=50?'sp-ok':'sp-bad';
 const tagClass = t => ({'Claude':'t-claude','Cursor':'t-cursor','ChatGPT':'t-gpt','Bolt':'t-bolt','v0':'t-v0','Lovable':'t-lovable'}[t]||'t-cat');
+
+function stableColor(id) {
+  let hash = 0; const str = String(id);
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) & 0xffff;
+  return THUMBS[hash % THUMBS.length];
+}
+
+function mapProject(p) {
+  return { ...p, desc: p.description, buildTime: p.build_time, voted: votedProjectIds.has(p.id), comments: [], timeline: [] };
+}
+
+async function loadProjects() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)"><div style="width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px">Loading projects...</div></div>';
+  const { data, error } = await sb.from('projects').select('*').order('upvotes', { ascending: false });
+  if (error) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><div class="empty-text">Could not load projects. Try refreshing.</div></div>`;
+    console.error(error); return;
+  }
+  projects = (data || []).map(mapProject);
+  renderProjects(); renderSidebar(); updateStats();
+  subscribeToProjectUpdates();
+}
+
+async function loadUserVotes(userId) {
+  const { data } = await sb.from('upvotes').select('project_id').eq('user_id', userId);
+  votedProjectIds = new Set((data || []).map(v => v.project_id));
+  projects.forEach(p => { p.voted = votedProjectIds.has(p.id); });
+  renderProjects();
+}
 
 function highlight(text, q) {
   if (!q) return esc(text);
@@ -1019,7 +1078,7 @@ function getFiltered() {
   return projects.filter(p => {
     const catOk = activeFilter==='all' || p.cat===activeFilter;
     if (!q) return catOk;
-    return catOk && (p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q) || p.tools.some(t=>t.toLowerCase().includes(q)) || p.author.toLowerCase().includes(q) || (p.idea||'').toLowerCase().includes(q));
+    return catOk && (p.name.toLowerCase().includes(q) || (p.desc||'').toLowerCase().includes(q) || (p.tools||[]).some(t=>t.toLowerCase().includes(q)) || (p.author||'').toLowerCase().includes(q) || (p.idea||'').toLowerCase().includes(q));
   });
 }
 
@@ -1030,7 +1089,6 @@ function renderProjects() {
   if (q) { bar.classList.add('visible'); document.getElementById('searchResultsLabel').innerHTML = `${list.length} result${list.length!==1?'s':''} for <strong>"${esc(q)}"</strong>`; }
   else bar.classList.remove('visible');
 
-  // Featured always first
   list = [...list.filter(p=>p.featured), ...list.filter(p=>!p.featured)];
 
   if (!list.length) {
@@ -1041,8 +1099,8 @@ function renderProjects() {
   }
 
   document.getElementById('grid').innerHTML = list.map((p,i) => `
-    <div class="card${p.featured?' featured':''}" style="animation-delay:${i*.07}s" onclick="openDrawer(${p.id})">
-      <div class="card-thumb" style="background:${THUMBS[p.id%THUMBS.length]};position:relative">
+    <div class="card${p.featured?' featured':''}" style="animation-delay:${i*.07}s" onclick="openDrawer('${p.id}')">
+      <div class="card-thumb" style="background:${stableColor(p.id)};position:relative">
         ${p.featured ? `<div style="position:absolute;top:10px;left:10px"><span class="featured-badge">✦ Featured</span></div>` : ''}
         ${p.emoji}
       </div>
@@ -1051,16 +1109,16 @@ function renderProjects() {
           <div class="card-title">${highlight(p.name,q)}</div>
           ${p.score?`<div class="score-pill ${scoreClass(p.score)}">✦ ${p.score}</div>`:''}
         </div>
-        <div class="card-desc">${highlight(p.desc,q)}</div>
+        <div class="card-desc">${highlight(p.desc||'',q)}</div>
         <div class="card-tags">
-          ${p.tools.map(t=>`<span class="tag ${tagClass(t)}">${highlight(t,q)}</span>`).join('')}
+          ${(p.tools||[]).map(t=>`<span class="tag ${tagClass(t)}">${highlight(t,q)}</span>`).join('')}
           <span class="tag t-cat">${p.cat}</span>
         </div>
         <div class="card-footer">
           <div class="card-author">by <strong>${highlight(p.author,q)}</strong></div>
-          <button class="view-btn" onclick="event.stopPropagation();openDrawer(${p.id})">View →</button>
-          <button class="view-btn" onclick="event.stopPropagation();shareProject(${p.id},this)" title="Share" style="padding:5px 9px">⤴</button>
-          <button class="upvote-btn${p.voted?' voted':''}" id="ub-${p.id}" onclick="event.stopPropagation();upvote(${p.id})">↑ <span id="uv-${p.id}">${p.upvotes}</span></button>
+          <button class="view-btn" onclick="event.stopPropagation();openDrawer('${p.id}')">View →</button>
+          <button class="view-btn" onclick="event.stopPropagation();shareProject('${p.id}',this)" title="Share" style="padding:5px 9px">⤴</button>
+          <button class="upvote-btn${p.voted?' voted':''}" id="ub-${p.id}" onclick="event.stopPropagation();upvote('${p.id}')">↑ <span id="uv-${p.id}">${p.upvotes}</span></button>
         </div>
       </div>
     </div>`).join('');
@@ -1070,70 +1128,96 @@ function renderProjects() {
 function updateStats() {
   document.getElementById('sProjects').textContent = projects.length;
   document.getElementById('sBuilders').textContent = new Set(projects.map(p=>p.author)).size;
-  document.getElementById('sUpvotes').textContent = projects.reduce((s,p)=>s+p.upvotes,0);
+  document.getElementById('sUpvotes').textContent = projects.reduce((s,p)=>s+(p.upvotes||0),0);
 }
 
 function renderSidebar() {
   const tc={};
-  projects.forEach(p=>p.tools.forEach(t=>tc[t]=(tc[t]||0)+1));
+  projects.forEach(p=>(p.tools||[]).forEach(t=>tc[t]=(tc[t]||0)+1));
   const sorted=Object.entries(tc).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const mx=sorted[0]?.[1]||1;
   const toolsHTML=sorted.map(([t,c],i)=>`<div class="tool-row"><span class="tool-num">${i+1}</span><span class="tool-name">${t}</span><div class="tool-bar"><div class="tool-bar-fill" style="width:${(c/mx)*100}%"></div></div><span class="tool-cnt">${c}</span></div>`).join('');
   document.getElementById('trendingTools').innerHTML=toolsHTML;
   if(document.getElementById('trendingToolsMobile')) document.getElementById('trendingToolsMobile').innerHTML=toolsHTML;
   const bs={};
-  projects.forEach(p=>{if(!bs[p.author])bs[p.author]={u:0,n:0};bs[p.author].u+=p.upvotes;bs[p.author].n++;});
+  projects.forEach(p=>{if(!bs[p.author])bs[p.author]={u:0,n:0};bs[p.author].u+=(p.upvotes||0);bs[p.author].n++;});
   const buildersHTML=Object.entries(bs).sort((a,b)=>b[1].u-a[1].u).slice(0,4).map(([name,d],i)=>`<div class="builder-row"><div class="b-av">${AVATARS[i]}</div><span class="b-name">${name}</span><span class="b-cnt">${d.n}p · ${d.u}↑</span></div>`).join('');
   document.getElementById('topBuilders').innerHTML=buildersHTML;
   if(document.getElementById('topBuildersMobile')) document.getElementById('topBuildersMobile').innerHTML=buildersHTML;
 }
 
 function openDrawer(id) {
-  const p=projects.find(x=>x.id===id); currentProject=p;
-  document.body.style.overflow='hidden';
+  const p = projects.find(x => x.id === id); if (!p) return;
+  currentProject = p;
+  document.body.style.overflow = 'hidden';
   document.getElementById('drawerHeader').innerHTML=`
-    <div class="drawer-thumb" style="background:${THUMBS[p.id%THUMBS.length]}">${p.emoji}</div>
+    <div class="drawer-thumb" style="background:${stableColor(p.id)}">${p.emoji}</div>
     <div class="drawer-title-row"><div class="drawer-title">${esc(p.name)}</div>${p.score?`<div class="score-pill ${scoreClass(p.score)}">✦ ${p.score}</div>`:''}</div>
-    <div class="drawer-tags">${p.tools.map(t=>`<span class="tag ${tagClass(t)}">${t}</span>`).join('')}<span class="tag t-cat">${p.cat}</span></div>`;
+    <div class="drawer-tags">${(p.tools||[]).map(t=>`<span class="tag ${tagClass(t)}">${t}</span>`).join('')}<span class="tag t-cat">${p.cat}</span></div>`;
   document.getElementById('drawerBody').innerHTML=`
-    <p class="drawer-desc">${esc(p.desc)}</p>
+    <p class="drawer-desc">${esc(p.desc||'')}</p>
     <div class="info-grid">
-      <div class="info-card"><div class="info-label">⏱ Build time</div><div class="info-value">${esc(p.buildTime||'—')}</div></div>
+      <div class="info-card"><div class="info-label">⏱ Build time</div><div class="info-value">${esc(p.buildTime||p.build_time||'—')}</div></div>
       <div class="info-card"><div class="info-label">💸 Approx. cost</div><div class="info-value mono">${esc(p.cost||'—')}</div></div>
-      <div class="info-card"><div class="info-label">🛠 Built with</div><div class="info-value">${p.tools.join(', ')}</div></div>
+      <div class="info-card"><div class="info-label">🛠 Built with</div><div class="info-value">${(p.tools||[]).join(', ')}</div></div>
       <div class="info-card"><div class="info-label">👤 Builder</div><div class="info-value mono">${esc(p.author)}</div></div>
     </div>
     ${p.idea?`<div class="section-title">💡 The Idea</div><div class="idea-box">"${esc(p.idea)}"</div>`:''}
-    ${p.timeline?.length?`<div class="section-title">🗓 How it was built</div><div class="timeline">${p.timeline.map(t=>`<div class="timeline-item"><div class="timeline-dot">${t.icon}</div><div><div class="timeline-label">${esc(t.label)}</div><div class="timeline-desc">${esc(t.desc)}</div></div></div>`).join('')}</div>`:''}
-    <div class="section-title" style="margin-top:24px">💬 Comments (${p.comments.length})</div>
-    <div class="comment-list" id="drawerComments">${renderComments(p)}</div>`;
+    <div class="section-title" style="margin-top:24px">💬 Comments <span id="commentCount">(loading...)</span></div>
+    <div class="comment-list" id="drawerComments"><div style="color:var(--muted);font-size:13px;padding:8px 0">Loading comments...</div></div>`;
   document.getElementById('drawerActions').innerHTML=`
-    <a href="${p.demo}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;text-decoration:none">↗ View Demo</a>
-    <button class="upvote-btn${p.voted?' voted':''}" id="dub-${p.id}" onclick="upvote(${p.id})" style="padding:7px 16px;font-size:13px">↑ <span id="duv-${p.id}">${p.upvotes}</span> upvotes</button>
-    <button onclick="shareProject(${p.id},this)" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0">⤴ Share</button>
-    <button onclick="openBoost(${p.id})" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid rgba(234,179,8,0.4);background:#fefce8;color:#854d0e;cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#fef9c3'" onmouseout="this.style.background='#fefce8'">🚀 Boost</button>`;
-  document.getElementById('commentInput').value='';
+    <a href="${p.demo||'#'}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;text-decoration:none">↗ View Demo</a>
+    <button class="upvote-btn${p.voted?' voted':''}" id="dub-${p.id}" onclick="upvote('${p.id}')" style="padding:7px 16px;font-size:13px">↑ <span id="duv-${p.id}">${p.upvotes}</span> upvotes</button>
+    <button onclick="shareProject('${p.id}',this)" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0">⤴ Share</button>
+    <button onclick="openBoost('${p.id}')" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid rgba(234,179,8,0.4);background:#fefce8;color:#854d0e;cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#fef9c3'" onmouseout="this.style.background='#fefce8'">🚀 Boost</button>`;
+  document.getElementById('commentInput').value = '';
   document.getElementById('drawerOverlay').classList.add('open');
   document.getElementById('drawer').classList.add('open');
+  loadComments(id);
+}
+
+async function loadComments(projectId) {
+  const { data } = await sb.from('comments').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
+  const comments = (data || []).map(c => ({ author: c.author, text: c.body, time: new Date(c.created_at).toLocaleDateString() }));
+  const p = projects.find(x => x.id === projectId);
+  if (p) p.comments = comments;
+  const countEl = document.getElementById('commentCount');
+  if (countEl) countEl.textContent = `(${comments.length})`;
+  const commentsEl = document.getElementById('drawerComments');
+  if (commentsEl && currentProject && currentProject.id === projectId) {
+    commentsEl.innerHTML = renderComments({ comments });
+  }
 }
 
 function renderComments(p) {
-  if (!p.comments.length) return '<div style="color:var(--muted);font-size:13px;padding:8px 0">No comments yet — be the first!</div>';
-  return p.comments.map(c=>`<div class="comment-item"><div class="c-avatar">${c.author.slice(1,3).toUpperCase()}</div><div><div class="c-meta"><strong>${esc(c.author)}</strong> · ${c.time}</div><div class="c-text">${esc(c.text)}</div></div></div>`).join('');
+  if (!p.comments || !p.comments.length) return '<div style="color:var(--muted);font-size:13px;padding:8px 0">No comments yet — be the first!</div>';
+  return p.comments.map(c=>`<div class="comment-item"><div class="c-avatar">${(c.author||'@?').slice(1,3).toUpperCase()}</div><div><div class="c-meta"><strong>${esc(c.author)}</strong> · ${c.time}</div><div class="c-text">${esc(c.text)}</div></div></div>`).join('');
 }
 
-function postComment() {
-  const input=document.getElementById('commentInput');
-  const text=input.value.trim(); if(!text||!currentProject) return;
-  currentProject.comments.unshift({author:'@you',text,time:'just now'});
-  document.getElementById('drawerComments').innerHTML=renderComments(currentProject);
-  input.value=''; renderProjects();
+async function postComment() {
+  const input = document.getElementById('commentInput');
+  const text = input.value.trim(); if (!text || !currentProject) return;
+  if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
+  const { data, error } = await sb.from('comments').insert([{
+    project_id: currentProject.id, author: currentUser.handle, body: text
+  }]).select().single();
+  if (error) { showToast('Error posting comment. Please try again.'); return; }
+  if (!currentProject.comments) currentProject.comments = [];
+  currentProject.comments.unshift({ author: currentUser.handle, text, time: 'just now' });
+  document.getElementById('drawerComments').innerHTML = renderComments(currentProject);
+  const countEl = document.getElementById('commentCount');
+  if (countEl) countEl.textContent = `(${currentProject.comments.length})`;
+  input.value = '';
 }
 
 function closeDrawer() { document.getElementById('drawerOverlay').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); document.body.style.overflow=''; currentProject=null; }
 
-function upvote(id) {
-  const p=projects.find(x=>x.id===id); p.voted=!p.voted; p.upvotes+=p.voted?1:-1;
+async function upvote(id) {
+  if (!currentUser) { openAuth(); showToast('Please sign in to upvote!'); return; }
+  const p = projects.find(x => x.id === id); if (!p) return;
+  p.voted = !p.voted;
+  p.upvotes += p.voted ? 1 : -1;
+  if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
   ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+id); if(el) el.textContent=p.upvotes;});
   ['ub-','dub-'].forEach(pre=>{
     const btn=document.getElementById(pre+id); if(!btn) return;
@@ -1150,6 +1234,34 @@ function upvote(id) {
     }
   }
   updateStats();
+  try {
+    if (p.voted) {
+      await sb.from('upvotes').insert([{ project_id: id, user_id: currentUser.id }]);
+    } else {
+      await sb.from('upvotes').delete().eq('project_id', id).eq('user_id', currentUser.id);
+    }
+    await sb.from('projects').update({ upvotes: p.upvotes }).eq('id', id);
+  } catch (err) {
+    console.error('Upvote error:', err);
+    p.voted = !p.voted; p.upvotes += p.voted ? 1 : -1;
+    ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+id); if(el) el.textContent=p.upvotes;});
+  }
+}
+
+/* ════════════════════════════════
+   REALTIME
+════════════════════════════════ */
+function subscribeToProjectUpdates() {
+  sb.channel('projects-live')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects' }, payload => {
+      const p = projects.find(x => x.id === payload.new.id);
+      if (p) {
+        p.upvotes = payload.new.upvotes;
+        ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+p.id); if(el) el.textContent=p.upvotes;});
+        updateStats();
+      }
+    })
+    .subscribe();
 }
 
 function spawnConfetti(anchor) {
@@ -1166,7 +1278,7 @@ function spawnConfetti(anchor) {
 }
 
 function filterCat(btn,cat) { document.querySelectorAll('.chip').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); activeFilter=cat; renderProjects(); }
-function sortBy(v) { if(v==='hot')projects.sort((a,b)=>b.upvotes-a.upvotes); else if(v==='new')projects.sort((a,b)=>b.date-a.date); else if(v==='score')projects.sort((a,b)=>(b.score||0)-(a.score||0)); renderProjects(); }
+function sortBy(v) { if(v==='hot')projects.sort((a,b)=>b.upvotes-a.upvotes); else if(v==='new')projects.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)); else if(v==='score')projects.sort((a,b)=>(b.score||0)-(a.score||0)); renderProjects(); }
 function onSearch(val) { searchQuery=val; document.getElementById('searchClear').classList.toggle('visible',val.length>0); document.getElementById('searchKbd').style.display=val.length>0?'none':''; renderProjects(); }
 function clearSearch() { searchQuery=''; document.getElementById('mainSearch').value=''; document.getElementById('searchClear').classList.remove('visible'); document.getElementById('searchKbd').style.display=''; renderProjects(); }
 
@@ -1271,14 +1383,35 @@ function showToast(msg) {
 }
 function outsideClose(e,id) { if(e.target.id===id) document.getElementById(id).classList.remove('open'); }
 function toggleTool(btn,name) { btn.classList.toggle('on'); btn.classList.contains('on')?selectedTools.add(name):selectedTools.delete(name); }
-function submitProject() {
-  const name=document.getElementById('f_name').value.trim(), desc=document.getElementById('f_desc').value.trim();
-  if(!name||!desc){alert('Please fill in name and description!');return;}
-  projects.unshift({id:Date.now(),name,desc,idea:document.getElementById('f_idea').value.trim(),buildTime:document.getElementById('f_time').value.trim()||'—',cost:document.getElementById('f_cost').value.trim()||'—',demo:document.getElementById('f_demo').value.trim()||'#',tools:[...selectedTools],score:parseInt(document.getElementById('f_score').value)||null,author:document.getElementById('f_author').value.trim()||'@anon',emoji:document.getElementById('f_emoji').value.trim()||'🚀',cat:document.getElementById('f_cat').value,upvotes:1,voted:true,date:Date.now(),comments:[],timeline:[]});
+async function submitProject() {
+  const name = document.getElementById('f_name').value.trim();
+  const desc = document.getElementById('f_desc').value.trim();
+  if (!name || !desc) { alert('Please fill in name and description!'); return; }
+  if (!currentUser) { closeSubmit(); openAuth(); return; }
+  const submitBtn = document.querySelector('#submitModal .btn-primary');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
+  const newProject = {
+    name, description: desc,
+    idea: document.getElementById('f_idea').value.trim() || null,
+    build_time: document.getElementById('f_time').value.trim() || null,
+    cost: document.getElementById('f_cost').value.trim() || null,
+    demo: document.getElementById('f_demo').value.trim() || '#',
+    tools: [...selectedTools],
+    score: parseInt(document.getElementById('f_score').value) || null,
+    author: document.getElementById('f_author').value.trim() || currentUser.handle || '@anon',
+    emoji: document.getElementById('f_emoji').value.trim() || '🚀',
+    cat: document.getElementById('f_cat').value,
+    upvotes: 1
+  };
+  const { data, error } = await sb.from('projects').insert([newProject]).select().single();
+  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit project →'; }
+  if (error) { alert('Error submitting: ' + error.message); return; }
+  projects.unshift(mapProject(data));
   closeSubmit();
-  ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_score','f_author','f_emoji'].forEach(id=>document.getElementById(id).value='');
+  ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_score','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   selectedTools.clear(); document.querySelectorAll('.tool-toggle').forEach(b=>b.classList.remove('on'));
   renderProjects(); renderSidebar();
+  showToast('🎉 Project submitted! Welcome to the community.');
 }
 
 /* ════════════════════════════════
@@ -1696,11 +1829,11 @@ function renderMobileSearchResults(q) {
     return;
   }
   container.innerHTML = results.map(p => `
-    <div onclick="closeMobileSearch();switchPage('projects');setTimeout(()=>openDrawer(${p.id}),80)" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer">
-      <div style="width:40px;height:40px;border-radius:10px;background:${THUMBS[p.id%THUMBS.length]};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${p.emoji}</div>
+    <div onclick="closeMobileSearch();switchPage('projects');setTimeout(()=>openDrawer('${p.id}'),80)" style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer">
+      <div style="width:40px;height:40px;border-radius:10px;background:${stableColor(p.id)};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${p.emoji}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.name)}</div>
-        <div style="font-size:12px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.tools.join(', ')} · ${esc(p.author)}</div>
+        <div style="font-size:12px;color:var(--muted2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(p.tools||[]).join(', ')} · ${esc(p.author)}</div>
       </div>
       ${p.score ? `<div class="score-pill ${scoreClass(p.score)}" style="flex-shrink:0">✦ ${p.score}</div>` : ''}
     </div>`).join('');
@@ -1724,9 +1857,7 @@ document.addEventListener('keydown', e => {
    INIT
 ════════════════════════════════ */
 initTheme();
-renderProjects();
-renderSidebar();
-checkDeepLink();
+loadProjects().then(() => checkDeepLink());
 </script>
 <!-- Mobile search overlay -->
 <div class="mobile-search-overlay" id="mobileSearchOverlay">
