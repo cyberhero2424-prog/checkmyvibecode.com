@@ -37,7 +37,6 @@ externalPort = 80
 [userenv]
 
 [userenv.shared]
-SUPABASE_URL = "https://cltqungsctxkzonqigcf.supabase.co"
 
 [deployment]
 deploymentTarget = "cloudrun"
