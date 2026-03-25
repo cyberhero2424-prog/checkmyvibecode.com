@@ -678,6 +678,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
         <button class="chip" onclick="filterCat(this,'game')">Games</button>
         <button class="chip" onclick="filterCat(this,'tool')">Tools</button>
         <button class="chip" onclick="filterCat(this,'website')">Websites</button>
+        <button class="chip" id="savedChip" onclick="activateSaved()" style="display:none">🔖 Saved</button>
         <select class="sort-select" onchange="sortBy(this.value)">
           <option value="hot">🔥 Hot</option>
           <option value="new">✨ New</option>
@@ -1097,6 +1098,7 @@ function loginUser(user) {
 }
 
 function updateNavForUser() {
+  const savedChip = document.getElementById('savedChip');
   if (currentUser) {
     document.getElementById('navLoginBtn').style.display = 'none';
     const avatar = document.getElementById('navAvatar');
@@ -1105,7 +1107,9 @@ function updateNavForUser() {
     document.getElementById('navSubmitBtn').style.display = 'flex';
     document.getElementById('dropdownName').textContent = currentUser.name;
     document.getElementById('dropdownEmail').textContent = currentUser.email;
+    if (savedChip) savedChip.style.display = '';
   } else {
+    if (savedChip) savedChip.style.display = 'none';
     document.getElementById('navLoginBtn').style.display = 'flex';
     document.getElementById('navAvatar').style.display = 'none';
     document.getElementById('navSubmitBtn').style.display = 'none';
@@ -1568,7 +1572,7 @@ async function openProfile(handle) {
   document.getElementById('profileHeader').innerHTML = `
     <div class="profile-avatar">${avatarEmoji}</div>
     <div class="profile-handle">${esc(h)}</div>
-    <div class="profile-stats">${buildCount} ${buildCount === 1 ? 'build' : 'builds'} · ${totalUpvotes} upvotes</div>
+    <div class="profile-stats">${buildCount} ${buildCount === 1 ? 'build' : 'builds'} · ${totalUpvotes} upvotes${currentUser && currentUser.handle === h ? ` · ${bookmarkedIds.size} saved` : ''}</div>
     ${memberSince ? `<div class="profile-since">Member since ${memberSince}</div>` : ''}`;
 
   if (!userProjects.length) {
