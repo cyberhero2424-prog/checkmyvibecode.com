@@ -1253,7 +1253,7 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 const _preloaderStart = Date.now();
-const _preloaderMinMs = 2500;
+const _preloaderMinMs = 1500;
 function hidePreloader() {
   const el = document.getElementById('preloader');
   if (!el || el.classList.contains('hidden')) return;
