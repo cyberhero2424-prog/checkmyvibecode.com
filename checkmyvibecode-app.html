@@ -282,6 +282,11 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .comment-post { padding:8px 14px; border-radius:var(--r-sm); background:var(--text); color:var(--bg); border:none; font-family:var(--sans); font-size:13px; font-weight:500; cursor:pointer; transition:opacity .15s; flex-shrink:0; }
 .comment-post:hover { opacity:.82; }
 .drawer-actions { display:flex; gap:8px; padding:16px 24px 20px; border-top:1px solid var(--border); background:var(--surface); }
+.bm-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 9px; border-radius:var(--r-sm); font-size:12px; border:1px solid var(--border2); background:var(--surface); color:var(--muted); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); font-weight:500; box-shadow:var(--sh); }
+.bm-btn:hover { border-color:rgba(124,58,237,.35); color:var(--purple); background:var(--purple-bg); }
+.bm-btn.bm-active { background:var(--purple-bg); border-color:rgba(124,58,237,.35); color:var(--purple); box-shadow:none; }
+.saved-bar { display:none; align-items:center; gap:10px; padding:9px 14px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--r); margin-bottom:14px; box-shadow:var(--sh); }
+.saved-bar.visible { display:flex; }
 
 /* Profile panel */
 .profile-avatar { width:68px; height:68px; border-radius:50%; background:var(--surface2); border:2px solid var(--border2); display:flex; align-items:center; justify-content:center; font-size:30px; margin:24px auto 12px; }
@@ -639,6 +644,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
       </div>
       <button class="dropdown-item" onclick="openSubmit();closeDropdown()">＋ Submit project</button>
       <button class="dropdown-item" id="myBuildsDropBtn" onclick="activateMyBuilds();closeDropdown()">◈ My builds (<span id="myBuildsCount">0</span>)</button>
+      <button class="dropdown-item" id="savedDropBtn" onclick="activateSaved();closeDropdown()">🔖 Saved (<span id="savedCount">0</span>)</button>
       <button class="dropdown-item" id="myProfileDropBtn" onclick="if(currentUser)openProfile(currentUser.handle);closeDropdown()">👤 My profile</button>
       <button class="dropdown-item" onclick="switchPage('checker');closeDropdown()">⚡ Code Checker</button>
       <button class="dropdown-item danger" onclick="signOut()">→ Sign out</button>
@@ -681,6 +687,10 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
       <div class="my-builds-bar" id="myBuildsBar">
         <span class="my-builds-title">My builds <span class="my-builds-handle" id="myBuildsHandleLabel"></span></span>
         <button class="btn btn-ghost" onclick="deactivateMyBuilds()" style="padding:4px 10px;font-size:12px">← All projects</button>
+      </div>
+      <div class="saved-bar" id="savedBar">
+        <span class="my-builds-title">🔖 Saved projects</span>
+        <button class="btn btn-ghost" onclick="deactivateSaved()" style="padding:4px 10px;font-size:12px">← All projects</button>
       </div>
       <div class="search-results-bar" id="searchResultsBar">
         <span id="searchResultsLabel"></span>
@@ -972,6 +982,7 @@ let _realtimeChannel = null;
 ════════════════════════════════ */
 let currentUser = null;
 let votedProjectIds = new Set();
+let bookmarkedIds = new Set();
 
 function openAuth() {
   document.getElementById('authOverlay').classList.add('open');
@@ -1100,8 +1111,11 @@ function updateNavForUser() {
     document.getElementById('navSubmitBtn').style.display = 'none';
     closeDropdown();
     deactivateMyBuilds();
+    deactivateSaved();
     votedProjectIds = new Set();
-    projects.forEach(p => { p.voted = false; });
+    bookmarkedIds = new Set();
+    projects.forEach(p => { p.voted = false; p.bookmarked = false; });
+    updateSavedCount();
     renderProjects();
   }
 }
@@ -1157,6 +1171,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
     else if (event === 'SIGNED_UP') showToast('🎉 Welcome, ' + name + '! Account created.');
 
     await loadUserVotes(user.id);
+    await loadUserBookmarks(user.id);
   } else {
     currentUser = null;
     updateNavForUser();
@@ -1198,7 +1213,7 @@ const THUMBS  = ['#f0fdf4','#eff6ff','#fdf4ff','#fffbeb','#fff1f2'];
 const AVATARS = ['🦊','🐙','🦁','🐬','🦅'];
 
 let projects = [];
-let activeFilter = 'all', searchQuery = '', currentProject = null, myBuildsMode = false, currentProfile = null;
+let activeFilter = 'all', searchQuery = '', currentProject = null, myBuildsMode = false, savedMode = false, currentProfile = null;
 const selectedTools = new Set();
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1213,7 +1228,7 @@ function stableColor(id) {
 }
 
 function mapProject(p) {
-  return { ...p, desc: p.description, buildTime: p.build_time, voted: votedProjectIds.has(p.id), comments: [], timeline: [] };
+  return { ...p, desc: p.description, buildTime: p.build_time, voted: votedProjectIds.has(p.id), bookmarked: bookmarkedIds.has(p.id), comments: [], timeline: [] };
 }
 
 async function loadProjects() {
@@ -1237,6 +1252,56 @@ async function loadUserVotes(userId) {
   renderProjects();
 }
 
+async function loadUserBookmarks(userId) {
+  const { data, error } = await sb.from('bookmarks').select('project_id').eq('user_id', userId);
+  if (error) { console.warn('loadUserBookmarks error:', error.message); return; }
+  bookmarkedIds = new Set((data || []).map(b => b.project_id));
+  projects.forEach(p => { p.bookmarked = bookmarkedIds.has(p.id); });
+  updateSavedCount();
+  renderProjects();
+}
+
+async function toggleBookmark(id) {
+  if (!currentUser) { openAuth(); showToast('Please sign in to save projects!'); return; }
+  const p = projects.find(x => x.id === id); if (!p) return;
+  const wasBookmarked = p.bookmarked;
+  p.bookmarked = !p.bookmarked;
+  if (p.bookmarked) bookmarkedIds.add(id); else bookmarkedIds.delete(id);
+  updateBookmarkUI(id, p.bookmarked);
+  updateSavedCount();
+  if (savedMode && !p.bookmarked) renderProjects();
+
+  let dbError;
+  if (p.bookmarked) {
+    const { error } = await sb.from('bookmarks').insert([{ project_id: id, user_id: currentUser.id }]);
+    dbError = error;
+  } else {
+    const { error } = await sb.from('bookmarks').delete().eq('project_id', id).eq('user_id', currentUser.id);
+    dbError = error;
+  }
+
+  if (dbError) {
+    p.bookmarked = wasBookmarked;
+    if (p.bookmarked) bookmarkedIds.add(id); else bookmarkedIds.delete(id);
+    updateBookmarkUI(id, p.bookmarked);
+    updateSavedCount();
+    console.warn('Bookmark error:', dbError.message);
+    showToast('⚠ Could not save bookmark. Is the bookmarks table set up?');
+    return;
+  }
+  showToast(p.bookmarked ? '🔖 Saved to bookmarks!' : '✓ Removed from bookmarks');
+}
+
+function updateBookmarkUI(id, bookmarked) {
+  ['bm-', 'dbm-'].forEach(pre => {
+    const btn = document.getElementById(pre + id);
+    if (!btn) return;
+    btn.classList.toggle('bm-active', bookmarked);
+    btn.title = bookmarked ? 'Remove bookmark' : 'Save';
+    if (pre === 'dbm-') btn.textContent = bookmarked ? '🔖 Saved' : '🔖 Save';
+  });
+}
+
 function highlight(text, q) {
   if (!q) return esc(text);
   return esc(text).replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi'), '<mark class="hl">$1</mark>');
@@ -1247,8 +1312,9 @@ function getFiltered() {
   return projects.filter(p => {
     const catOk = activeFilter==='all' || p.cat===activeFilter;
     const mineOk = !myBuildsMode || (currentUser && p.author === currentUser.handle);
-    if (!q) return catOk && mineOk;
-    return catOk && mineOk && (p.name.toLowerCase().includes(q) || (p.desc||'').toLowerCase().includes(q) || (p.tools||[]).some(t=>t.toLowerCase().includes(q)) || (p.author||'').toLowerCase().includes(q) || (p.idea||'').toLowerCase().includes(q));
+    const savedOk = !savedMode || p.bookmarked;
+    if (!q) return catOk && mineOk && savedOk;
+    return catOk && mineOk && savedOk && (p.name.toLowerCase().includes(q) || (p.desc||'').toLowerCase().includes(q) || (p.tools||[]).some(t=>t.toLowerCase().includes(q)) || (p.author||'').toLowerCase().includes(q) || (p.idea||'').toLowerCase().includes(q));
   });
 }
 
@@ -1264,6 +1330,8 @@ function renderProjects() {
   if (!list.length) {
     document.getElementById('grid').innerHTML = q
       ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔍</div><div class="empty-text">No projects found for "<strong>${esc(q)}</strong>"</div><button class="btn btn-ghost" onclick="clearSearch()">Clear search</button></div>`
+      : savedMode
+      ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔖</div><div class="empty-text">No saved projects yet. Bookmark projects you like!</div><button class="btn btn-ghost" style="margin-top:10px" onclick="deactivateSaved()">← Browse all projects</button></div>`
       : myBuildsMode
       ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚀</div><div class="empty-text">You haven't submitted a project yet.</div><button class="btn btn-primary" style="margin-top:10px" onclick="openSubmit()">Submit your first project →</button></div>`
       : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🌱</div><div class="empty-text">No projects yet.</div><button class="btn btn-primary" onclick="openSubmit()">Be the first →</button></div>`;
@@ -1290,6 +1358,7 @@ function renderProjects() {
           <div class="card-author">by <button class="author-link" data-author="${escAttr(p.author)}"><strong>${highlight(p.author,q)}</strong></button></div>
           <button class="view-btn" onclick="event.stopPropagation();openDrawer('${p.id}')">View →</button>
           <button class="view-btn card-share-btn" onclick="event.stopPropagation();shareProject('${p.id}',this)" title="Share" style="padding:5px 9px">⤴</button>
+          <button class="bm-btn${p.bookmarked?' bm-active':''}" id="bm-${p.id}" onclick="event.stopPropagation();toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}">🔖</button>
           <button class="upvote-btn${p.voted?' voted':''}" id="ub-${p.id}" onclick="event.stopPropagation();upvote('${p.id}')">↑ <span id="uv-${p.id}">${p.upvotes}</span></button>
         </div>
       </div>
@@ -1310,9 +1379,18 @@ function updateMyBuildsCount() {
   el.textContent = projects.filter(p => p.author === currentUser.handle).length;
 }
 
+function updateSavedCount() {
+  const el = document.getElementById('savedCount');
+  if (!el) return;
+  el.textContent = bookmarkedIds.size;
+}
+
 function activateMyBuilds() {
   if (!currentUser) return;
   myBuildsMode = true;
+  savedMode = false;
+  const savedBar = document.getElementById('savedBar');
+  if (savedBar) savedBar.classList.remove('visible');
   switchPage('projects');
   const bar = document.getElementById('myBuildsBar');
   if (bar) bar.classList.add('visible');
@@ -1324,6 +1402,25 @@ function activateMyBuilds() {
 function deactivateMyBuilds() {
   myBuildsMode = false;
   const bar = document.getElementById('myBuildsBar');
+  if (bar) bar.classList.remove('visible');
+  renderProjects();
+}
+
+function activateSaved() {
+  if (!currentUser) { requireAuth(() => {}); return; }
+  savedMode = true;
+  myBuildsMode = false;
+  const myBar = document.getElementById('myBuildsBar');
+  if (myBar) myBar.classList.remove('visible');
+  switchPage('projects');
+  const bar = document.getElementById('savedBar');
+  if (bar) bar.classList.add('visible');
+  renderProjects();
+}
+
+function deactivateSaved() {
+  savedMode = false;
+  const bar = document.getElementById('savedBar');
   if (bar) bar.classList.remove('visible');
   renderProjects();
 }
@@ -1365,6 +1462,7 @@ function openDrawer(id) {
   document.getElementById('drawerActions').innerHTML=`
     <a href="${p.demo||'#'}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;text-decoration:none">↗ View Demo</a>
     <button class="upvote-btn${p.voted?' voted':''}" id="dub-${p.id}" onclick="upvote('${p.id}')" style="padding:7px 16px;font-size:13px">↑ <span id="duv-${p.id}">${p.upvotes}</span> upvotes</button>
+    <button class="bm-btn${p.bookmarked?' bm-active':''}" id="dbm-${p.id}" onclick="toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}" style="padding:7px 13px;font-size:12px;flex-shrink:0">${p.bookmarked?'🔖 Saved':'🔖 Save'}</button>
     <button onclick="shareProject('${p.id}',this)" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0">⤴ Share</button>
     <button onclick="openBoost('${p.id}')" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid rgba(234,179,8,0.4);background:#fefce8;color:#854d0e;cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#fef9c3'" onmouseout="this.style.background='#fefce8'">🚀 Boost</button>`;
   document.getElementById('commentInput').value = '';
