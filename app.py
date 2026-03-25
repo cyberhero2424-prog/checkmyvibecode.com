@@ -16,10 +16,12 @@ app = Flask(__name__)
 SUPABASE_URL      = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
 
+BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
+
 def serve_app():
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
-    base_url = request.host_url.rstrip('/')
+    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
     html = html.replace('__BASE_URL__', base_url)
     config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
     config_script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
