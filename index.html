@@ -166,6 +166,10 @@ nav {
 .sort-select { margin-left:auto; padding:5px 10px; border-radius:var(--r-sm); font-family:var(--sans); font-size:12px; background:var(--surface); border:1px solid var(--border2); color:var(--muted2); cursor:pointer; outline:none; box-shadow:var(--sh); }
 .search-results-bar { display:none; align-items:center; gap:8px; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r); margin-bottom:14px; font-size:13px; color:var(--muted2); box-shadow:var(--sh); }
 .search-results-bar.visible { display:flex; }
+.my-builds-bar { display:none; align-items:center; gap:10px; padding:9px 14px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--r); margin-bottom:14px; box-shadow:var(--sh); }
+.my-builds-bar.visible { display:flex; }
+.my-builds-title { font-size:13px; font-weight:600; color:var(--text); flex:1; }
+.my-builds-handle { color:var(--muted2); font-weight:400; }
 .search-results-clear { margin-left:auto; font-size:12px; color:var(--muted2); background:var(--surface2); border:1px solid var(--border2); border-radius:6px; padding:3px 9px; cursor:pointer; font-family:var(--sans); transition:all .15s; }
 .search-results-clear:hover { color:var(--text); }
 mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1px; }
@@ -601,6 +605,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
         <div class="dropdown-email" id="dropdownEmail">—</div>
       </div>
       <button class="dropdown-item" onclick="openSubmit();closeDropdown()">＋ Submit project</button>
+      <button class="dropdown-item" id="myBuildsDropBtn" onclick="activateMyBuilds();closeDropdown()">◈ My builds (<span id="myBuildsCount">0</span>)</button>
       <button class="dropdown-item" onclick="switchPage('checker');closeDropdown()">⚡ Code Checker</button>
       <button class="dropdown-item danger" onclick="signOut()">→ Sign out</button>
     </div>
@@ -638,6 +643,10 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
           <option value="new">✨ New</option>
           <option value="score">⭐ Top Score</option>
         </select>
+      </div>
+      <div class="my-builds-bar" id="myBuildsBar">
+        <span class="my-builds-title">My builds <span class="my-builds-handle" id="myBuildsHandleLabel"></span></span>
+        <button class="btn btn-ghost" onclick="deactivateMyBuilds()" style="padding:4px 10px;font-size:12px">← All projects</button>
       </div>
       <div class="search-results-bar" id="searchResultsBar">
         <span id="searchResultsLabel"></span>
@@ -1046,6 +1055,7 @@ function updateNavForUser() {
     document.getElementById('navAvatar').style.display = 'none';
     document.getElementById('navSubmitBtn').style.display = 'none';
     closeDropdown();
+    deactivateMyBuilds();
     votedProjectIds = new Set();
     projects.forEach(p => { p.voted = false; });
     renderProjects();
@@ -1144,7 +1154,7 @@ const THUMBS  = ['#f0fdf4','#eff6ff','#fdf4ff','#fffbeb','#fff1f2'];
 const AVATARS = ['🦊','🐙','🦁','🐬','🦅'];
 
 let projects = [];
-let activeFilter = 'all', searchQuery = '', currentProject = null;
+let activeFilter = 'all', searchQuery = '', currentProject = null, myBuildsMode = false;
 const selectedTools = new Set();
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1191,8 +1201,9 @@ function getFiltered() {
   const q = searchQuery.toLowerCase().trim();
   return projects.filter(p => {
     const catOk = activeFilter==='all' || p.cat===activeFilter;
-    if (!q) return catOk;
-    return catOk && (p.name.toLowerCase().includes(q) || (p.desc||'').toLowerCase().includes(q) || (p.tools||[]).some(t=>t.toLowerCase().includes(q)) || (p.author||'').toLowerCase().includes(q) || (p.idea||'').toLowerCase().includes(q));
+    const mineOk = !myBuildsMode || (currentUser && p.author === currentUser.handle);
+    if (!q) return catOk && mineOk;
+    return catOk && mineOk && (p.name.toLowerCase().includes(q) || (p.desc||'').toLowerCase().includes(q) || (p.tools||[]).some(t=>t.toLowerCase().includes(q)) || (p.author||'').toLowerCase().includes(q) || (p.idea||'').toLowerCase().includes(q));
   });
 }
 
@@ -1208,6 +1219,8 @@ function renderProjects() {
   if (!list.length) {
     document.getElementById('grid').innerHTML = q
       ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔍</div><div class="empty-text">No projects found for "<strong>${esc(q)}</strong>"</div><button class="btn btn-ghost" onclick="clearSearch()">Clear search</button></div>`
+      : myBuildsMode
+      ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚀</div><div class="empty-text">You haven't submitted a project yet.</div><button class="btn btn-primary" style="margin-top:10px" onclick="openSubmit()">Submit your first project →</button></div>`
       : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🌱</div><div class="empty-text">No projects yet.</div><button class="btn btn-primary" onclick="openSubmit()">Be the first →</button></div>`;
     return;
   }
@@ -1243,6 +1256,31 @@ function updateStats() {
   document.getElementById('sProjects').textContent = projects.length;
   document.getElementById('sBuilders').textContent = new Set(projects.map(p=>p.author)).size;
   document.getElementById('sUpvotes').textContent = projects.reduce((s,p)=>s+(p.upvotes||0),0);
+  updateMyBuildsCount();
+}
+
+function updateMyBuildsCount() {
+  const el = document.getElementById('myBuildsCount');
+  if (!el || !currentUser) return;
+  el.textContent = projects.filter(p => p.author === currentUser.handle).length;
+}
+
+function activateMyBuilds() {
+  if (!currentUser) return;
+  myBuildsMode = true;
+  switchPage('projects');
+  const bar = document.getElementById('myBuildsBar');
+  if (bar) bar.classList.add('visible');
+  const label = document.getElementById('myBuildsHandleLabel');
+  if (label) label.textContent = '· ' + currentUser.handle;
+  renderProjects();
+}
+
+function deactivateMyBuilds() {
+  myBuildsMode = false;
+  const bar = document.getElementById('myBuildsBar');
+  if (bar) bar.classList.remove('visible');
+  renderProjects();
 }
 
 function renderSidebar() {
