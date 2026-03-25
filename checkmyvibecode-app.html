@@ -893,7 +893,9 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
    ('Pixel Dungeon RPG', 'A roguelike dungeon crawler built with ChatGPT in one weekend. Procedurally generated levels.', 'Always wanted to build a game but never knew how to code.', '~12 hours', '~$3 in GPT-4 API', '#', ARRAY['ChatGPT','Cursor'], 62, '@gamedevtom', '🗡️', 'game', 71, false),
    ('ResumeForge', 'Paste a job description + your experience, get a tailored resume in seconds.', 'My friend was spending 2 hours per resume.', '6 hours', '~$1.20 in Claude API', '#', ARRAY['Claude','v0'], 91, '@builderX', '📄', 'tool', 143, true),
    ('PlantParent', 'Photo your plant, get watering schedules and care tips. 100% browser-based.', 'I killed three plants in a row.', '5 hours', 'Free (no API needed)', '#', ARRAY['Claude','Lovable'], 78, '@greenthumbs', '🌱', 'app', 58, false);
-   -- Enable realtime for upvotes table in Supabase Dashboard → Database → Replication
+   -- Enable realtime for both tables in Supabase Dashboard → Database → Replication:
+   -- ✓ upvotes   (for live upvote counts)
+   -- ✓ projects  (for live new-project feed)
 ════════════════════════════════════════════════════════════════ */
 
 /* ════════════════════════════════
@@ -1392,7 +1394,7 @@ function fireVoteEffects(id) {
 ════════════════════════════════ */
 function subscribeToProjectUpdates() {
   if (_realtimeChannel) return;
-  _realtimeChannel = sb.channel('upvotes-live')
+  _realtimeChannel = sb.channel('project-updates')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'upvotes' }, async payload => {
       await refreshProjectCount(payload.new.project_id);
     })
@@ -1400,7 +1402,20 @@ function subscribeToProjectUpdates() {
       const pid = payload.old?.project_id;
       if (pid) await refreshProjectCount(pid);
     })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' }, payload => {
+      onNewProjectRealtime(payload.new);
+    })
     .subscribe();
+}
+
+function onNewProjectRealtime(raw) {
+  if (!raw || projects.some(p => p.id === raw.id)) return;
+  const p = mapProject(raw);
+  projects.unshift(p);
+  renderProjects();
+  renderSidebar();
+  updateStats();
+  showToast('✦ New project: ' + p.name);
 }
 
 async function refreshProjectCount(projectId) {
