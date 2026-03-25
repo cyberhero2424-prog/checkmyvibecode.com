@@ -1408,9 +1408,12 @@ function subscribeToProjectUpdates() {
     .subscribe();
 }
 
-function onNewProjectRealtime(raw) {
+async function onNewProjectRealtime(raw) {
   if (!raw || projects.some(p => p.id === raw.id)) return;
-  const p = mapProject(raw);
+  const { data } = await sb.from('projects').select('*').eq('id', raw.id).single();
+  if (!data) return;
+  if (projects.some(p => p.id === data.id)) return;
+  const p = mapProject(data);
   projects.unshift(p);
   renderProjects();
   renderSidebar();
