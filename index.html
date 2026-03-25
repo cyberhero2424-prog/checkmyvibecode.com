@@ -282,7 +282,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .comment-post { padding:8px 14px; border-radius:var(--r-sm); background:var(--text); color:var(--bg); border:none; font-family:var(--sans); font-size:13px; font-weight:500; cursor:pointer; transition:opacity .15s; flex-shrink:0; }
 .comment-post:hover { opacity:.82; }
 .drawer-actions { display:flex; gap:8px; padding:16px 24px 20px; border-top:1px solid var(--border); background:var(--surface); }
-.bm-btn { display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:5px 8px; border-radius:var(--r-sm); font-size:12px; font-weight:500; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); box-shadow:var(--sh); }
+.bm-btn { display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:6px 10px; min-height:30px; border-radius:var(--r-sm); font-size:12px; font-weight:500; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); box-shadow:var(--sh); }
 .bm-btn svg { flex-shrink:0; pointer-events:none; }
 .bm-btn:hover { border-color:rgba(124,58,237,.45); color:var(--purple); background:var(--purple-bg); }
 .bm-btn.bm-active { background:var(--purple-bg); border-color:rgba(124,58,237,.45); color:var(--purple); box-shadow:none; }
@@ -1225,7 +1225,6 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const BM_ICON_OFF = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
 const BM_ICON_ON  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
-const BM_SVG_STATIC = BM_ICON_OFF;
 const scoreClass = s => !s?'':s>=75?'sp-great':s>=50?'sp-ok':'sp-bad';
 const tagClass = t => ({'Claude':'t-claude','Cursor':'t-cursor','ChatGPT':'t-gpt','Bolt':'t-bolt','v0':'t-v0','Lovable':'t-lovable'}[t]||'t-cat');
 
