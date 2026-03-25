@@ -371,11 +371,10 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .sidebar { display:none; }
   .grid { grid-template-columns:1fr; gap:10px; }
 
-  /* Filter bar */
-  .filter-bar { gap:5px; margin-bottom:14px; overflow-x:auto; flex-wrap:nowrap; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
-  .filter-bar::-webkit-scrollbar { display:none; }
-  .chip { white-space:nowrap; flex-shrink:0; }
-  .sort-select { flex-shrink:0; }
+  /* Filter bar — wrap on mobile, no horizontal scroll */
+  .filter-bar { gap:5px; margin-bottom:14px; flex-wrap:wrap; overflow-x:visible; padding-bottom:0; }
+  .chip { white-space:nowrap; font-size:12px; padding:5px 10px; }
+  .sort-select { margin-left:auto; flex-shrink:0; }
 
   /* Cards */
   .card-thumb { height:130px; font-size:40px; }
