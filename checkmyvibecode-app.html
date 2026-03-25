@@ -1546,7 +1546,11 @@ function checkDeepLink() {
   if (pathMatch) {
     const pid = pathMatch[1];
     const p = projects.find(x => String(x.id) === pid);
-    if (p) { setTimeout(()=>openDrawer(p.id), 300); }
+    if (p) {
+      // Seed the initial state so popstate can reconcile correctly on Back/Forward
+      history.replaceState({projectId: p.id}, '', window.location.pathname);
+      setTimeout(()=>openDrawer(p.id), 300);
+    }
     return;
   }
   // Legacy: ?project=ID  → open drawer and silently upgrade URL
@@ -1565,6 +1569,11 @@ function checkDeepLink() {
 window.addEventListener('popstate', function(e) {
   if (e.state && e.state.projectId) {
     const p = projects.find(x => x.id === e.state.projectId);
+    if (p) { openDrawer(p.id); } else { closeDrawer(); }
+  } else if (window.location.pathname.startsWith('/p/')) {
+    // Null-state but /p/<id> path (e.g. forward into an un-seeded entry)
+    const pid = window.location.pathname.slice(3);
+    const p = projects.find(x => String(x.id) === pid);
     if (p) { openDrawer(p.id); } else { closeDrawer(); }
   } else {
     closeDrawer();
