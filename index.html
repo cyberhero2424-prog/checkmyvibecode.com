@@ -282,9 +282,10 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .comment-post { padding:8px 14px; border-radius:var(--r-sm); background:var(--text); color:var(--bg); border:none; font-family:var(--sans); font-size:13px; font-weight:500; cursor:pointer; transition:opacity .15s; flex-shrink:0; }
 .comment-post:hover { opacity:.82; }
 .drawer-actions { display:flex; gap:8px; padding:16px 24px 20px; border-top:1px solid var(--border); background:var(--surface); }
-.bm-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 9px; border-radius:var(--r-sm); font-size:12px; border:1px solid var(--border2); background:var(--surface); color:var(--muted); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); font-weight:500; box-shadow:var(--sh); }
-.bm-btn:hover { border-color:rgba(124,58,237,.35); color:var(--purple); background:var(--purple-bg); }
-.bm-btn.bm-active { background:var(--purple-bg); border-color:rgba(124,58,237,.35); color:var(--purple); box-shadow:none; }
+.bm-btn { display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:5px 8px; border-radius:var(--r-sm); font-size:12px; font-weight:500; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); box-shadow:var(--sh); }
+.bm-btn svg { flex-shrink:0; pointer-events:none; }
+.bm-btn:hover { border-color:rgba(124,58,237,.45); color:var(--purple); background:var(--purple-bg); }
+.bm-btn.bm-active { background:var(--purple-bg); border-color:rgba(124,58,237,.45); color:var(--purple); box-shadow:none; }
 .saved-bar { display:none; align-items:center; gap:10px; padding:9px 14px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--r); margin-bottom:14px; box-shadow:var(--sh); }
 .saved-bar.visible { display:flex; }
 
@@ -644,7 +645,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
       </div>
       <button class="dropdown-item" onclick="openSubmit();closeDropdown()">＋ Submit project</button>
       <button class="dropdown-item" id="myBuildsDropBtn" onclick="activateMyBuilds();closeDropdown()">◈ My builds (<span id="myBuildsCount">0</span>)</button>
-      <button class="dropdown-item" id="savedDropBtn" onclick="activateSaved();closeDropdown()">🔖 Saved (<span id="savedCount">0</span>)</button>
+      <button class="dropdown-item" id="savedDropBtn" onclick="activateSaved();closeDropdown()" style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Saved (<span id="savedCount">0</span>)</button>
       <button class="dropdown-item" id="myProfileDropBtn" onclick="if(currentUser)openProfile(currentUser.handle);closeDropdown()">👤 My profile</button>
       <button class="dropdown-item" onclick="switchPage('checker');closeDropdown()">⚡ Code Checker</button>
       <button class="dropdown-item danger" onclick="signOut()">→ Sign out</button>
@@ -678,7 +679,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
         <button class="chip" onclick="filterCat(this,'game')">Games</button>
         <button class="chip" onclick="filterCat(this,'tool')">Tools</button>
         <button class="chip" onclick="filterCat(this,'website')">Websites</button>
-        <button class="chip" id="savedChip" onclick="activateSaved()" style="display:none">🔖 Saved</button>
+        <button class="chip" id="savedChip" onclick="activateSaved()" style="display:none;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Saved</button>
         <select class="sort-select" onchange="sortBy(this.value)">
           <option value="hot">🔥 Hot</option>
           <option value="new">✨ New</option>
@@ -690,7 +691,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
         <button class="btn btn-ghost" onclick="deactivateMyBuilds()" style="padding:4px 10px;font-size:12px">← All projects</button>
       </div>
       <div class="saved-bar" id="savedBar">
-        <span class="my-builds-title">🔖 Saved projects</span>
+        <span class="my-builds-title" style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Saved projects</span>
         <button class="btn btn-ghost" onclick="deactivateSaved()" style="padding:4px 10px;font-size:12px">← All projects</button>
       </div>
       <div class="search-results-bar" id="searchResultsBar">
@@ -1107,7 +1108,7 @@ function updateNavForUser() {
     document.getElementById('navSubmitBtn').style.display = 'flex';
     document.getElementById('dropdownName').textContent = currentUser.name;
     document.getElementById('dropdownEmail').textContent = currentUser.email;
-    if (savedChip) savedChip.style.display = '';
+    if (savedChip) savedChip.style.display = 'inline-flex';
   } else {
     if (savedChip) savedChip.style.display = 'none';
     document.getElementById('navLoginBtn').style.display = 'flex';
@@ -1222,6 +1223,9 @@ const selectedTools = new Set();
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const BM_ICON_OFF = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+const BM_ICON_ON  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
+const BM_SVG_STATIC = BM_ICON_OFF;
 const scoreClass = s => !s?'':s>=75?'sp-great':s>=50?'sp-ok':'sp-bad';
 const tagClass = t => ({'Claude':'t-claude','Cursor':'t-cursor','ChatGPT':'t-gpt','Bolt':'t-bolt','v0':'t-v0','Lovable':'t-lovable'}[t]||'t-cat');
 
@@ -1302,7 +1306,8 @@ function updateBookmarkUI(id, bookmarked) {
     if (!btn) return;
     btn.classList.toggle('bm-active', bookmarked);
     btn.title = bookmarked ? 'Remove bookmark' : 'Save';
-    if (pre === 'dbm-') btn.textContent = bookmarked ? '🔖 Saved' : '🔖 Save';
+    if (pre === 'bm-')  btn.innerHTML = bookmarked ? BM_ICON_ON : BM_ICON_OFF;
+    if (pre === 'dbm-') btn.innerHTML = (bookmarked ? BM_ICON_ON : BM_ICON_OFF) + (bookmarked ? ' Saved' : ' Save');
   });
 }
 
@@ -1362,7 +1367,7 @@ function renderProjects() {
           <div class="card-author">by <button class="author-link" data-author="${escAttr(p.author)}"><strong>${highlight(p.author,q)}</strong></button></div>
           <button class="view-btn" onclick="event.stopPropagation();openDrawer('${p.id}')">View →</button>
           <button class="view-btn card-share-btn" onclick="event.stopPropagation();shareProject('${p.id}',this)" title="Share" style="padding:5px 9px">⤴</button>
-          <button class="bm-btn${p.bookmarked?' bm-active':''}" id="bm-${p.id}" onclick="event.stopPropagation();toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}">🔖</button>
+          <button class="bm-btn${p.bookmarked?' bm-active':''}" id="bm-${p.id}" onclick="event.stopPropagation();toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}">${p.bookmarked?BM_ICON_ON:BM_ICON_OFF}</button>
           <button class="upvote-btn${p.voted?' voted':''}" id="ub-${p.id}" onclick="event.stopPropagation();upvote('${p.id}')">↑ <span id="uv-${p.id}">${p.upvotes}</span></button>
         </div>
       </div>
@@ -1466,7 +1471,7 @@ function openDrawer(id) {
   document.getElementById('drawerActions').innerHTML=`
     <a href="${p.demo||'#'}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;text-decoration:none">↗ View Demo</a>
     <button class="upvote-btn${p.voted?' voted':''}" id="dub-${p.id}" onclick="upvote('${p.id}')" style="padding:7px 16px;font-size:13px">↑ <span id="duv-${p.id}">${p.upvotes}</span> upvotes</button>
-    <button class="bm-btn${p.bookmarked?' bm-active':''}" id="dbm-${p.id}" onclick="toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}" style="padding:7px 13px;font-size:12px;flex-shrink:0">${p.bookmarked?'🔖 Saved':'🔖 Save'}</button>
+    <button class="bm-btn${p.bookmarked?' bm-active':''}" id="dbm-${p.id}" onclick="toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}" style="padding:7px 13px;font-size:12px;flex-shrink:0">${(p.bookmarked?BM_ICON_ON:BM_ICON_OFF)+(p.bookmarked?' Saved':' Save')}</button>
     <button onclick="shareProject('${p.id}',this)" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0">⤴ Share</button>
     <button onclick="openBoost('${p.id}')" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid rgba(234,179,8,0.4);background:#fefce8;color:#854d0e;cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#fef9c3'" onmouseout="this.style.background='#fefce8'">🚀 Boost</button>`;
   document.getElementById('commentInput').value = '';
