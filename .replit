@@ -1,7 +1,7 @@
-modules = ["python-3.11"]
+modules = ["python-3.11", "python3"]
 [nix]
 channel = "stable-25_05"
-packages = ["unzip"]
+packages = ["freetype", "lcms2", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "openjpeg", "tcl", "tk", "unzip", "zlib"]
 
 [agent]
 expertMode = true
