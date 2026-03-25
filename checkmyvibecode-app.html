@@ -624,9 +624,20 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .auth-overlay { align-items:flex-end; padding:0; }
   .user-dropdown { right:14px; }
 }
+
+/* ── PRELOADER ── */
+#preloader { position:fixed; inset:0; background:var(--bg); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; transition:opacity .45s var(--ease), visibility .45s; }
+#preloader.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+#preloader-logo { width:110px; height:110px; border-radius:24px; object-fit:cover; animation:preloaderPop .5s var(--ease) both; }
+@keyframes preloaderPop { from{opacity:0;transform:scale(.75)} to{opacity:1;transform:scale(1)} }
 </style>
 </head>
 <body>
+
+<!-- ── PRELOADER ── -->
+<div id="preloader">
+  <img src="/static/logo-preloader.png" id="preloader-logo" alt="CheckMyVibeCode">
+</div>
 
 <!-- ── NAV ── -->
 <nav>
@@ -985,6 +996,7 @@ if (!window.SUPABASE_CONFIG) {
   document.addEventListener('DOMContentLoaded', () => {
     const g = document.getElementById('grid');
     if (g) g.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><div class="empty-text">App must be served via the Flask server (python3 app.py).</div></div>';
+    const pre = document.getElementById('preloader'); if (pre) pre.classList.add('hidden');
   });
   throw new Error('SUPABASE_CONFIG not injected. Open app via Flask, not directly.');
 }
@@ -993,6 +1005,7 @@ const sb = window.supabase.createClient(
   window.SUPABASE_CONFIG.anonKey
 );
 let _realtimeChannel = null;
+setTimeout(() => hidePreloader && hidePreloader(), 5000);
 
 /* ════════════════════════════════
    AUTH SYSTEM
@@ -1238,6 +1251,11 @@ const selectedTools = new Set();
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function hidePreloader() {
+  const el = document.getElementById('preloader');
+  if (el && !el.classList.contains('hidden')) el.classList.add('hidden');
+}
 const BM_ICON_OFF = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
 const BM_ICON_ON  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
 const scoreClass = s => !s?'':s>=75?'sp-great':s>=50?'sp-ok':'sp-bad';
@@ -1259,10 +1277,11 @@ async function loadProjects() {
   const { data, error } = await sb.from('projects').select('*').order('upvotes', { ascending: false });
   if (error) {
     grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><div class="empty-text">Could not load projects. Try refreshing.</div></div>`;
-    console.error(error); return;
+    console.error(error); hidePreloader(); return;
   }
   projects = (data || []).map(mapProject);
   renderProjects(); renderSidebar(); updateStats();
+  hidePreloader();
   subscribeToProjectUpdates();
 }
 
