@@ -83,6 +83,9 @@ def _inject_project_og(html, project):
 
 @app.route('/')
 def index():
+    pid = request.args.get('project', '').strip()
+    if pid:
+        return redirect(url_for('project_detail', project_id=pid), code=301)
     return serve_app()
 
 @app.route('/static/<path:path>')
