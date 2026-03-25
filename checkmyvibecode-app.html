@@ -174,7 +174,7 @@ nav {
 .stat-l { font-size:12px; color:var(--muted); }
 .stat-div { width:1px; height:16px; background:var(--border2); }
 
-.projects-layout { max-width:1100px; margin:0 auto; padding:0 24px 80px; display:grid; grid-template-columns:1fr 264px; gap:28px; }
+.projects-layout { max-width:1100px; margin:0 auto; padding:0 24px 40px; display:grid; grid-template-columns:1fr 264px; gap:28px; }
 .filter-bar { display:flex; align-items:center; gap:5px; margin-bottom:18px; flex-wrap:wrap; }
 .chip { padding:5px 12px; border-radius:20px; font-size:12px; font-weight:500; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); box-shadow:var(--sh); }
 .chip:hover { border-color:rgba(0,0,0,.2); color:var(--text); }
@@ -289,6 +289,23 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .saved-bar { display:none; align-items:center; gap:10px; padding:9px 14px; background:var(--surface); border:1px solid var(--border2); border-radius:var(--r); margin-bottom:14px; box-shadow:var(--sh); }
 .saved-bar.visible { display:flex; }
 
+/* ── FOOTER ── */
+.site-footer { border-top:1px solid var(--border); background:var(--surface); margin-top:0; }
+.site-footer-inner { max-width:1100px; margin:0 auto; padding:20px 24px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.footer-brand { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--text); background:none; border:none; cursor:pointer; font-family:var(--sans); padding:0; }
+.footer-brand-img { width:22px; height:22px; border-radius:5px; object-fit:cover; display:block; flex-shrink:0; }
+.footer-brand-name { font-size:13px; font-weight:600; letter-spacing:-.2px; }
+.footer-brand-name span { color:var(--muted2); font-weight:400; }
+.footer-links { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+.footer-link { padding:4px 9px; border-radius:6px; font-size:12px; color:var(--muted2); background:none; border:none; cursor:pointer; font-family:var(--sans); transition:color .15s, background .15s; text-decoration:none; display:inline-flex; align-items:center; }
+.footer-link:hover { color:var(--text); background:var(--surface2); }
+.footer-sep { width:1px; height:12px; background:var(--border2); }
+.footer-copy { font-size:11px; color:var(--muted); white-space:nowrap; }
+@media (max-width:600px) {
+  .site-footer-inner { flex-direction:column; align-items:center; text-align:center; gap:12px; padding-bottom:80px; }
+  .footer-links { justify-content:center; }
+}
+
 /* Profile panel */
 .profile-avatar { width:68px; height:68px; border-radius:50%; background:var(--surface2); border:2px solid var(--border2); display:flex; align-items:center; justify-content:center; font-size:30px; margin:24px auto 12px; }
 .profile-handle { text-align:center; font-size:19px; font-weight:700; letter-spacing:-.3px; margin-bottom:4px; }
@@ -321,7 +338,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 /* ═══════════════════════════════════
    CODE CHECKER PAGE
 ═══════════════════════════════════ */
-.checker-wrap { max-width:780px; margin:0 auto; padding:40px 24px 80px; }
+.checker-wrap { max-width:780px; margin:0 auto; padding:40px 24px 40px; }
 
 .checker-hero { margin-bottom:36px; }
 .checker-hero h2 { font-size:clamp(24px,4vw,38px); font-weight:700; letter-spacing:-1px; line-height:1.1; margin-bottom:10px; }
@@ -2387,6 +2404,23 @@ loadProjects().then(() => checkDeepLink());
   </div>
   <div class="mobile-search-results" id="mobileSearchResults"></div>
 </div>
+
+<!-- Site footer -->
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <button class="footer-brand" onclick="switchPage('projects');window.scrollTo(0,0)">
+      <img src="/static/logo.jpg" class="footer-brand-img" alt="CheckMyVibeCode">
+      <span class="footer-brand-name">checkmyvibecode<span>.com</span></span>
+    </button>
+    <div class="footer-links">
+      <button class="footer-link" onclick="requireAuth(openSubmit)">+ Submit project</button>
+      <div class="footer-sep"></div>
+      <button class="footer-link" onclick="switchPage('checker')">⚡ Code Checker</button>
+      <div class="footer-sep"></div>
+      <span class="footer-copy">© 2025 CheckMyVibeCode</span>
+    </div>
+  </div>
+</footer>
 
 <!-- Mobile bottom nav -->
 <div class="mobile-nav" id="mobileNav">
