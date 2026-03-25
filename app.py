@@ -22,7 +22,10 @@ def serve_app():
     config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
     config_script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
     html = html.replace('</head>', config_script + '</head>', 1)
-    return Response(html, mimetype='text/html')
+    resp = Response(html, mimetype='text/html')
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
 
 @app.route('/')
 def index():

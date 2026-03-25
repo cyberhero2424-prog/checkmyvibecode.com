@@ -348,15 +348,16 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 ═══════════════════════════════════ */
 @media (max-width:768px) {
   /* Nav */
-  nav { padding:0 12px; gap:3px; height:50px; }
+  nav { padding:0 10px; gap:2px; height:50px; overflow:hidden; }
   .logo-text { display:none; }
   .logo-muted { display:none; }
   .nav-sep { display:none; }
   .nav-search { display:none; }
-  .mobile-search-btn { display:flex; }
-  .nav-right { margin-left:auto; gap:5px; }
-  .nav-tab { padding:5px 8px; font-size:12px; }
-  .btn { padding:6px 10px; font-size:12px; }
+  .mobile-search-btn { display:flex; flex-shrink:0; }
+  .nav-right { margin-left:auto; gap:4px; flex-shrink:0; }
+  .nav-tab { padding:5px 8px; font-size:12px; flex-shrink:1; }
+  .nav-checker-word { display:none; }
+  .btn { padding:5px 9px; font-size:12px; }
   .mobile-sidebar-section { display:block; }
 
   /* Hero */
@@ -577,7 +578,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   </div>
   <div class="nav-sep"></div>
   <button class="nav-tab active" id="tab-projects" onclick="switchPage('projects')">Projects</button>
-  <button class="nav-tab" id="tab-checker" onclick="switchPage('checker')">Code Checker</button>
+  <button class="nav-tab" id="tab-checker" onclick="switchPage('checker')"><span class="nav-checker-word">Code </span>Checker</button>
 
   <div class="nav-search">
     <div class="search-wrap" onclick="document.getElementById('mainSearch').focus()">
