@@ -93,6 +93,63 @@ def static_files(path):
     return send_from_directory(STATIC_DIR, path)
 
 
+def _fetch_profile_stats(handle):
+    """Fetch build count + total upvotes for a user handle from Supabase REST."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return None
+    try:
+        safe_h = urllib.parse.quote(str(handle), safe='')
+        api_url = (
+            f"{SUPABASE_URL}/rest/v1/projects"
+            f"?author=eq.{safe_h}"
+            f"&select=upvotes"
+        )
+        req = urllib.request.Request(api_url, headers={
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+        })
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            rows = json.loads(resp.read().decode())
+            return {
+                'builds': len(rows),
+                'upvotes': sum(r.get('upvotes', 0) or 0 for r in rows),
+            }
+    except Exception:
+        return None
+
+
+@app.route('/u/<handle>')
+def user_profile(handle):
+    # Normalise: strip leading @ for URL, add it back for DB query
+    bare_handle = handle.lstrip('@')
+    db_handle   = '@' + bare_handle
+    with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
+        html = f.read()
+    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+    html = html.replace('__BASE_URL__', base_url)
+    stats = _fetch_profile_stats(db_handle)
+    if stats is not None:
+        title   = f"{db_handle} — CheckMyVibeCode"
+        desc    = f"{stats['builds']} build{'s' if stats['builds'] != 1 else ''} · {stats['upvotes']} upvotes on CheckMyVibeCode"
+        safe_t  = html_module.escape(title)
+        safe_d  = html_module.escape(desc)
+        html    = re.sub(r'<title>[^<]*</title>', f'<title>{safe_t}</title>', html, count=1)
+        og_tags = (
+            f'<meta property="og:title" content="{safe_t}">\n'
+            f'<meta property="og:description" content="{safe_d}">\n'
+            f'<meta name="twitter:title" content="{safe_t}">\n'
+            f'<meta name="twitter:description" content="{safe_d}">\n'
+        )
+        html = html.replace('<head>', '<head>\n' + og_tags, 1)
+    config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
+    config_script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
+    html = html.replace('</head>', config_script + '</head>', 1)
+    resp = Response(html, mimetype='text/html')
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
 @app.route('/p/<project_id>')
 def project_detail(project_id):
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
