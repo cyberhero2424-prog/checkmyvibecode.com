@@ -1341,6 +1341,9 @@ function openDrawer(id) {
   document.getElementById('commentInput').value = '';
   document.getElementById('drawerOverlay').classList.add('open');
   document.getElementById('drawer').classList.add('open');
+  if (window.location.pathname !== '/p/' + id) {
+    history.pushState({projectId: id}, '', '/p/' + id);
+  }
   loadComments(id);
 }
 
@@ -1379,7 +1382,15 @@ async function postComment() {
   input.value = '';
 }
 
-function closeDrawer() { document.getElementById('drawerOverlay').classList.remove('open'); document.getElementById('drawer').classList.remove('open'); document.body.style.overflow=''; currentProject=null; }
+function closeDrawer() {
+  document.getElementById('drawerOverlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+  document.body.style.overflow='';
+  currentProject=null;
+  if (window.location.pathname.startsWith('/p/')) {
+    history.pushState({}, '', '/');
+  }
+}
 
 async function upvote(id) {
   if (!currentUser) { openAuth(); showToast('Please sign in to upvote!'); return; }
@@ -1506,7 +1517,7 @@ function clearSearch() { searchQuery=''; document.getElementById('mainSearch').v
 function shareProject(id, btn) {
   const p = projects.find(x=>x.id===id);
   if (!p) return;
-  const url = window.location.href.split('?')[0] + '?project=' + id;
+  const url = window.location.origin + '/p/' + id;
   const text = p.score
     ? `Check out "${p.name}" on checkmyvibecode.com — Vibe Score ${p.score}/100 ✦`
     : `Check out "${p.name}" on checkmyvibecode.com`;
@@ -1528,15 +1539,37 @@ function shareProject(id, btn) {
   });
 }
 
-// Deep link: open project from URL ?project=ID
+// Deep link: open project from /p/<id> or legacy ?project=ID
 function checkDeepLink() {
+  // New-style: /p/<id>
+  const pathMatch = window.location.pathname.match(/^\/p\/(.+)$/);
+  if (pathMatch) {
+    const pid = pathMatch[1];
+    const p = projects.find(x => String(x.id) === pid);
+    if (p) { setTimeout(()=>openDrawer(p.id), 300); }
+    return;
+  }
+  // Legacy: ?project=ID  → open drawer and silently upgrade URL
   const params = new URLSearchParams(window.location.search);
   const pid = params.get('project');
   if (pid) {
     const p = projects.find(x => String(x.id) === pid);
-    if (p) { setTimeout(()=>openDrawer(p.id), 300); }
+    if (p) {
+      history.replaceState({projectId: p.id}, '', '/p/' + p.id);
+      setTimeout(()=>openDrawer(p.id), 300);
+    }
   }
 }
+
+// Handle browser Back / Forward while drawer is open
+window.addEventListener('popstate', function(e) {
+  if (e.state && e.state.projectId) {
+    const p = projects.find(x => x.id === e.state.projectId);
+    if (p) { openDrawer(p.id); } else { closeDrawer(); }
+  } else {
+    closeDrawer();
+  }
+});
 
 function openSubmit() { document.getElementById('submitModal').classList.add('open'); }
 function closeSubmit() { document.getElementById('submitModal').classList.remove('open'); }
