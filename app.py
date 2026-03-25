@@ -128,19 +128,21 @@ def user_profile(handle):
     base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
     html = html.replace('__BASE_URL__', base_url)
     stats = _fetch_profile_stats(db_handle)
+    title = f"{db_handle} — CheckMyVibeCode"
     if stats is not None:
-        title   = f"{db_handle} — CheckMyVibeCode"
-        desc    = f"{stats['builds']} build{'s' if stats['builds'] != 1 else ''} · {stats['upvotes']} upvotes on CheckMyVibeCode"
-        safe_t  = html_module.escape(title)
-        safe_d  = html_module.escape(desc)
-        html    = re.sub(r'<title>[^<]*</title>', f'<title>{safe_t}</title>', html, count=1)
-        og_tags = (
-            f'<meta property="og:title" content="{safe_t}">\n'
-            f'<meta property="og:description" content="{safe_d}">\n'
-            f'<meta name="twitter:title" content="{safe_t}">\n'
-            f'<meta name="twitter:description" content="{safe_d}">\n'
-        )
-        html = html.replace('<head>', '<head>\n' + og_tags, 1)
+        desc = f"{stats['builds']} build{'s' if stats['builds'] != 1 else ''} · {stats['upvotes']} upvotes on CheckMyVibeCode"
+    else:
+        desc = f"View {db_handle}'s builds on CheckMyVibeCode"
+    safe_t  = html_module.escape(title)
+    safe_d  = html_module.escape(desc)
+    html    = re.sub(r'<title>[^<]*</title>', f'<title>{safe_t}</title>', html, count=1)
+    og_tags = (
+        f'<meta property="og:title" content="{safe_t}">\n'
+        f'<meta property="og:description" content="{safe_d}">\n'
+        f'<meta name="twitter:title" content="{safe_t}">\n'
+        f'<meta name="twitter:description" content="{safe_d}">\n'
+    )
+    html = html.replace('<head>', '<head>\n' + og_tags, 1)
     config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
     config_script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
     html = html.replace('</head>', config_script + '</head>', 1)
