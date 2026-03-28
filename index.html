@@ -625,6 +625,15 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .user-dropdown { right:14px; }
 }
 
+/* ── COMING SOON ── */
+.coming-soon-overlay { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); background:rgba(13,13,15,.55); border-radius:0; pointer-events:all; }
+.coming-soon-badge { display:inline-flex; align-items:center; gap:7px; background:var(--surface2); border:1px solid var(--border2); border-radius:100px; padding:6px 14px; font-size:12px; font-weight:600; color:var(--muted2); letter-spacing:.04em; text-transform:uppercase; }
+.coming-soon-badge svg { width:14px; height:14px; color:var(--green); flex-shrink:0; }
+.coming-soon-title { font-size:clamp(22px,4vw,34px); font-weight:700; letter-spacing:-1px; color:var(--text); text-align:center; line-height:1.15; }
+.coming-soon-sub { font-size:14px; color:var(--muted2); text-align:center; max-width:340px; line-height:1.6; }
+#page-checker { position:relative; }
+.nav-soon { display:inline-flex; align-items:center; background:var(--green); color:#000; font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; border-radius:100px; padding:2px 6px; margin-left:5px; line-height:1; vertical-align:middle; }
+
 /* ── PRELOADER ── */
 #preloader { position:fixed; inset:0; background:#0d0d0f; z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; transition:opacity .55s ease, visibility .55s; }
 #preloader.hidden { opacity:0; visibility:hidden; pointer-events:none; }
@@ -647,7 +656,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   </div>
   <div class="nav-sep"></div>
   <button class="nav-tab active" id="tab-projects" onclick="switchPage('projects')">Projects</button>
-  <button class="nav-tab" id="tab-checker" onclick="switchPage('checker')"><span class="nav-checker-word">Code </span>Checker</button>
+  <button class="nav-tab" id="tab-checker" onclick="switchPage('checker')"><span class="nav-checker-word">Code </span>Checker<span class="nav-soon">Soon</span></button>
 
   <div class="nav-search">
     <div class="search-wrap" onclick="document.getElementById('mainSearch').focus()">
@@ -753,6 +762,14 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
      PAGE: CODE CHECKER
 ══════════════════════════════════ -->
 <div class="page" id="page-checker">
+  <div class="coming-soon-overlay">
+    <div class="coming-soon-badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Coming Soon
+    </div>
+    <div class="coming-soon-title">Code Checker<br>is on its way</div>
+    <div class="coming-soon-sub">Paste your AI-generated code and get an instant score — bugs, security issues, and fixes. Launching soon.</div>
+  </div>
   <div class="checker-wrap">
     <div class="checker-hero">
       <h2>Is your <span>vibe code</span><br>actually good?</h2>
@@ -2440,7 +2457,7 @@ loadProjects().then(() => checkDeepLink());
     <div class="footer-links">
       <button class="footer-link" onclick="requireAuth(openSubmit)">+ Submit project</button>
       <div class="footer-sep"></div>
-      <button class="footer-link" onclick="switchPage('checker')">⚡ Code Checker</button>
+      <button class="footer-link" onclick="switchPage('checker')">⚡ Code Checker <span class="nav-soon" style="margin-left:4px">Soon</span></button>
       <div class="footer-sep"></div>
       <a class="footer-link" href="/privacy" onclick="return false">Privacy</a>
       <a class="footer-link" href="/terms" onclick="return false">Terms</a>
