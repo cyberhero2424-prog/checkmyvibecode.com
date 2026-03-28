@@ -20,12 +20,23 @@
 <meta name="twitter:description" content="The community for AI-built projects. Showcase your vibe-coded creations, collect upvotes and feedback, and discover what others are building with AI tools.">
 <meta name="twitter:image" content="__BASE_URL__/static/og-image.png">
 <meta name="twitter:image:alt" content="CheckMyVibeCode — the community for AI-built projects">
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-946DB9M5F4"></script>
 <script>
+(function(){
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-946DB9M5F4');
+  window.gtag = gtag;
+  window.loadGA = function() {
+    if (window._gaLoaded) return;
+    window._gaLoaded = true;
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=G-946DB9M5F4';
+    document.head.appendChild(s);
+    gtag('js', new Date());
+    gtag('config', 'G-946DB9M5F4');
+  };
+  if (localStorage.getItem('cookie_consent') === 'granted') window.loadGA();
+})();
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script>
@@ -632,6 +643,17 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .user-dropdown { right:14px; }
 }
 
+/* ── COOKIE BANNER ── */
+#cookie-banner { position:fixed; bottom:0; left:0; right:0; z-index:9000; padding:14px 20px; background:var(--surface2); border-top:1px solid var(--border2); display:flex; align-items:center; gap:12px; flex-wrap:wrap; transform:translateY(100%); transition:transform .4s var(--ease); }
+#cookie-banner.visible { transform:translateY(0); }
+.cookie-text { flex:1; min-width:200px; font-size:13px; color:var(--muted2); line-height:1.5; }
+.cookie-text a { color:var(--green); text-decoration:underline; cursor:pointer; }
+.cookie-btns { display:flex; gap:8px; flex-shrink:0; }
+.cookie-accept { padding:7px 16px; border-radius:var(--r-sm); background:#39ff14; color:#000; border:none; font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer; transition:opacity .15s; box-shadow:0 0 8px #39ff1455; }
+.cookie-accept:hover { opacity:.88; }
+.cookie-decline { padding:7px 16px; border-radius:var(--r-sm); background:var(--surface3); color:var(--muted2); border:1px solid var(--border2); font-family:var(--sans); font-size:13px; font-weight:500; cursor:pointer; transition:all .15s; }
+.cookie-decline:hover { color:var(--text); }
+
 /* ── COMING SOON ── */
 .coming-soon-overlay { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); background:rgba(13,13,15,.55); border-radius:0; pointer-events:all; }
 .coming-soon-badge { display:inline-flex; align-items:center; gap:7px; background:var(--surface2); border:1px solid var(--border2); border-radius:100px; padding:6px 14px; font-size:12px; font-weight:600; color:var(--muted2); letter-spacing:.04em; text-transform:uppercase; }
@@ -649,6 +671,15 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 </style>
 </head>
 <body>
+
+<!-- ── COOKIE BANNER ── -->
+<div id="cookie-banner" role="dialog" aria-label="Cookie consent">
+  <p class="cookie-text">Wir verwenden Cookies für Analyse & Verbesserungen. <a onclick="switchPage('privacy')" tabindex="0">Datenschutz</a></p>
+  <div class="cookie-btns">
+    <button class="cookie-decline" onclick="cookieConsent('denied')">Ablehnen</button>
+    <button class="cookie-accept" onclick="cookieConsent('granted')">Akzeptieren</button>
+  </div>
+</div>
 
 <!-- ── PRELOADER ── -->
 <div id="preloader">
@@ -1286,6 +1317,22 @@ function hidePreloader() {
   const wait = Math.max(0, _preloaderMinMs - (Date.now() - _preloaderStart));
   setTimeout(() => el.classList.add('hidden'), wait);
 }
+function cookieConsent(choice) {
+  localStorage.setItem('cookie_consent', choice);
+  const b = document.getElementById('cookie-banner');
+  if (b) { b.classList.remove('visible'); }
+  if (choice === 'granted') window.loadGA && window.loadGA();
+}
+(function initCookieBanner() {
+  const stored = localStorage.getItem('cookie_consent');
+  if (!stored) {
+    setTimeout(() => {
+      const b = document.getElementById('cookie-banner');
+      if (b) b.classList.add('visible');
+    }, 1800);
+  }
+})();
+
 const BM_ICON_OFF = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
 const BM_ICON_ON  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
 const scoreClass = s => !s?'':s>=75?'sp-great':s>=50?'sp-ok':'sp-bad';
