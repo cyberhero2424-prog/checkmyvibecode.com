@@ -1318,10 +1318,25 @@ function hidePreloader() {
   setTimeout(() => {
     el.classList.add('hidden');
     if (!localStorage.getItem('cookie_consent')) {
-      setTimeout(() => {
+      const EU_EEA = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO'];
+      const showBanner = () => setTimeout(() => {
         const b = document.getElementById('cookie-banner');
         if (b) b.classList.add('visible');
       }, 400);
+      const _geoCtrl = new AbortController();
+      setTimeout(() => _geoCtrl.abort(), 3000);
+      fetch('https://ipapi.co/json/', {signal: _geoCtrl.signal})
+        .then(r => { if (!r.ok) { showBanner(); return null; } return r.json(); })
+        .then(d => {
+          if (!d) return;
+          const cc = typeof d.country_code === 'string' ? d.country_code.trim().toUpperCase() : '';
+          if (cc.length === 2 && !EU_EEA.includes(cc)) {
+            window.loadGA && window.loadGA();
+          } else {
+            showBanner();
+          }
+        })
+        .catch(() => showBanner());
     }
   }, wait);
 }
