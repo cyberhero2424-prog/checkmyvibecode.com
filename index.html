@@ -1058,9 +1058,11 @@ async function socialAuth(provider) {
   const originalLabel = label ? label.textContent : '';
   if (label) label.textContent = 'Redirecting…';
 
+  const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const redirectTo = isLocalhost ? 'https://checkmyvibecode.com' : window.location.origin;
   const { error } = await sb.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: window.location.origin }
+    options: { redirectTo }
   });
 
   if (error) {
