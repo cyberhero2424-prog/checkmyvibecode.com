@@ -643,6 +643,22 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .user-dropdown { right:14px; }
 }
 
+/* ── LEGAL PAGES (Privacy / Terms) ── */
+.legal-wrap { max-width:680px; margin:0 auto; padding:48px 24px 80px; }
+.legal-back { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted2); background:none; border:none; cursor:pointer; font-family:var(--sans); padding:0; margin-bottom:32px; transition:color .15s; }
+.legal-back:hover { color:var(--text); }
+.legal-back svg { width:14px; height:14px; }
+.legal-eyebrow { font-size:11px; font-weight:600; color:var(--green); letter-spacing:.06em; text-transform:uppercase; margin-bottom:10px; }
+.legal-h1 { font-size:clamp(26px,4vw,36px); font-weight:700; letter-spacing:-1px; line-height:1.1; margin-bottom:8px; }
+.legal-meta { font-size:13px; color:var(--muted); margin-bottom:40px; }
+.legal-section { margin-bottom:32px; }
+.legal-h2 { font-size:15px; font-weight:700; color:var(--text); margin-bottom:8px; letter-spacing:-.2px; }
+.legal-p { font-size:14px; color:var(--muted2); line-height:1.7; margin-bottom:10px; }
+.legal-p a { color:var(--green); text-decoration:underline; }
+.legal-ul { padding-left:18px; margin-bottom:10px; }
+.legal-ul li { font-size:14px; color:var(--muted2); line-height:1.7; margin-bottom:4px; }
+.legal-divider { border:none; border-top:1px solid var(--border); margin:32px 0; }
+
 /* ── COOKIE BANNER ── */
 #cookie-banner { position:fixed; bottom:0; left:0; right:0; z-index:9000; padding:14px 20px; background:var(--surface2); border-top:1px solid var(--border2); display:flex; align-items:center; gap:12px; flex-wrap:wrap; transform:translateY(100%); transition:transform .4s var(--ease); }
 #cookie-banner.visible { transform:translateY(0); }
@@ -1289,10 +1305,13 @@ function setMobileNav(page) {
 function switchPage(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
-  document.getElementById('tab-' + page).classList.add('active');
-  document.querySelector('.nav-search').style.visibility = page === 'checker' ? 'hidden' : 'visible';
-  setMobileNav(page);
+  const pageEl = document.getElementById('page-' + page);
+  if (pageEl) pageEl.classList.add('active');
+  const tabEl = document.getElementById('tab-' + page);
+  if (tabEl) tabEl.classList.add('active');
+  const noSearch = ['checker', 'privacy', 'terms'];
+  document.querySelector('.nav-search').style.visibility = noSearch.includes(page) ? 'hidden' : 'visible';
+  if (['projects', 'checker'].includes(page)) setMobileNav(page);
   window.scrollTo({ top:0, behavior:'smooth' });
 }
 
@@ -2515,6 +2534,198 @@ loadProjects().then(() => checkDeepLink());
   <div class="mobile-search-results" id="mobileSearchResults"></div>
 </div>
 
+<!-- ══════════════════════════════════
+     PAGE: PRIVACY POLICY
+══════════════════════════════════ -->
+<div class="page" id="page-privacy">
+  <div class="legal-wrap">
+    <button class="legal-back" onclick="switchPage('projects')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Projects
+    </button>
+    <div class="legal-eyebrow">Legal</div>
+    <h1 class="legal-h1">Privacy Policy</h1>
+    <p class="legal-meta">Last updated: March 29, 2025 &nbsp;·&nbsp; checkmyvibecode.com</p>
+
+    <div class="legal-section">
+      <h2 class="legal-h2">1. Who We Are</h2>
+      <p class="legal-p">CheckMyVibeCode ("we", "us", "our") is a community platform for showcasing AI-generated software projects, accessible at <a href="https://checkmyvibecode.com">checkmyvibecode.com</a>. This Privacy Policy explains how we collect, use, and protect your personal data.</p>
+      <p class="legal-p">For privacy-related questions, contact us at: <a href="mailto:hello@checkmyvibecode.com">hello@checkmyvibecode.com</a></p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">2. What Data We Collect</h2>
+      <p class="legal-p"><strong>Account data</strong> — When you sign up or log in via Google or GitHub OAuth, we receive your email address, name, and profile picture from the respective provider. We store this data to identify your account.</p>
+      <p class="legal-p"><strong>User-generated content</strong> — Projects you submit, comments you post, and upvotes you cast are stored in our database and visible to other users.</p>
+      <p class="legal-p"><strong>Usage data</strong> — If you have consented to analytics cookies, we collect anonymized usage data via Google Analytics 4 (page views, session duration, general location at country level). No personally identifiable information is sent to Google Analytics.</p>
+      <p class="legal-p"><strong>Technical data</strong> — Standard server logs (IP address, browser type, referrer) may be recorded automatically. These are used for security and debugging purposes only.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">3. How We Use Your Data</h2>
+      <ul class="legal-ul">
+        <li>To provide and maintain the platform (authentication, displaying your projects and profile)</li>
+        <li>To allow other users to interact with your content (upvotes, comments)</li>
+        <li>To analyze how the platform is used and improve it (analytics, only with consent)</li>
+        <li>To protect the platform from abuse and ensure security</li>
+      </ul>
+      <p class="legal-p">We do not sell your personal data to third parties. We do not use your data for automated decision-making or profiling.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">4. Third-Party Services</h2>
+      <p class="legal-p"><strong>Supabase</strong> — Our backend infrastructure and database is hosted by Supabase, Inc. Your account data and content are stored in Supabase's EU-region servers. Supabase acts as a data processor under our instructions. <a href="https://supabase.com/privacy" target="_blank">Supabase Privacy Policy</a></p>
+      <p class="legal-p"><strong>Google Analytics 4</strong> — If you consent, we use Google Analytics to understand how visitors use our site. Google may transfer data to servers outside the EU. You can opt out at any time via the cookie banner or by using the <a href="https://tools.google.com/dlpage/gaoptout" target="_blank">Google Analytics opt-out browser add-on</a>. <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a></p>
+      <p class="legal-p"><strong>Google & GitHub OAuth</strong> — When you log in via Google or GitHub, their respective privacy policies apply to the authentication process. We only receive and store the data they share with us (email, name, avatar).</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">5. Cookies</h2>
+      <p class="legal-p">We use the following cookies and local storage:</p>
+      <ul class="legal-ul">
+        <li><strong>Authentication session</strong> — Stored in localStorage via Supabase to keep you logged in. Essential for the platform to work.</li>
+        <li><strong>Theme preference</strong> — We save your dark/light mode choice in localStorage.</li>
+        <li><strong>Cookie consent</strong> — We store your analytics cookie preference in localStorage.</li>
+        <li><strong>Google Analytics cookies</strong> — Only set if you accept analytics cookies. Used to measure traffic and usage.</li>
+      </ul>
+      <p class="legal-p">EU visitors see a cookie banner on their first visit and can freely accept or decline analytics cookies.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">6. Your Rights (GDPR)</h2>
+      <p class="legal-p">If you are located in the EU/EEA, you have the following rights regarding your personal data:</p>
+      <ul class="legal-ul">
+        <li><strong>Access</strong> — Request a copy of the personal data we hold about you</li>
+        <li><strong>Rectification</strong> — Request correction of inaccurate data</li>
+        <li><strong>Erasure</strong> — Request deletion of your account and associated data</li>
+        <li><strong>Portability</strong> — Request your data in a machine-readable format</li>
+        <li><strong>Objection</strong> — Object to processing of your data for analytics purposes</li>
+        <li><strong>Withdraw consent</strong> — Withdraw analytics consent at any time by declining cookies in the banner</li>
+      </ul>
+      <p class="legal-p">To exercise any of these rights, contact us at <a href="mailto:hello@checkmyvibecode.com">hello@checkmyvibecode.com</a>. We will respond within 30 days.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">7. Data Retention</h2>
+      <p class="legal-p">We retain your account data and content for as long as your account is active. If you request account deletion, we will remove your personal data within 30 days, except where we are legally required to retain it.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">8. Changes to This Policy</h2>
+      <p class="legal-p">We may update this Privacy Policy from time to time. We will indicate the date of the last update at the top of this page. Continued use of the platform after changes constitutes acceptance of the updated policy.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">9. Contact</h2>
+      <p class="legal-p">Questions about this Privacy Policy? Email us at <a href="mailto:hello@checkmyvibecode.com">hello@checkmyvibecode.com</a></p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     PAGE: TERMS OF SERVICE
+══════════════════════════════════ -->
+<div class="page" id="page-terms">
+  <div class="legal-wrap">
+    <button class="legal-back" onclick="switchPage('projects')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back to Projects
+    </button>
+    <div class="legal-eyebrow">Legal</div>
+    <h1 class="legal-h1">Terms of Service</h1>
+    <p class="legal-meta">Last updated: March 29, 2025 &nbsp;·&nbsp; checkmyvibecode.com</p>
+
+    <div class="legal-section">
+      <h2 class="legal-h2">1. Acceptance</h2>
+      <p class="legal-p">By using CheckMyVibeCode ("the platform"), you agree to these Terms of Service. If you do not agree, please do not use the platform. We reserve the right to update these terms at any time.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">2. What CheckMyVibeCode Is</h2>
+      <p class="legal-p">CheckMyVibeCode is a community platform where developers can showcase AI-assisted ("vibe-coded") software projects, give and receive feedback, and upvote projects they find interesting. It is not a software marketplace and does not handle payments between users.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">3. Your Account</h2>
+      <p class="legal-p">You may sign up using a Google or GitHub account. You are responsible for all activity under your account. You must not share your credentials or create accounts on behalf of others without their consent.</p>
+      <p class="legal-p">You must be at least 13 years old to use this platform (or the minimum age required in your country).</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">4. Acceptable Use</h2>
+      <p class="legal-p">When submitting projects or posting comments, you agree to:</p>
+      <ul class="legal-ul">
+        <li>Only submit projects you have the right to share</li>
+        <li>Keep comments respectful and constructive</li>
+        <li>Not post spam, misleading information, or promotional content unrelated to AI-built projects</li>
+        <li>Not submit illegal content, content that violates third-party intellectual property rights, or content that is harmful, abusive, or hateful</li>
+        <li>Not attempt to manipulate upvotes or game platform metrics</li>
+        <li>Not use the platform to scrape data, run bots, or interfere with platform functionality</li>
+      </ul>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">5. Content Ownership</h2>
+      <p class="legal-p">You retain ownership of the content you submit. By posting on CheckMyVibeCode, you grant us a non-exclusive, worldwide, royalty-free license to display and distribute your content on the platform.</p>
+      <p class="legal-p">We reserve the right to remove any content that violates these terms without notice.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">6. Disclaimer & Limitation of Liability</h2>
+      <p class="legal-p">The platform is provided "as is" without warranties of any kind. We do not guarantee uninterrupted availability or that the platform will be error-free.</p>
+      <p class="legal-p">We are not responsible for any direct, indirect, or consequential damages arising from your use of the platform or content posted by other users.</p>
+      <p class="legal-p">Project listings are user-submitted and we do not verify or endorse any project, its quality, or its safety.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">7. Termination</h2>
+      <p class="legal-p">We reserve the right to suspend or terminate accounts that violate these terms. You may request account deletion at any time by contacting <a href="mailto:hello@checkmyvibecode.com">hello@checkmyvibecode.com</a>.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">8. Governing Law</h2>
+      <p class="legal-p">These terms are governed by applicable law. Any disputes will be resolved through good-faith negotiation first. If unresolved, disputes are subject to the jurisdiction of the courts where the platform operator is located.</p>
+    </div>
+
+    <hr class="legal-divider">
+
+    <div class="legal-section">
+      <h2 class="legal-h2">9. Contact</h2>
+      <p class="legal-p">Questions about these Terms? Email us at <a href="mailto:hello@checkmyvibecode.com">hello@checkmyvibecode.com</a></p>
+    </div>
+  </div>
+</div>
+
 <!-- Site footer -->
 <footer class="site-footer">
   <div class="site-footer-inner">
@@ -2527,8 +2738,8 @@ loadProjects().then(() => checkDeepLink());
       <div class="footer-sep"></div>
       <button class="footer-link" onclick="switchPage('checker')">⚡ Code Checker <span class="nav-soon" style="margin-left:4px">Soon</span></button>
       <div class="footer-sep"></div>
-      <a class="footer-link" href="/privacy" onclick="return false">Privacy</a>
-      <a class="footer-link" href="/terms" onclick="return false">Terms</a>
+      <button class="footer-link" onclick="switchPage('privacy')">Privacy</button>
+      <button class="footer-link" onclick="switchPage('terms')">Terms</button>
       <div class="footer-sep"></div>
       <span class="footer-copy">© 2025 CheckMyVibeCode</span>
     </div>
