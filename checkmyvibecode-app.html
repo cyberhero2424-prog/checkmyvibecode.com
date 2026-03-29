@@ -659,6 +659,87 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .legal-ul li { font-size:14px; color:var(--muted2); line-height:1.7; margin-bottom:4px; }
 .legal-divider { border:none; border-top:1px solid var(--border); margin:32px 0; }
 
+/* ═══════════════════════════════════
+   FORUM PAGE
+═══════════════════════════════════ */
+.forum-wrap { max-width:720px; margin:0 auto; padding:40px 24px 80px; }
+.forum-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:32px; flex-wrap:wrap; }
+.forum-page-header-left .forum-eyebrow { font-size:11px; font-weight:600; color:var(--green); letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; }
+.forum-page-header-left h2 { font-size:clamp(24px,3.5vw,32px); font-weight:700; letter-spacing:-.8px; margin-bottom:6px; }
+.forum-page-header-left p { font-size:13px; color:var(--muted2); }
+.forum-thread-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 18px; cursor:pointer; transition:box-shadow .2s var(--ease),transform .2s var(--ease),border-color .2s; box-shadow:var(--sh); margin-bottom:10px; display:flex; gap:14px; align-items:flex-start; }
+.forum-thread-card:hover { box-shadow:var(--sh-md); transform:translateY(-1px); border-color:var(--border2); }
+.forum-thread-upvote { display:flex; flex-direction:column; align-items:center; gap:3px; flex-shrink:0; padding:4px 6px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface2); cursor:pointer; transition:all .15s var(--ease); min-width:40px; }
+.forum-thread-upvote:hover { border-color:var(--green-border); background:var(--green-bg); color:var(--green); }
+.forum-thread-upvote.voted { background:var(--green-bg); border-color:var(--green-border); color:var(--green); }
+.forum-thread-upvote-icon { font-size:14px; line-height:1; }
+.forum-thread-upvote-count { font-size:11px; font-weight:700; font-family:var(--mono); }
+.forum-thread-content { flex:1; min-width:0; }
+.forum-thread-title { font-size:15px; font-weight:600; letter-spacing:-.3px; line-height:1.35; margin-bottom:6px; color:var(--text); }
+.forum-thread-preview { font-size:13px; color:var(--muted2); line-height:1.5; margin-bottom:10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.forum-thread-meta { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+.forum-thread-meta .t-author { color:var(--muted2); font-weight:500; }
+.forum-thread-meta .t-sep { width:2px; height:2px; background:var(--muted); border-radius:50%; }
+.forum-thread-meta .t-replies { display:inline-flex; align-items:center; gap:3px; }
+.forum-empty { text-align:center; padding:60px 20px; color:var(--muted2); }
+.forum-empty-icon { font-size:36px; margin-bottom:12px; }
+.forum-empty-title { font-size:16px; font-weight:600; color:var(--text); margin-bottom:6px; }
+.forum-empty-sub { font-size:13px; color:var(--muted); }
+.forum-skeleton { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 18px; margin-bottom:10px; }
+.forum-skel-line { height:12px; border-radius:4px; background:var(--surface3); margin-bottom:8px; animation:skelPulse 1.4s ease infinite; }
+@keyframes skelPulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+
+/* Forum detail view */
+.forum-detail { animation:cardIn .25s var(--ease) both; }
+.forum-detail-back { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted2); background:none; border:none; cursor:pointer; font-family:var(--sans); padding:0; margin-bottom:24px; transition:color .15s; }
+.forum-detail-back:hover { color:var(--text); }
+.forum-detail-title { font-size:clamp(20px,3vw,26px); font-weight:700; letter-spacing:-.5px; line-height:1.25; margin-bottom:10px; }
+.forum-detail-meta { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-bottom:20px; flex-wrap:wrap; }
+.forum-detail-meta strong { color:var(--muted2); }
+.forum-detail-body { font-size:14px; color:var(--muted2); line-height:1.7; white-space:pre-wrap; margin-bottom:28px; padding:16px 18px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--r); }
+.forum-detail-actions { display:flex; align-items:center; gap:8px; margin-bottom:32px; padding-bottom:24px; border-bottom:1px solid var(--border2); }
+.forum-detail-upvote { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:var(--r-sm); font-size:13px; font-weight:600; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); box-shadow:var(--sh); }
+.forum-detail-upvote:hover { border-color:var(--green-border); color:var(--green); background:var(--green-bg); }
+.forum-detail-upvote.voted { background:var(--green-bg); border-color:var(--green-border); color:var(--green); box-shadow:none; }
+.forum-replies-title { font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.5px; text-transform:uppercase; margin-bottom:14px; }
+.forum-reply-item { display:flex; gap:10px; padding:14px 0; border-bottom:1px solid var(--border); }
+.forum-reply-item:last-child { border:none; }
+.forum-reply-avatar { width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--muted2); flex-shrink:0; }
+.forum-reply-meta { font-size:11px; color:var(--muted); margin-bottom:5px; }
+.forum-reply-meta strong { color:var(--muted2); font-weight:600; }
+.forum-reply-body { font-size:13px; color:var(--muted2); line-height:1.6; white-space:pre-wrap; }
+.forum-reply-form { display:flex; gap:8px; margin-top:20px; padding-top:20px; border-top:1px solid var(--border); }
+.forum-reply-input { flex:1; padding:8px 12px; border-radius:var(--r-sm); background:var(--surface2); border:1px solid var(--border2); font-family:var(--sans); font-size:13px; color:var(--text); outline:none; transition:all .15s; resize:vertical; min-height:40px; max-height:160px; }
+.forum-reply-input:focus { background:var(--surface); border-color:rgba(0,0,0,.22); box-shadow:0 0 0 3px rgba(0,0,0,.04); }
+[data-theme="dark"] .forum-reply-input:focus { border-color:rgba(255,255,255,.2); box-shadow:0 0 0 3px rgba(255,255,255,.04); }
+.forum-reply-input::placeholder { color:var(--muted); }
+.forum-reply-post { padding:8px 14px; border-radius:var(--r-sm); background:var(--text); color:var(--bg); border:none; font-family:var(--sans); font-size:13px; font-weight:500; cursor:pointer; transition:opacity .15s; flex-shrink:0; align-self:flex-end; }
+.forum-reply-post:hover { opacity:.82; }
+
+/* New Thread Modal */
+.forum-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); backdrop-filter:blur(6px); z-index:800; display:none; align-items:center; justify-content:center; padding:20px; }
+.forum-modal-overlay.open { display:flex; }
+[data-theme="dark"] .forum-modal-overlay { background:rgba(0,0,0,.65); }
+.forum-modal { background:var(--surface); border:1px solid var(--border2); border-radius:var(--r-xl); padding:28px; width:100%; max-width:520px; box-shadow:var(--sh-xl); position:relative; }
+.forum-modal-close { position:absolute; top:16px; right:16px; width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); color:var(--muted2); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+.forum-modal-close:hover { background:var(--surface3); color:var(--text); }
+.forum-modal-title { font-size:18px; font-weight:700; letter-spacing:-.4px; margin-bottom:18px; }
+.forum-modal-label { font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.04em; text-transform:uppercase; margin-bottom:6px; }
+.forum-modal-input { width:100%; padding:9px 13px; border-radius:var(--r-sm); background:var(--surface2); border:1px solid var(--border2); font-family:var(--sans); font-size:14px; color:var(--text); outline:none; transition:all .15s; }
+.forum-modal-input:focus { background:var(--surface); border-color:rgba(0,0,0,.22); box-shadow:0 0 0 3px rgba(0,0,0,.04); }
+[data-theme="dark"] .forum-modal-input:focus { border-color:rgba(255,255,255,.2); box-shadow:0 0 0 3px rgba(255,255,255,.04); }
+.forum-modal-input::placeholder { color:var(--muted); }
+.forum-modal-textarea { width:100%; padding:9px 13px; border-radius:var(--r-sm); background:var(--surface2); border:1px solid var(--border2); font-family:var(--sans); font-size:13px; color:var(--text); outline:none; transition:all .15s; resize:vertical; min-height:110px; max-height:300px; }
+.forum-modal-textarea:focus { background:var(--surface); border-color:rgba(0,0,0,.22); box-shadow:0 0 0 3px rgba(0,0,0,.04); }
+[data-theme="dark"] .forum-modal-textarea:focus { border-color:rgba(255,255,255,.2); box-shadow:0 0 0 3px rgba(255,255,255,.04); }
+.forum-modal-textarea::placeholder { color:var(--muted); }
+.forum-modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
+
+@media (max-width:600px) {
+  .forum-wrap { padding:24px 16px 100px; }
+  .forum-page-header { gap:12px; }
+}
+
 /* ── COOKIE BANNER ── */
 #cookie-banner { position:fixed; bottom:0; left:0; right:0; z-index:9000; padding:14px 20px; background:var(--surface2); border-top:1px solid var(--border2); display:flex; align-items:center; gap:12px; flex-wrap:wrap; transform:translateY(100%); transition:transform .4s var(--ease); }
 #cookie-banner.visible { transform:translateY(0); }
@@ -710,6 +791,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   </div>
   <div class="nav-sep"></div>
   <button class="nav-tab active" id="tab-projects" onclick="switchPage('projects')">Projects</button>
+  <button class="nav-tab" id="tab-forum" onclick="switchPage('forum')">Forum</button>
   <button class="nav-tab" id="tab-checker" onclick="switchPage('checker')"><span class="nav-checker-word">Code </span>Checker<span class="nav-soon">Soon</span></button>
 
   <div class="nav-search">
@@ -736,6 +818,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
       <button class="dropdown-item" id="myBuildsDropBtn" onclick="activateMyBuilds();closeDropdown()">◈ My builds (<span id="myBuildsCount">0</span>)</button>
       <button class="dropdown-item" id="savedDropBtn" onclick="activateSaved();closeDropdown()" style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Saved (<span id="savedCount">0</span>)</button>
       <button class="dropdown-item" id="myProfileDropBtn" onclick="if(currentUser)openProfile(currentUser.handle);closeDropdown()">👤 My profile</button>
+      <button class="dropdown-item" onclick="switchPage('forum');closeDropdown()">◎ Forum</button>
       <button class="dropdown-item" onclick="switchPage('checker');closeDropdown()">⚡ Code Checker <span class="nav-soon" style="margin-left:4px">Soon</span></button>
       <button class="dropdown-item danger" onclick="signOut()">→ Sign out</button>
     </div>
@@ -1210,11 +1293,14 @@ function updateNavForUser() {
     document.getElementById('dropdownName').textContent = currentUser.name;
     document.getElementById('dropdownEmail').textContent = currentUser.email;
     if (savedChip) savedChip.style.display = 'inline-flex';
+    const fnb = document.getElementById('forumNewBtn'); if (fnb) fnb.style.display = '';
   } else {
     if (savedChip) savedChip.style.display = 'none';
     document.getElementById('navLoginBtn').style.display = 'flex';
     document.getElementById('navAvatar').style.display = 'none';
     document.getElementById('navSubmitBtn').style.display = 'none';
+    const fnb = document.getElementById('forumNewBtn'); if (fnb) fnb.style.display = 'none';
+    forumVotedIds = new Set();
     closeDropdown();
     deactivateMyBuilds();
     deactivateSaved();
@@ -1309,9 +1395,10 @@ function switchPage(page) {
   if (pageEl) pageEl.classList.add('active');
   const tabEl = document.getElementById('tab-' + page);
   if (tabEl) tabEl.classList.add('active');
-  const noSearch = ['checker', 'privacy', 'terms'];
+  const noSearch = ['checker', 'privacy', 'terms', 'forum'];
   document.querySelector('.nav-search').style.visibility = noSearch.includes(page) ? 'hidden' : 'visible';
   if (['projects', 'checker'].includes(page)) setMobileNav(page);
+  if (page === 'forum' && !window._forumLoaded) { window._forumLoaded = true; loadForumThreads(); }
   window.scrollTo({ top:0, behavior:'smooth' });
 }
 
@@ -1872,6 +1959,174 @@ function spawnConfetti(anchor) {
     requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.transform=`translate(calc(-50% + ${Math.cos(angle)*dist}px),calc(-50% + ${Math.sin(angle)*dist-10}px)) rotate(${Math.random()*360}deg)`;el.style.opacity='0';}));
     setTimeout(()=>el.remove(),550);
   }
+}
+
+/* ════════════════════════════════
+   FORUM
+════════════════════════════════ */
+let forumThreads = [];
+let forumVotedIds = new Set();
+let currentForumThreadId = null;
+
+function fmtForumDate(iso) {
+  const d = new Date(iso), now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+
+function forumAvatar(handle) {
+  return (handle||'?').replace('@','').slice(0,2).toUpperCase();
+}
+
+async function loadForumThreads() {
+  const { data, error } = await sb.from('forum_threads').select('*').order('created_at', { ascending: false });
+  if (!error && data) {
+    forumThreads = data;
+    if (currentUser) {
+      const { data: voted } = await sb.from('forum_thread_upvotes').select('thread_id').eq('user_id', currentUser.id);
+      if (voted) voted.forEach(r => forumVotedIds.add(r.thread_id));
+    }
+  }
+  renderForumThreadList();
+  if (currentUser) document.getElementById('forumNewBtn').style.display = '';
+}
+
+function renderForumThreadList() {
+  const el = document.getElementById('forum-thread-list');
+  if (!el) return;
+  if (!forumThreads.length) {
+    el.innerHTML = `<div class="forum-empty"><div class="forum-empty-icon">💬</div><div class="forum-empty-title">No threads yet</div><div class="forum-empty-sub">Be the first to start a conversation.</div></div>`;
+    return;
+  }
+  el.innerHTML = forumThreads.map(t => {
+    const voted = forumVotedIds.has(t.id);
+    return `<div class="forum-thread-card" onclick="openForumThread('${t.id}')">
+      <button class="forum-thread-upvote${voted?' voted':''}" onclick="event.stopPropagation();toggleThreadUpvote('${t.id}',this)" title="${voted?'Remove upvote':'Upvote'}">
+        <span class="forum-thread-upvote-icon">▲</span>
+        <span class="forum-thread-upvote-count" id="fuv-${t.id}">${t.upvotes||0}</span>
+      </button>
+      <div class="forum-thread-content">
+        <div class="forum-thread-title">${escHtml(t.title)}</div>
+        <div class="forum-thread-preview">${escHtml(t.body)}</div>
+        <div class="forum-thread-meta">
+          <span class="t-author">${escHtml(t.author_handle)}</span>
+          <span class="t-sep"></span>
+          <span>${fmtForumDate(t.created_at)}</span>
+          <span class="t-sep"></span>
+          <span class="t-replies">💬 ${t.reply_count||0} ${(t.reply_count===1)?'reply':'replies'}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function openForumThread(id) {
+  currentForumThreadId = id;
+  const thread = forumThreads.find(t => t.id === id);
+  if (!thread) return;
+  document.getElementById('forum-thread-list').style.display = 'none';
+  document.getElementById('forum-thread-detail').style.display = '';
+  document.getElementById('forum-thread-detail').innerHTML = `<div class="forum-detail"><div style="display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:4px"><button class="forum-detail-back" onclick="backToForumList()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back to Forum</button></div><h2 class="forum-detail-title">${escHtml(thread.title)}</h2><div class="forum-detail-meta">by <strong>${escHtml(thread.author_handle)}</strong> &middot; ${fmtForumDate(thread.created_at)}</div><div class="forum-detail-body">${escHtml(thread.body)}</div><div class="forum-detail-actions"><button class="forum-detail-upvote${forumVotedIds.has(id)?' voted':''}" id="detail-upvote-btn" onclick="toggleThreadUpvote('${id}',this)">▲ <span id="detail-upvote-count">${thread.upvotes||0}</span></button></div><div class="forum-replies-title" id="forum-replies-title">Replies</div><div id="forum-replies-list"><div style="color:var(--muted);font-size:13px">Loading replies…</div></div>${currentUser?`<div class="forum-reply-form"><textarea class="forum-reply-input" id="forumReplyInput" placeholder="Write a reply…" rows="2" maxlength="2000"></textarea><button class="forum-reply-post" onclick="postForumReply()">Reply</button></div>`:`<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:13px;color:var(--muted2)">Sign in to reply.</div>`}</div>`;
+  loadForumReplies(id);
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+async function loadForumReplies(threadId) {
+  const { data, error } = await sb.from('forum_replies').select('*').eq('thread_id', threadId).order('created_at', { ascending: true });
+  const el = document.getElementById('forum-replies-list');
+  const titleEl = document.getElementById('forum-replies-title');
+  if (!el) return;
+  const replies = (error || !data) ? [] : data;
+  if (titleEl) titleEl.textContent = `Replies (${replies.length})`;
+  if (!replies.length) { el.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:12px 0">No replies yet — be the first to respond.</div>`; return; }
+  el.innerHTML = `<div class="comment-list">${replies.map(r=>`<div class="forum-reply-item"><div class="forum-reply-avatar">${forumAvatar(r.author_handle)}</div><div><div class="forum-reply-meta"><strong>${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div></div>`).join('')}</div>`;
+}
+
+function backToForumList() {
+  currentForumThreadId = null;
+  document.getElementById('forum-thread-list').style.display = '';
+  document.getElementById('forum-thread-detail').style.display = 'none';
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+function openNewThreadModal() {
+  if (!currentUser) { requireAuth(openNewThreadModal); return; }
+  document.getElementById('newThreadModal').classList.add('open');
+  document.getElementById('newThreadTitle').focus();
+}
+
+function closeNewThreadModal() {
+  document.getElementById('newThreadModal').classList.remove('open');
+}
+
+async function submitNewThread() {
+  if (!currentUser) return;
+  const title = document.getElementById('newThreadTitle').value.trim();
+  const body = document.getElementById('newThreadBody').value.trim();
+  if (!title) { document.getElementById('newThreadTitle').focus(); return; }
+  if (!body) { document.getElementById('newThreadBody').focus(); return; }
+  const { data, error } = await sb.from('forum_threads').insert({ title, body, author_handle: currentUser.handle, author_id: currentUser.id }).select().single();
+  if (error) { showToast('Error posting thread'); return; }
+  forumThreads.unshift(data);
+  closeNewThreadModal();
+  document.getElementById('newThreadTitle').value = '';
+  document.getElementById('newThreadBody').value = '';
+  renderForumThreadList();
+  showToast('Thread posted!');
+}
+
+async function postForumReply() {
+  if (!currentUser || !currentForumThreadId) return;
+  const inp = document.getElementById('forumReplyInput');
+  const body = inp ? inp.value.trim() : '';
+  if (!body) return;
+  const { error } = await sb.from('forum_replies').insert({ thread_id: currentForumThreadId, body, author_handle: currentUser.handle, author_id: currentUser.id });
+  if (error) { showToast('Error posting reply'); return; }
+  inp.value = '';
+  const thread = forumThreads.find(t => t.id === currentForumThreadId);
+  if (thread) {
+    thread.reply_count = (thread.reply_count||0) + 1;
+    await sb.from('forum_threads').update({ reply_count: thread.reply_count }).eq('id', currentForumThreadId);
+  }
+  loadForumReplies(currentForumThreadId);
+  showToast('Reply posted!');
+}
+
+async function toggleThreadUpvote(id, btn) {
+  if (!currentUser) { requireAuth(() => {}); return; }
+  const voted = forumVotedIds.has(id);
+  const thread = forumThreads.find(t => t.id === id);
+  if (voted) {
+    await sb.from('forum_thread_upvotes').delete().eq('thread_id', id).eq('user_id', currentUser.id);
+    forumVotedIds.delete(id);
+    if (thread) thread.upvotes = Math.max(0, (thread.upvotes||1) - 1);
+  } else {
+    await sb.from('forum_thread_upvotes').insert({ thread_id: id, user_id: currentUser.id });
+    forumVotedIds.add(id);
+    if (thread) thread.upvotes = (thread.upvotes||0) + 1;
+  }
+  if (thread) {
+    await sb.from('forum_threads').update({ upvotes: thread.upvotes }).eq('id', id);
+  }
+  const newVoted = forumVotedIds.has(id);
+  const count = thread ? thread.upvotes : 0;
+  [btn, document.getElementById('detail-upvote-btn')].forEach(b => {
+    if (!b) return;
+    b.classList.toggle('voted', newVoted);
+  });
+  [document.getElementById('fuv-'+id), document.getElementById('detail-upvote-count')].forEach(el => {
+    if (el) el.textContent = count;
+  });
+  if (newVoted) spawnConfetti(btn);
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function filterCat(btn,cat) { document.querySelectorAll('.chip').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); activeFilter=cat; renderProjects(); }
@@ -2535,6 +2790,50 @@ loadProjects().then(() => checkDeepLink());
 </div>
 
 <!-- ══════════════════════════════════
+     PAGE: FORUM
+══════════════════════════════════ -->
+<div class="page" id="page-forum">
+  <div class="forum-wrap">
+    <div class="forum-page-header">
+      <div class="forum-page-header-left">
+        <div class="forum-eyebrow">Community</div>
+        <h2>Forum</h2>
+        <p>Discuss vibe coding, share tips, ask questions.</p>
+      </div>
+      <button class="btn btn-primary" id="forumNewBtn" onclick="openNewThreadModal()" style="display:none;flex-shrink:0">+ New Thread</button>
+    </div>
+
+    <div id="forum-thread-list">
+      <div class="forum-skeleton"><div class="forum-skel-line" style="width:65%"></div><div class="forum-skel-line" style="width:90%"></div><div class="forum-skel-line" style="width:40%"></div></div>
+      <div class="forum-skeleton"><div class="forum-skel-line" style="width:55%"></div><div class="forum-skel-line" style="width:85%"></div><div class="forum-skel-line" style="width:35%"></div></div>
+      <div class="forum-skeleton"><div class="forum-skel-line" style="width:70%"></div><div class="forum-skel-line" style="width:80%"></div><div class="forum-skel-line" style="width:45%"></div></div>
+    </div>
+
+    <div id="forum-thread-detail" style="display:none"></div>
+  </div>
+
+  <!-- New Thread Modal -->
+  <div class="forum-modal-overlay" id="newThreadModal" onclick="closeNewThreadModal()">
+    <div class="forum-modal" onclick="event.stopPropagation()">
+      <button class="forum-modal-close" onclick="closeNewThreadModal()">✕</button>
+      <div class="forum-modal-title">New Thread</div>
+      <div style="margin-bottom:12px">
+        <div class="forum-modal-label">Title</div>
+        <input id="newThreadTitle" class="forum-modal-input" placeholder="What's your thread about?" maxlength="200">
+      </div>
+      <div>
+        <div class="forum-modal-label">Body</div>
+        <textarea id="newThreadBody" class="forum-modal-textarea" placeholder="Share your thoughts, question or idea…" maxlength="3000"></textarea>
+      </div>
+      <div class="forum-modal-footer">
+        <button class="btn btn-ghost" onclick="closeNewThreadModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitNewThread()">Post Thread</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
      PAGE: PRIVACY POLICY
 ══════════════════════════════════ -->
 <div class="page" id="page-privacy">
@@ -2735,6 +3034,8 @@ loadProjects().then(() => checkDeepLink());
     </button>
     <div class="footer-links">
       <button class="footer-link" onclick="requireAuth(openSubmit)">+ Submit project</button>
+      <div class="footer-sep"></div>
+      <button class="footer-link" onclick="switchPage('forum')">◎ Forum</button>
       <div class="footer-sep"></div>
       <button class="footer-link" onclick="switchPage('checker')">⚡ Code Checker <span class="nav-soon" style="margin-left:4px">Soon</span></button>
       <div class="footer-sep"></div>
