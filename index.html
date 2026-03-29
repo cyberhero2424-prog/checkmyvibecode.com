@@ -1294,6 +1294,13 @@ function updateNavForUser() {
     document.getElementById('dropdownEmail').textContent = currentUser.email;
     if (savedChip) savedChip.style.display = 'inline-flex';
     const fnb = document.getElementById('forumNewBtn'); if (fnb) fnb.style.display = '';
+    if (window._forumLoaded && currentUser) {
+      sb.from('forum_thread_upvotes').select('thread_id').eq('user_id', currentUser.id).then(({ data: voted }) => {
+        forumVotedIds = new Set();
+        if (voted) voted.forEach(r => forumVotedIds.add(r.thread_id));
+        renderForumThreadList();
+      });
+    }
   } else {
     if (savedChip) savedChip.style.display = 'none';
     document.getElementById('navLoginBtn').style.display = 'flex';
@@ -2100,19 +2107,19 @@ async function toggleThreadUpvote(id, btn) {
   const voted = forumVotedIds.has(id);
   const thread = forumThreads.find(t => t.id === id);
   if (voted) {
-    await sb.from('forum_thread_upvotes').delete().eq('thread_id', id).eq('user_id', currentUser.id);
+    const { error } = await sb.from('forum_thread_upvotes').delete().eq('thread_id', id).eq('user_id', currentUser.id);
+    if (error) { showToast('Could not remove upvote'); return; }
     forumVotedIds.delete(id);
     if (thread) thread.upvotes = Math.max(0, (thread.upvotes||1) - 1);
   } else {
-    await sb.from('forum_thread_upvotes').insert({ thread_id: id, user_id: currentUser.id });
+    const { error } = await sb.from('forum_thread_upvotes').insert({ thread_id: id, user_id: currentUser.id });
+    if (error) { showToast('Could not upvote'); return; }
     forumVotedIds.add(id);
     if (thread) thread.upvotes = (thread.upvotes||0) + 1;
   }
   await sb.rpc('update_thread_upvote_count', { p_thread_id: id });
-  if (thread) {
-    const { data: td } = await sb.from('forum_threads').select('upvotes').eq('id', id).single();
-    if (td) thread.upvotes = td.upvotes;
-  }
+  const { data: td } = await sb.from('forum_threads').select('upvotes').eq('id', id).single();
+  if (td && thread) thread.upvotes = td.upvotes;
   const newVoted = forumVotedIds.has(id);
   const count = thread ? thread.upvotes : 0;
   [btn, document.getElementById('detail-upvote-btn')].forEach(b => {
