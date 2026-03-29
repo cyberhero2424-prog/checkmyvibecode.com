@@ -2088,10 +2088,8 @@ async function postForumReply() {
   if (error) { showToast('Error posting reply'); return; }
   inp.value = '';
   const thread = forumThreads.find(t => t.id === currentForumThreadId);
-  if (thread) {
-    thread.reply_count = (thread.reply_count||0) + 1;
-    await sb.from('forum_threads').update({ reply_count: thread.reply_count }).eq('id', currentForumThreadId);
-  }
+  if (thread) thread.reply_count = (thread.reply_count||0) + 1;
+  await sb.rpc('update_thread_reply_count', { p_thread_id: currentForumThreadId });
   loadForumReplies(currentForumThreadId);
   showToast('Reply posted!');
 }
@@ -2109,8 +2107,10 @@ async function toggleThreadUpvote(id, btn) {
     forumVotedIds.add(id);
     if (thread) thread.upvotes = (thread.upvotes||0) + 1;
   }
+  await sb.rpc('update_thread_upvote_count', { p_thread_id: id });
   if (thread) {
-    await sb.from('forum_threads').update({ upvotes: thread.upvotes }).eq('id', id);
+    const { count } = await sb.from('forum_thread_upvotes').select('*', { count: 'exact', head: true }).eq('thread_id', id);
+    if (count !== null) thread.upvotes = count;
   }
   const newVoted = forumVotedIds.has(id);
   const count = thread ? thread.upvotes : 0;

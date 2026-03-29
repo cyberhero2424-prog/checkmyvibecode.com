@@ -27,10 +27,7 @@ create policy "Authors can delete own threads"
   on public.forum_threads for delete
   using (auth.uid() = author_id);
 
-create policy "System can update thread stats"
-  on public.forum_threads for update
-  using (true)
-  with check (true);
+-- No direct client UPDATE policy — counters are updated via SECURITY DEFINER RPCs below.
 
 -- ── forum_replies ───────────────────────────────────────────
 create table if not exists public.forum_replies (
@@ -52,6 +49,10 @@ create policy "Auth users can insert own replies"
   on public.forum_replies for insert
   with check (auth.uid() = author_id);
 
+create policy "Authors can delete own replies"
+  on public.forum_replies for delete
+  using (auth.uid() = author_id);
+
 -- ── forum_thread_upvotes ────────────────────────────────────
 create table if not exists public.forum_thread_upvotes (
   thread_id uuid not null references public.forum_threads(id) on delete cascade,
@@ -72,3 +73,39 @@ create policy "Auth users can insert own forum upvotes"
 create policy "Auth users can delete own forum upvotes"
   on public.forum_thread_upvotes for delete
   using (auth.uid() = user_id);
+
+-- ── RPC: update thread upvote count (SECURITY DEFINER — bypasses RLS safely) ──
+-- Called from client after inserting/deleting a row in forum_thread_upvotes.
+-- Only recounts from forum_thread_upvotes; cannot modify content fields.
+create or replace function public.update_thread_upvote_count(p_thread_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.forum_threads
+  set upvotes = (
+    select count(*) from public.forum_thread_upvotes where thread_id = p_thread_id
+  )
+  where id = p_thread_id;
+end;
+$$;
+
+-- ── RPC: update thread reply count (SECURITY DEFINER — bypasses RLS safely) ──
+-- Called from client after inserting a row in forum_replies.
+-- Only recounts from forum_replies; cannot modify content fields.
+create or replace function public.update_thread_reply_count(p_thread_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.forum_threads
+  set reply_count = (
+    select count(*) from public.forum_replies where thread_id = p_thread_id
+  )
+  where id = p_thread_id;
+end;
+$$;
