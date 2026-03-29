@@ -233,10 +233,23 @@ def _admin_logged_in():
     return session.get('admin') is True
 
 
+def _csrf_token():
+    """Return (generating if needed) a per-session CSRF token."""
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+
+def _csrf_valid():
+    """Check that the submitted form CSRF token matches the session token."""
+    return request.form.get('csrf_token') == session.get('csrf_token')
+
+
 @app.route('/admin')
 def admin():
     if not _admin_logged_in():
-        return render_template('admin.html', logged_in=False, error=None)
+        return render_template('admin.html', logged_in=False, error=None,
+                               csrf_token=_csrf_token())
 
     tab = request.args.get('tab', 'pending')
     if tab not in ('pending', 'approved', 'rejected'):
@@ -256,24 +269,33 @@ def admin():
         tab=tab,
         flash_msg=flash_msg,
         flash_type=flash_type,
+        csrf_token=_csrf_token(),
     )
 
 
 @app.route('/admin/login', methods=['POST'])
 def admin_login():
+    if not _csrf_valid():
+        return render_template('admin.html', logged_in=False,
+                               error='Invalid request. Please try again.',
+                               csrf_token=_csrf_token())
     password = request.form.get('password', '')
     if not ADMIN_PASSWORD:
         return render_template('admin.html', logged_in=False,
-                               error='ADMIN_PASSWORD secret is not configured.')
+                               error='ADMIN_PASSWORD secret is not configured.',
+                               csrf_token=_csrf_token())
     if password == ADMIN_PASSWORD:
         session['admin'] = True
         return redirect(url_for('admin'))
     return render_template('admin.html', logged_in=False,
-                           error='Incorrect password. Try again.')
+                           error='Incorrect password. Try again.',
+                           csrf_token=_csrf_token())
 
 
 @app.route('/admin/logout', methods=['POST'])
 def admin_logout():
+    if not _csrf_valid():
+        return redirect(url_for('admin'))
     session.pop('admin', None)
     return redirect(url_for('admin'))
 
@@ -281,6 +303,10 @@ def admin_logout():
 @app.route('/admin/action', methods=['POST'])
 def admin_action():
     if not _admin_logged_in():
+        return redirect(url_for('admin'))
+    if not _csrf_valid():
+        session['flash_msg']  = 'Invalid request token. Please try again.'
+        session['flash_type'] = 'err'
         return redirect(url_for('admin'))
 
     project_id = request.form.get('project_id', '').strip()
@@ -302,8 +328,7 @@ def admin_action():
         session['flash_msg']  = f'Project {verb} successfully.'
         session['flash_type'] = 'ok'
 
-    tab = 'pending' if action == 'approve' else 'pending'
-    return redirect(url_for('admin', tab=tab))
+    return redirect(url_for('admin', tab='pending'))
 
 
 # ── Catch-all static file route ───────────────────────────────────────────────

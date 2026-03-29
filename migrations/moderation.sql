@@ -8,7 +8,15 @@ alter table public.projects
   add column if not exists status text not null default 'pending';
 
 -- ── 2. Approve all existing projects so they stay visible ─────────────────────
-update public.projects set status = 'approved' where status = 'pending';
+-- Guard: only backfills on the very first run (when no 'approved' rows exist yet).
+-- Safe to re-run: skips the update if approved rows are already present.
+do $$
+begin
+  if not exists (select 1 from public.projects where status = 'approved' limit 1) then
+    update public.projects set status = 'approved' where status = 'pending';
+  end if;
+end;
+$$;
 
 -- ── 3. Update the public SELECT policy ───────────────────────────────────────
 -- Drop the existing open SELECT policy and replace it with one that only

@@ -91,6 +91,7 @@
     <div class="err">{{ error }}</div>
     {% endif %}
     <form method="post" action="/admin/login">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="field">
         <label>Password</label>
         <input type="password" name="password" autofocus placeholder="Enter admin password">
@@ -104,6 +105,7 @@
 <header>
   <div class="brand">✓ <span>CheckMyVibeCode</span> Admin</div>
   <form method="post" action="/admin/logout" style="margin:0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="logout">Sign out</button>
   </form>
 </header>
@@ -159,6 +161,7 @@
       <div class="actions">
         {% if p.status != 'approved' %}
         <form method="post" action="/admin/action" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="project_id" value="{{ p.id }}">
           <input type="hidden" name="action" value="approve">
           <button type="submit" class="btn-approve">✓ Approve</button>
@@ -166,6 +169,7 @@
         {% endif %}
         {% if p.status != 'rejected' %}
         <form method="post" action="/admin/action" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="project_id" value="{{ p.id }}">
           <input type="hidden" name="action" value="reject">
           <button type="submit" class="btn-reject">✕ Reject</button>
