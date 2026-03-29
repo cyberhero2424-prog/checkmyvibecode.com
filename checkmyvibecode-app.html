@@ -2109,8 +2109,8 @@ async function toggleThreadUpvote(id, btn) {
   }
   await sb.rpc('update_thread_upvote_count', { p_thread_id: id });
   if (thread) {
-    const { count } = await sb.from('forum_thread_upvotes').select('*', { count: 'exact', head: true }).eq('thread_id', id);
-    if (count !== null) thread.upvotes = count;
+    const { data: td } = await sb.from('forum_threads').select('upvotes').eq('id', id).single();
+    if (td) thread.upvotes = td.upvotes;
   }
   const newVoted = forumVotedIds.has(id);
   const count = thread ? thread.upvotes : 0;
