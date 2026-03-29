@@ -2,9 +2,10 @@ import html as html_module
 import json
 import os
 import re
+import secrets
 import urllib.parse
 import urllib.request
-from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request
+from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,11 +17,16 @@ BLOCKED_NAMES = {'.env', '.git', 'app.py', 'requirements.txt'}
 HTML_ENTRY_POINTS = {'index.html', 'checkmyvibecode-app.html'}
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 
-SUPABASE_URL      = os.environ.get('SUPABASE_URL', '')
-SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
+SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
+SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
 
 BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def serve_app():
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
@@ -45,6 +51,7 @@ def _fetch_project(project_id):
             f"{SUPABASE_URL}/rest/v1/projects"
             f"?id=eq.{safe_id}"
             f"&select=id,name,description,emoji,author,cat"
+            f"&status=eq.approved"
             f"&limit=1"
         )
         req = urllib.request.Request(api_url, headers={
@@ -81,6 +88,56 @@ def _inject_project_og(html, project):
     return html
 
 
+# ── Supabase admin helpers (use service key — bypasses RLS) ───────────────────
+
+def _sb_service_request(method, path, body=None):
+    """Make a Supabase REST request using the service role key."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return None, 'SUPABASE_SERVICE_KEY is not configured'
+    url = f"{SUPABASE_URL}/rest/v1/{path}"
+    data = json.dumps(body).encode() if body is not None else None
+    headers = {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+    }
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode()), None
+    except urllib.error.HTTPError as e:
+        return None, f'HTTP {e.code}: {e.read().decode()}'
+    except Exception as ex:
+        return None, str(ex)
+
+
+def _admin_list_projects(status='pending'):
+    safe_s = urllib.parse.quote(status, safe='')
+    path = f"projects?status=eq.{safe_s}&order=created_at.asc&select=id,name,description,emoji,author,cat,status,upvotes,demo,tools,created_at"
+    data, err = _sb_service_request('GET', path)
+    return data or [], err
+
+
+def _admin_count_by_status():
+    counts = {'pending': 0, 'approved': 0, 'rejected': 0}
+    for status in counts:
+        safe_s = urllib.parse.quote(status, safe='')
+        path = f"projects?status=eq.{safe_s}&select=id"
+        data, _ = _sb_service_request('GET', path)
+        counts[status] = len(data) if data else 0
+    return counts
+
+
+def _admin_set_status(project_id, new_status):
+    safe_id = urllib.parse.quote(str(project_id), safe='')
+    path = f"projects?id=eq.{safe_id}"
+    _, err = _sb_service_request('PATCH', path, {'status': new_status})
+    return err
+
+
+# ── Public routes ─────────────────────────────────────────────────────────────
+
 @app.route('/')
 def index():
     pid = request.args.get('project', '').strip()
@@ -102,6 +159,7 @@ def _fetch_profile_stats(handle):
         api_url = (
             f"{SUPABASE_URL}/rest/v1/projects"
             f"?author=eq.{safe_h}"
+            f"&status=eq.approved"
             f"&select=upvotes"
         )
         req = urllib.request.Request(api_url, headers={
@@ -120,7 +178,6 @@ def _fetch_profile_stats(handle):
 
 @app.route('/u/<handle>')
 def user_profile(handle):
-    # Normalise: strip leading @ for URL, add it back for DB query
     bare_handle = handle.lstrip('@')
     db_handle   = '@' + bare_handle
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
@@ -170,9 +227,89 @@ def project_detail(project_id):
     return resp
 
 
+# ── Admin routes ──────────────────────────────────────────────────────────────
+
+def _admin_logged_in():
+    return session.get('admin') is True
+
+
+@app.route('/admin')
+def admin():
+    if not _admin_logged_in():
+        return render_template('admin.html', logged_in=False, error=None)
+
+    tab = request.args.get('tab', 'pending')
+    if tab not in ('pending', 'approved', 'rejected'):
+        tab = 'pending'
+
+    projects, err = _admin_list_projects(tab)
+    counts = _admin_count_by_status()
+
+    flash_msg  = session.pop('flash_msg', None)
+    flash_type = session.pop('flash_type', 'ok')
+
+    return render_template(
+        'admin.html',
+        logged_in=True,
+        projects=projects,
+        counts=counts,
+        tab=tab,
+        flash_msg=flash_msg,
+        flash_type=flash_type,
+    )
+
+
+@app.route('/admin/login', methods=['POST'])
+def admin_login():
+    password = request.form.get('password', '')
+    if not ADMIN_PASSWORD:
+        return render_template('admin.html', logged_in=False,
+                               error='ADMIN_PASSWORD secret is not configured.')
+    if password == ADMIN_PASSWORD:
+        session['admin'] = True
+        return redirect(url_for('admin'))
+    return render_template('admin.html', logged_in=False,
+                           error='Incorrect password. Try again.')
+
+
+@app.route('/admin/logout', methods=['POST'])
+def admin_logout():
+    session.pop('admin', None)
+    return redirect(url_for('admin'))
+
+
+@app.route('/admin/action', methods=['POST'])
+def admin_action():
+    if not _admin_logged_in():
+        return redirect(url_for('admin'))
+
+    project_id = request.form.get('project_id', '').strip()
+    action     = request.form.get('action', '').strip()
+
+    if not project_id or action not in ('approve', 'reject'):
+        session['flash_msg']  = 'Invalid action.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin'))
+
+    new_status = 'approved' if action == 'approve' else 'rejected'
+    err = _admin_set_status(project_id, new_status)
+
+    if err:
+        session['flash_msg']  = f'Error: {err}'
+        session['flash_type'] = 'err'
+    else:
+        verb = 'approved' if new_status == 'approved' else 'rejected'
+        session['flash_msg']  = f'Project {verb} successfully.'
+        session['flash_type'] = 'ok'
+
+    tab = 'pending' if action == 'approve' else 'pending'
+    return redirect(url_for('admin', tab=tab))
+
+
+# ── Catch-all static file route ───────────────────────────────────────────────
+
 @app.route('/<path:path>')
 def root_files(path):
-    # Redirect HTML entry-point aliases back to / so they always get config injected
     if path in HTML_ENTRY_POINTS:
         return redirect(url_for('index'), code=301)
     filename = os.path.basename(path)
