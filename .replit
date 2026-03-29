@@ -37,6 +37,8 @@ externalPort = 80
 [userenv]
 
 [userenv.shared]
+SUPABASE_SERVICE_KEY = ""
+ADMIN_PASSWORD = ""
 
 [deployment]
 deploymentTarget = "autoscale"
