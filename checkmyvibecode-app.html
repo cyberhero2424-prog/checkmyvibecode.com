@@ -2224,7 +2224,11 @@ window.addEventListener('popstate', function(e) {
 });
 
 function openSubmit() { document.getElementById('submitModal').classList.add('open'); }
-function closeSubmit() { document.getElementById('submitModal').classList.remove('open'); }
+function closeSubmit() {
+  document.getElementById('submitModal').classList.remove('open');
+  ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_tools','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const sc=document.getElementById('f_cat');if(sc)sc.selectedIndex=0;
+}
 
 let boostProjectId = null;
 let selectedPlan = null;
