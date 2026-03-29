@@ -1293,7 +1293,6 @@ function updateNavForUser() {
     document.getElementById('dropdownName').textContent = currentUser.name;
     document.getElementById('dropdownEmail').textContent = currentUser.email;
     if (savedChip) savedChip.style.display = 'inline-flex';
-    const fnb = document.getElementById('forumNewBtn'); if (fnb) fnb.style.display = '';
     if (window._forumLoaded && currentUser) {
       sb.from('forum_thread_upvotes').select('thread_id').eq('user_id', currentUser.id).then(({ data: voted }) => {
         forumVotedIds = new Set();
@@ -1306,7 +1305,6 @@ function updateNavForUser() {
     document.getElementById('navLoginBtn').style.display = 'flex';
     document.getElementById('navAvatar').style.display = 'none';
     document.getElementById('navSubmitBtn').style.display = 'none';
-    const fnb = document.getElementById('forumNewBtn'); if (fnb) fnb.style.display = 'none';
     forumVotedIds = new Set();
     closeDropdown();
     deactivateMyBuilds();
@@ -2808,7 +2806,7 @@ loadProjects().then(() => checkDeepLink());
         <h2>Forum</h2>
         <p>Discuss vibe coding, share tips, ask questions.</p>
       </div>
-      <button class="btn btn-primary" id="forumNewBtn" onclick="openNewThreadModal()" style="display:none;flex-shrink:0">+ New Thread</button>
+      <button class="btn btn-primary" id="forumNewBtn" onclick="openNewThreadModal()" style="flex-shrink:0">+ New Thread</button>
     </div>
 
     <div id="forum-thread-list">
