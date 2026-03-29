@@ -980,18 +980,8 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
       <div class="fgroup"><label class="flabel">Approx. cost</label><input class="finput" id="f_cost" placeholder="e.g. $0.50 in API"></div>
     </div>
     <div class="fgroup"><label class="flabel">Demo link</label><input class="finput" id="f_demo" placeholder="https://myapp.vercel.app"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="fgroup"><label class="flabel">Category</label><select class="fselect" id="f_cat"><option value="app">App</option><option value="game">Game</option><option value="tool">Tool</option><option value="website">Website</option></select></div>
-      <div class="fgroup"><label class="flabel">Vibe Score</label><input class="finput" id="f_score" type="number" min="0" max="100" placeholder="82"></div>
-    </div>
-    <div class="fgroup"><label class="flabel">AI tools used</label><div class="tools-grid">
-      <button class="tool-toggle" onclick="toggleTool(this,'Claude')">Claude</button>
-      <button class="tool-toggle" onclick="toggleTool(this,'Cursor')">Cursor</button>
-      <button class="tool-toggle" onclick="toggleTool(this,'ChatGPT')">ChatGPT</button>
-      <button class="tool-toggle" onclick="toggleTool(this,'Bolt')">Bolt</button>
-      <button class="tool-toggle" onclick="toggleTool(this,'v0')">v0</button>
-      <button class="tool-toggle" onclick="toggleTool(this,'Lovable')">Lovable</button>
-    </div></div>
+    <div class="fgroup"><label class="flabel">Category</label><select class="fselect" id="f_cat"><option value="app">App</option><option value="game">Game</option><option value="tool">Tool</option><option value="website">Website</option></select></div>
+    <div class="fgroup"><label class="flabel">AI tools used</label><input class="finput" id="f_tools" placeholder="e.g. Claude, Cursor, ChatGPT, Lovable, Gemini..."></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="fgroup"><label class="flabel">Your handle</label><input class="finput" id="f_author" placeholder="@you"></div>
       <div class="fgroup"><label class="flabel">Project emoji</label><input class="finput" id="f_emoji" placeholder="🚀" maxlength="2"></div>
@@ -2312,8 +2302,8 @@ async function submitProject() {
     build_time: document.getElementById('f_time').value.trim() || null,
     cost: document.getElementById('f_cost').value.trim() || null,
     demo: document.getElementById('f_demo').value.trim() || '#',
-    tools: [...selectedTools],
-    score: parseInt(document.getElementById('f_score').value) || null,
+    tools: (document.getElementById('f_tools').value||'').split(',').map(t=>t.trim()).filter(Boolean),
+    score: null,
     author: document.getElementById('f_author').value.trim() || currentUser.handle || '@anon',
     emoji: document.getElementById('f_emoji').value.trim() || '🚀',
     cat: document.getElementById('f_cat').value,
@@ -2325,8 +2315,7 @@ async function submitProject() {
   if (error) { alert('Error submitting: ' + error.message); return; }
   // Project is pending review — do NOT add to local grid yet
   closeSubmit();
-  ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_score','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  selectedTools.clear(); document.querySelectorAll('.tool-toggle').forEach(b=>b.classList.remove('on'));
+  ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_tools','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   showToast('🎉 Project submitted! We\'ll review it and publish it shortly.');
 }
 
