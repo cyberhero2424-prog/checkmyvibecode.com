@@ -2013,6 +2013,7 @@ function renderForumThreadList() {
         <div class="forum-thread-title">${escHtml(t.title)}</div>
         <div class="forum-thread-preview">${escHtml(t.body)}</div>
         <div class="forum-thread-meta">
+          <span class="forum-reply-avatar" style="width:22px;height:22px;font-size:9px;border-radius:5px;flex-shrink:0">${forumAvatar(t.author_handle)}</span>
           <span class="t-author">${escHtml(t.author_handle)}</span>
           <span class="t-sep"></span>
           <span>${fmtForumDate(t.created_at)}</span>
