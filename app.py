@@ -438,7 +438,7 @@ def submit_project():
         f"Review it here: {admin_url}\n"
     )
     ok, email_err = _send_resend_email(
-        to='hello@checkmyvibecode.com',
+        to='contact@checkmyvibecode.com',
         subject=f'[CheckMyVibeCode] New submission: {name}',
         text_body=email_body,
     )

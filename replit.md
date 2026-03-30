@@ -40,7 +40,7 @@ Run `migrations/forum.sql` in the Supabase Dashboard > SQL Editor to enable the 
 - Supabase project ref: `cltqungsctxkzonqigcf`
 - GA4 ID: `G-946DB9M5F4`
 - Cookie consent key: `cookie_consent` in localStorage (`'granted'` or `'denied'`)
-- Contact: hello@checkmyvibecode.com
+- Contact: contact@checkmyvibecode.com
 
 ## Static Files
 - `static/logo2.png` — nav logo
