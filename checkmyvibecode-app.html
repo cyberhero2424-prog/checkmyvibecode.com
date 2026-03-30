@@ -1595,6 +1595,7 @@ function renderProjects() {
         <div class="card-footer">
           <div class="card-author">by <button class="author-link" data-author="${escAttr(p.author)}"><strong>${highlight(p.author,q)}</strong></button></div>
           <button class="view-btn" onclick="event.stopPropagation();openDrawer('${p.id}')">View →</button>
+          <button class="view-btn card-share-btn" onclick="event.stopPropagation();shareProject('${p.id}',this)" title="Copy link" style="padding:5px 9px">⤴</button>
           <button class="share-x-btn" onclick="event.stopPropagation();shareX('${p.id}')" title="Share on X"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.264 5.633 5.9-5.633zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
           <button class="share-fb-btn" onclick="event.stopPropagation();shareFb('${p.id}')" title="Share on Facebook"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></button>
           <button class="bm-btn${p.bookmarked?' bm-active':''}" id="bm-${p.id}" onclick="event.stopPropagation();toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}">${p.bookmarked?BM_ICON_ON:BM_ICON_OFF}</button>
@@ -2341,7 +2342,7 @@ async function submitProject() {
   // Notify admin via email (fire-and-forget, non-blocking)
   fetch('/api/notify-submission', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Notify-Secret': window.NOTIFY_SECRET || '' },
     body: JSON.stringify({ name: newProject.name, author: newProject.author, description: newProject.description, demo: newProject.demo, cat: newProject.cat })
   }).catch(() => {});
   // Project is pending review — do NOT add to local grid yet

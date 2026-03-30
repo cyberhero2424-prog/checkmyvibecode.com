@@ -1,3 +1,4 @@
+import hmac
 import html as html_module
 import json
 import os
@@ -25,18 +26,29 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
 RESEND_API_KEY      = os.environ.get('RESEND_API_KEY', '')
 
+# Per-startup token protecting /api/notify-submission from anonymous callers
+NOTIFY_SECRET = secrets.token_urlsafe(32)
+
 BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _inject_config(html):
+    """Inject Supabase config + NOTIFY_SECRET into the HTML <head>."""
+    config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
+    scripts = (
+        f'<script>window.SUPABASE_CONFIG={config};</script>\n'
+        f'<script>window.NOTIFY_SECRET={json.dumps(NOTIFY_SECRET)};</script>\n'
+    )
+    return html.replace('</head>', scripts + '</head>', 1)
+
 
 def serve_app():
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
     base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
     html = html.replace('__BASE_URL__', base_url)
-    config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
-    config_script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
-    html = html.replace('</head>', config_script + '</head>', 1)
+    html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
     resp.headers['Pragma'] = 'no-cache'
@@ -201,9 +213,7 @@ def user_profile(handle):
         f'<meta name="twitter:description" content="{safe_d}">\n'
     )
     html = html.replace('<head>', '<head>\n' + og_tags, 1)
-    config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
-    config_script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
-    html = html.replace('</head>', config_script + '</head>', 1)
+    html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
     resp.headers['Pragma'] = 'no-cache'
@@ -219,9 +229,7 @@ def project_detail(project_id):
     project = _fetch_project(project_id)
     if project:
         html = _inject_project_og(html, project)
-    config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
-    config_script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
-    html = html.replace('</head>', config_script + '</head>', 1)
+    html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
     resp.headers['Pragma'] = 'no-cache'
@@ -365,6 +373,9 @@ def _send_resend_email(to, subject, text_body):
 @app.route('/api/notify-submission', methods=['POST'])
 def notify_submission():
     """Called by the frontend after a project is submitted. Sends admin email."""
+    client_secret = request.headers.get('X-Notify-Secret', '')
+    if not hmac.compare_digest(client_secret, NOTIFY_SECRET):
+        return {'ok': False, 'error': 'Unauthorized'}, 401
     try:
         payload = request.get_json(silent=True) or {}
         name        = str(payload.get('name', ''))[:200]
