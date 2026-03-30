@@ -39,7 +39,6 @@ externalPort = 80
 [userenv.shared]
 SUPABASE_SERVICE_KEY = "96511"
 ADMIN_PASSWORD = "MIHAILOISTBABA345."
-NOTIFY_SUBMISSION_SECRET = "4b3253fda19648e300a9d3ebb5b74821784b728f1de229d8acb064a9c460a3ae"
 
 [deployment]
 deploymentTarget = "autoscale"

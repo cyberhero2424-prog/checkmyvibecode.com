@@ -23,21 +23,17 @@ SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
-RESEND_API_KEY           = os.environ.get('RESEND_API_KEY', '')
-NOTIFY_SUBMISSION_SECRET = os.environ.get('NOTIFY_SUBMISSION_SECRET', '') or secrets.token_urlsafe(32)
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 
 BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _inject_config(html):
-    """Inject Supabase config and notify secret into the HTML <head>."""
+    """Inject Supabase config into the HTML <head>."""
     config = json.dumps({'url': SUPABASE_URL, 'anonKey': SUPABASE_ANON_KEY})
-    scripts = (
-        f'<script>window.SUPABASE_CONFIG={config};</script>\n'
-        f'<script>window.NOTIFY_SUBMISSION_SECRET={json.dumps(NOTIFY_SUBMISSION_SECRET)};</script>\n'
-    )
-    return html.replace('</head>', scripts + '</head>', 1)
+    script = f'<script>window.SUPABASE_CONFIG={config};</script>\n'
+    return html.replace('</head>', script + '</head>', 1)
 
 
 def serve_app():
@@ -367,46 +363,89 @@ def _send_resend_email(to, subject, text_body):
         return False, str(ex)
 
 
-@app.route('/api/notify-submission', methods=['POST'])
-def notify_submission():
-    """Called after a project is submitted. Verifies shared secret, sends admin email."""
-    import hmac as _hmac
-    client_secret = request.headers.get('X-Notify-Secret', '')
-    if not _hmac.compare_digest(client_secret, NOTIFY_SUBMISSION_SECRET):
-        return {'ok': False, 'error': 'Unauthorized'}, 401
+def _verify_supabase_token(token):
+    """Verify a Supabase JWT via /auth/v1/user. Returns user dict or None."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY or not token:
+        return None
     try:
-        payload = request.get_json(silent=True) or {}
-        name        = str(payload.get('name', ''))[:200]
-        author      = str(payload.get('author', ''))[:100]
-        description = str(payload.get('description', ''))[:500]
-        demo        = str(payload.get('demo', ''))[:300]
-        cat         = str(payload.get('cat', ''))[:100]
-
-        if not name:
-            return {'ok': False, 'error': 'missing name'}, 400
-
-        admin_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')) + '/admin'
-        body = (
-            f"New project submitted for review on CheckMyVibeCode!\n\n"
-            f"Name:        {name}\n"
-            f"Author:      {author}\n"
-            f"Category:    {cat}\n"
-            f"Demo URL:    {demo}\n"
-            f"Description: {description}\n\n"
-            f"Review it here: {admin_url}\n"
+        req = urllib.request.Request(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': f'Bearer {token}',
+            },
         )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return json.loads(resp.read().decode())
+    except Exception:
+        return None
 
-        ok, err = _send_resend_email(
-            to='hello@checkmyvibecode.com',
-            subject=f'[CheckMyVibeCode] New submission: {name}',
-            text_body=body,
-        )
-        if not ok:
-            app.logger.warning('Email notify failed: %s', err)
-        return {'ok': True}, 200
-    except Exception as ex:
-        app.logger.exception('notify_submission error')
-        return {'ok': False, 'error': str(ex)}, 200
+
+@app.route('/api/submit-project', methods=['POST'])
+def submit_project():
+    """Server-side project submission: verifies Supabase JWT, inserts via
+    service key, and sends admin notification email — all in one trusted step.
+    No secrets are ever sent to or read from the browser."""
+    # 1. Authenticate via the user's Supabase session JWT
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return {'ok': False, 'error': 'Unauthorized'}, 401
+    user = _verify_supabase_token(auth_header[7:])
+    if not user:
+        return {'ok': False, 'error': 'Invalid or expired session'}, 401
+
+    # 2. Parse and sanitise project data
+    payload = request.get_json(silent=True) or {}
+    name        = str(payload.get('name', '')).strip()[:200]
+    description = str(payload.get('description', '')).strip()[:2000]
+    if not name or not description:
+        return {'ok': False, 'error': 'name and description are required'}, 400
+
+    def _s(key, limit=500):
+        v = payload.get(key)
+        return str(v).strip()[:limit] if v else None
+
+    new_project = {
+        'name':        name,
+        'description': description,
+        'idea':        _s('idea'),
+        'build_time':  _s('build_time', 200),
+        'cost':        _s('cost', 200),
+        'demo':        _s('demo', 500) or '#',
+        'tools':       [str(t).strip()[:100] for t in (payload.get('tools') or []) if str(t).strip()][:20],
+        'score':       None,
+        'author':      _s('author', 100) or '@anon',
+        'emoji':       _s('emoji', 10) or '🚀',
+        'cat':         _s('cat', 100) or 'Other',
+        'upvotes':     0,
+        'status':      'pending',
+    }
+
+    # 3. Insert using service key (bypasses RLS — safe because we verified the JWT)
+    _, err = _sb_service_request('POST', 'projects', new_project)
+    if err:
+        return {'ok': False, 'error': f'DB error: {err}'}, 500
+
+    # 4. Send admin notification email — failure is non-blocking
+    admin_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')) + '/admin'
+    email_body = (
+        f"New project submitted for review on CheckMyVibeCode!\n\n"
+        f"Name:        {name}\n"
+        f"Author:      {new_project['author']}\n"
+        f"Category:    {new_project['cat']}\n"
+        f"Demo URL:    {new_project['demo']}\n"
+        f"Description: {description[:300]}\n\n"
+        f"Review it here: {admin_url}\n"
+    )
+    ok, email_err = _send_resend_email(
+        to='hello@checkmyvibecode.com',
+        subject=f'[CheckMyVibeCode] New submission: {name}',
+        text_body=email_body,
+    )
+    if not ok:
+        app.logger.warning('Submit email notify failed: %s', email_err)
+
+    return {'ok': True}, 201
 
 
 # ── Catch-all static file route ───────────────────────────────────────────────
