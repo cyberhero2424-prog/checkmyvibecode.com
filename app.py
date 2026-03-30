@@ -23,6 +23,7 @@ SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
+RESEND_API_KEY      = os.environ.get('RESEND_API_KEY', '')
 
 BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
 
@@ -329,6 +330,76 @@ def admin_action():
         session['flash_type'] = 'ok'
 
     return redirect(url_for('admin', tab='pending'))
+
+
+# ── Email notification helper ─────────────────────────────────────────────────
+
+def _send_resend_email(to, subject, text_body):
+    """Send a plain-text email via Resend API. Returns (ok, error_msg)."""
+    if not RESEND_API_KEY:
+        return False, 'RESEND_API_KEY not configured'
+    payload = json.dumps({
+        'from': 'CheckMyVibeCode <noreply@checkmyvibecode.com>',
+        'to': [to],
+        'subject': subject,
+        'text': text_body,
+    }).encode()
+    req = urllib.request.Request(
+        'https://api.resend.com/emails',
+        data=payload,
+        headers={
+            'Authorization': f'Bearer {RESEND_API_KEY}',
+            'Content-Type': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status < 300, None
+    except urllib.error.HTTPError as e:
+        return False, f'HTTP {e.code}: {e.read().decode()[:200]}'
+    except Exception as ex:
+        return False, str(ex)
+
+
+@app.route('/api/notify-submission', methods=['POST'])
+def notify_submission():
+    """Called by the frontend after a project is submitted. Sends admin email."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        name        = str(payload.get('name', ''))[:200]
+        author      = str(payload.get('author', ''))[:100]
+        description = str(payload.get('description', ''))[:500]
+        demo        = str(payload.get('demo', ''))[:300]
+        cat         = str(payload.get('cat', ''))[:100]
+
+        if not name:
+            return {'ok': False, 'error': 'missing name'}, 400
+
+        admin_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')) + '/admin'
+        body = (
+            f"New project submitted for review on CheckMyVibeCode!\n\n"
+            f"Name:        {name}\n"
+            f"Author:      {author}\n"
+            f"Category:    {cat}\n"
+            f"Demo URL:    {demo}\n"
+            f"Description: {description}\n\n"
+            f"Review it here: {admin_url}\n"
+        )
+
+        ok, err = _send_resend_email(
+            to='hello@checkmyvibecode.com',
+            subject=f'[CheckMyVibeCode] New submission: {name}',
+            text_body=body,
+        )
+        if ok:
+            return {'ok': True}, 200
+        # Silently swallow if email fails — submission itself already succeeded
+        app.logger.warning('Email notify failed: %s', err)
+        return {'ok': False, 'error': err}, 200  # still 200 so frontend ignores it
+    except Exception as ex:
+        app.logger.exception('notify_submission error')
+        return {'ok': False, 'error': str(ex)}, 200
 
 
 # ── Catch-all static file route ───────────────────────────────────────────────

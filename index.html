@@ -235,6 +235,9 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .upvote-btn.voted { background:var(--green-bg); border-color:var(--green-border); color:var(--green); box-shadow:none; }
 .view-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:var(--r-sm); font-size:12px; background:var(--surface2); border:1px solid var(--border); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); font-weight:500; }
 .view-btn:hover { background:var(--surface3); color:var(--text); }
+.share-x-btn, .share-fb-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); flex-shrink:0; padding:0; }
+.share-x-btn:hover { background:#000; color:#fff; border-color:#000; }
+.share-fb-btn:hover { background:#1877f2; color:#fff; border-color:#1877f2; }
 
 /* Sidebar */
 .sidebar { display:flex; flex-direction:column; gap:12px; }
@@ -463,6 +466,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .card-footer { gap:4px; padding-top:10px; }
   .card-author { font-size:11px; min-width:0; }
   .card-share-btn { display:none; }
+  .share-x-btn, .share-fb-btn { display:none; }
   .view-btn { padding:5px 8px; font-size:11px; white-space:nowrap; }
   .upvote-btn { padding:5px 7px; font-size:11px; white-space:nowrap; }
 
@@ -1591,7 +1595,8 @@ function renderProjects() {
         <div class="card-footer">
           <div class="card-author">by <button class="author-link" data-author="${escAttr(p.author)}"><strong>${highlight(p.author,q)}</strong></button></div>
           <button class="view-btn" onclick="event.stopPropagation();openDrawer('${p.id}')">View →</button>
-          <button class="view-btn card-share-btn" onclick="event.stopPropagation();shareProject('${p.id}',this)" title="Share" style="padding:5px 9px">⤴</button>
+          <button class="share-x-btn" onclick="event.stopPropagation();shareX('${p.id}')" title="Share on X"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.264 5.633 5.9-5.633zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
+          <button class="share-fb-btn" onclick="event.stopPropagation();shareFb('${p.id}')" title="Share on Facebook"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></button>
           <button class="bm-btn${p.bookmarked?' bm-active':''}" id="bm-${p.id}" onclick="event.stopPropagation();toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}">${p.bookmarked?BM_ICON_ON:BM_ICON_OFF}</button>
           <button class="upvote-btn${p.voted?' voted':''}" id="ub-${p.id}" onclick="event.stopPropagation();upvote('${p.id}')">↑ <span id="uv-${p.id}">${p.upvotes}</span></button>
         </div>
@@ -1697,7 +1702,9 @@ function openDrawer(id) {
     <a href="${p.demo||'#'}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;text-decoration:none">↗ View Project</a>
     <button class="upvote-btn${p.voted?' voted':''}" id="dub-${p.id}" onclick="upvote('${p.id}')" style="padding:7px 16px;font-size:13px">↑ <span id="duv-${p.id}">${p.upvotes}</span> upvotes</button>
     <button class="bm-btn${p.bookmarked?' bm-active':''}" id="dbm-${p.id}" onclick="toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}" style="padding:7px 13px;font-size:12px;flex-shrink:0">${(p.bookmarked?BM_ICON_ON:BM_ICON_OFF)+(p.bookmarked?' Saved':' Save')}</button>
-    <button onclick="shareProject('${p.id}',this)" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0">⤴ Share</button>
+    <button onclick="shareProject('${p.id}',this)" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0">⤴ Copy link</button>
+    <button onclick="shareX('${p.id}')" title="Share on X" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 11px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#000';this.style.color='#fff';this.style.borderColor='#000'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--muted2)';this.style.borderColor='var(--border2)'"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.264 5.633 5.9-5.633zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> X</button>
+    <button onclick="shareFb('${p.id}')" title="Share on Facebook" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 11px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#1877f2';this.style.color='#fff';this.style.borderColor='#1877f2'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--muted2)';this.style.borderColor='var(--border2)'"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> FB</button>
     <button onclick="openBoost('${p.id}')" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid rgba(234,179,8,0.4);background:#fefce8;color:#854d0e;cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#fef9c3'" onmouseout="this.style.background='#fefce8'">🚀 Boost</button>`;
   document.getElementById('commentInput').value = '';
   document.getElementById('drawerOverlay').classList.add('open');
@@ -2155,6 +2162,20 @@ function shareProject(id, btn) {
   });
 }
 
+function shareX(id) {
+  const p = projects.find(x=>x.id===id);
+  if (!p) return;
+  const url = window.location.origin + '/p/' + id;
+  const cat = (p.cat||'vibecoding').replace(/\s+/g,'');
+  const text = `Check out "${p.name}" on checkmyvibecode.com 🚀 #${cat} #vibecoding`;
+  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank', 'noopener');
+}
+
+function shareFb(id) {
+  const url = window.location.origin + '/p/' + id;
+  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener');
+}
+
 // Deep link: open project from /p/<id> or legacy ?project=ID
 function checkDeepLink() {
   const path = window.location.pathname;
@@ -2317,6 +2338,12 @@ async function submitProject() {
   const { data, error } = await sb.from('projects').insert([newProject]).select().single();
   if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit project →'; }
   if (error) { alert('Error submitting: ' + error.message); return; }
+  // Notify admin via email (fire-and-forget, non-blocking)
+  fetch('/api/notify-submission', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: newProject.name, author: newProject.author, description: newProject.description, demo: newProject.demo, cat: newProject.cat })
+  }).catch(() => {});
   // Project is pending review — do NOT add to local grid yet
   closeSubmit();
   ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_tools','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
