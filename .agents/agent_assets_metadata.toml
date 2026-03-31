@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "bpYfPBEC3hgaDCBN4XBkk"
+uri = "file://checkmyvibecode.zip"
+type = "unspecified"
+title = "checkmyvibecode.zip"
