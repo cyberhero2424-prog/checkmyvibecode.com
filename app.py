@@ -3,8 +3,10 @@ import json
 import os
 import re
 import secrets
+import time
 import urllib.parse
 import urllib.request
+from collections import defaultdict
 from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template
 from dotenv import load_dotenv
 
@@ -26,6 +28,54 @@ ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 
 BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
+
+# ── Rate limiting & brute force protection ────────────────────────────────────
+
+_submit_log   = defaultdict(list)   # ip -> [timestamps]
+_login_log    = defaultdict(list)   # ip -> [timestamps]
+
+def _rate_limit_submit(ip, max_calls=5, window=3600):
+    """Allow max 5 project submissions per IP per hour."""
+    now = time.time()
+    _submit_log[ip] = [t for t in _submit_log[ip] if now - t < window]
+    if len(_submit_log[ip]) >= max_calls:
+        return False
+    _submit_log[ip].append(now)
+    return True
+
+def _rate_limit_login(ip, max_attempts=10, window=900):
+    """Lock out IP after 10 failed login attempts within 15 minutes."""
+    now = time.time()
+    _login_log[ip] = [t for t in _login_log[ip] if now - t < window]
+    if len(_login_log[ip]) >= max_attempts:
+        return False
+    _login_log[ip].append(now)
+    return True
+
+def _clear_login_attempts(ip):
+    """Clear login attempts on successful login."""
+    _login_log.pop(ip, None)
+
+# ── Security headers ──────────────────────────────────────────────────────────
+
+@app.after_request
+def security_headers(resp):
+    resp.headers['X-Content-Type-Options']  = 'nosniff'
+    resp.headers['X-Frame-Options']         = 'DENY'
+    resp.headers['Referrer-Policy']         = 'strict-origin-when-cross-origin'
+    resp.headers['X-XSS-Protection']        = '1; mode=block'
+    return resp
+
+# ── URL validator ─────────────────────────────────────────────────────────────
+
+def _safe_url(url):
+    """Only allow http:// and https:// URLs — blocks javascript: and data: URIs."""
+    if not url:
+        return '#'
+    url = str(url).strip()[:500]
+    if not re.match(r'^https?://', url, re.IGNORECASE):
+        return '#'
+    return url
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -281,6 +331,11 @@ def admin_login():
         return render_template('admin.html', logged_in=False,
                                error='Invalid request. Please try again.',
                                csrf_token=_csrf_token())
+    ip = request.remote_addr
+    if not _rate_limit_login(ip):
+        return render_template('admin.html', logged_in=False,
+                               error='Too many login attempts. Please wait 15 minutes.',
+                               csrf_token=_csrf_token())
     password = request.form.get('password', '')
     if not ADMIN_PASSWORD:
         return render_template('admin.html', logged_in=False,
@@ -288,6 +343,7 @@ def admin_login():
                                csrf_token=_csrf_token())
     if password == ADMIN_PASSWORD:
         session['admin'] = True
+        _clear_login_attempts(ip)
         return redirect(url_for('admin'))
     return render_template('admin.html', logged_in=False,
                            error='Incorrect password. Try again.',
@@ -394,6 +450,10 @@ def submit_project():
     if not user:
         return {'ok': False, 'error': 'Invalid or expired session'}, 401
 
+    # 1b. Rate limit — max 5 submissions per IP per hour
+    if not _rate_limit_submit(request.remote_addr):
+        return {'ok': False, 'error': 'Too many submissions. Please wait before trying again.'}, 429
+
     # 2. Parse and sanitise project data
     payload = request.get_json(silent=True) or {}
     name        = str(payload.get('name', '')).strip()[:200]
@@ -411,7 +471,7 @@ def submit_project():
         'idea':        _s('idea'),
         'build_time':  _s('build_time', 200),
         'cost':        _s('cost', 200),
-        'demo':        _s('demo', 500) or '#',
+        'demo':        _safe_url(_s('demo', 500)),
         'tools':       [str(t).strip()[:100] for t in (payload.get('tools') or []) if str(t).strip()][:20],
         'score':       None,
         'author':      _s('author', 100) or '@anon',
@@ -447,6 +507,21 @@ def submit_project():
 
     return {'ok': True}, 201
 
+
+# ── robots.txt ────────────────────────────────────────────────────────────────
+
+@app.route('/robots.txt')
+def robots():
+    return Response(
+        "User-agent: *\nDisallow: /admin\nDisallow: /api/\n",
+        mimetype='text/plain'
+    )
+
+# ── 404 handler ───────────────────────────────────────────────────────────────
+
+@app.errorhandler(404)
+def not_found(e):
+    return redirect(url_for('index'))
 
 # ── Catch-all static file route ───────────────────────────────────────────────
 
