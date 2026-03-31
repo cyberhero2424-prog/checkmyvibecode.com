@@ -6,3 +6,9 @@ id = "bpYfPBEC3hgaDCBN4XBkk"
 uri = "file://checkmyvibecode.zip"
 type = "unspecified"
 title = "checkmyvibecode.zip"
+
+[[outputs]]
+id = "gpp5uIu95uyRttH5CcMzp"
+uri = "file://static/checkmyvibecode.zip"
+type = "unspecified"
+title = "checkmyvibecode.zip — Code Download"
