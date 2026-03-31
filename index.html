@@ -1154,7 +1154,7 @@ const sb = window.supabase.createClient(
   window.SUPABASE_CONFIG.anonKey
 );
 let _realtimeChannel = null;
-setTimeout(() => hidePreloader && hidePreloader(), 6000);
+setTimeout(() => hidePreloader && hidePreloader(), 7000);
 
 /* ════════════════════════════════
    AUTH SYSTEM
@@ -1471,9 +1471,17 @@ function mapProject(p) {
 async function loadProjects() {
   const grid = document.getElementById('grid');
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)"><div style="width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px">Loading projects...</div></div>';
-  const { data, error } = await sb.from('projects').select('*').order('upvotes', { ascending: false });
+  const ctrl = new AbortController();
+  const fetchTimeout = setTimeout(() => ctrl.abort(), 6000);
+  let data, error;
+  try {
+    ({ data, error } = await sb.from('projects').select('*').order('upvotes', { ascending: false }).abortSignal(ctrl.signal));
+  } catch(e) {
+    error = e;
+  }
+  clearTimeout(fetchTimeout);
   if (error) {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><div class="empty-text">Could not load projects. Try refreshing.</div></div>`;
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><div class="empty-text">Could not load projects. Try refreshing.</div><button class="btn btn-ghost" style="margin-top:12px" onclick="loadProjects()">Retry</button></div>`;
     console.error(error); hidePreloader(); return;
   }
   projects = (data || []).map(mapProject);
@@ -1738,12 +1746,23 @@ function renderComments(p) {
 
 async function postComment() {
   const input = document.getElementById('commentInput');
-  const text = input.value.trim(); if (!text || !currentProject) return;
+  const btn = document.querySelector('.comment-post');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!currentProject) { showToast('Please open a project first.'); return; }
   if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
-  const { data, error } = await sb.from('comments').insert([{
-    project_id: currentProject.id, author: currentUser.handle, body: text
-  }]).select().single();
-  if (error) { showToast('Error posting comment. Please try again.'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  let data, error;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    ({ data, error } = await sb.from('comments').insert([{
+      project_id: currentProject.id, author: currentUser.handle, body: text
+    }]).select().single().abortSignal(ctrl.signal));
+    clearTimeout(t);
+  } catch(e) { error = e; }
+  if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
+  if (error) { showToast('Could not post comment. Please try again.'); return; }
   if (!currentProject.comments) currentProject.comments = [];
   currentProject.comments.unshift({ author: currentUser.handle, text, time: 'just now' });
   document.getElementById('drawerComments').innerHTML = renderComments(currentProject);
@@ -2142,7 +2161,7 @@ function clearSearch() { searchQuery=''; document.getElementById('mainSearch').v
 function shareProject(id, btn) {
   const p = projects.find(x=>x.id===id);
   if (!p) return;
-  const url = window.location.origin + '/p/' + id;
+  const url = _shareBase + '/p/' + id;
   const text = p.score
     ? `Check out "${p.name}" on checkmyvibecode.com — Vibe Score ${p.score}/100 ✦`
     : `Check out "${p.name}" on checkmyvibecode.com`;
@@ -2164,17 +2183,19 @@ function shareProject(id, btn) {
   });
 }
 
+const _shareBase = 'https://checkmyvibecode.com';
+
 function shareX(id) {
   const p = projects.find(x=>x.id===id);
   if (!p) return;
-  const url = window.location.origin + '/p/' + id;
+  const url = _shareBase + '/p/' + id;
   const cat = (p.cat||'vibecoding').replace(/\s+/g,'');
   const text = `Check out "${p.name}" on checkmyvibecode.com 🚀 #${cat} #vibecoding`;
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank', 'noopener');
 }
 
 function shareFb(id) {
-  const url = window.location.origin + '/p/' + id;
+  const url = _shareBase + '/p/' + id;
   window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank', 'noopener');
 }
 
