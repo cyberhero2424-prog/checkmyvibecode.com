@@ -2015,14 +2015,25 @@ async function loadForumThreads() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     forumThreads = Array.isArray(data) ? data : [];
-    if (currentUser) {
-      const { data: voted } = await sb.from('forum_thread_upvotes').select('thread_id').eq('user_id', currentUser.id);
-      if (voted) voted.forEach(r => forumVotedIds.add(r.thread_id));
-    }
   } catch(e) {
     console.error('loadForumThreads error:', e);
   } finally {
     clearTimeout(t);
+  }
+  if (currentUser) {
+    const uvCtrl = new AbortController();
+    const uvTimer = setTimeout(() => uvCtrl.abort(), 5000);
+    try {
+      const { data: voted } = await Promise.race([
+        sb.from('forum_thread_upvotes').select('thread_id').eq('user_id', currentUser.id),
+        new Promise((_, rej) => uvCtrl.signal.addEventListener('abort', () => rej(new Error('timeout'))))
+      ]);
+      if (voted) voted.forEach(r => forumVotedIds.add(r.thread_id));
+    } catch(e) {
+      console.warn('forum upvote status unavailable:', e.message);
+    } finally {
+      clearTimeout(uvTimer);
+    }
   }
   renderForumThreadList();
   if (currentUser) document.getElementById('forumNewBtn').style.display = '';
