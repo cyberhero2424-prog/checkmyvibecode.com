@@ -1813,14 +1813,17 @@ async function openProfile(handle) {
     history.pushState({userHandle: h}, '', '/u/' + encodeURIComponent(urlHandle));
   }
 
-  const { data, error } = await sb.from('projects').select('*').eq('author', h).order('upvotes', { ascending: false });
-  if (error) {
+  let userProjects;
+  try {
+    const resp = await fetch('/api/profile/' + encodeURIComponent(urlHandle));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    userProjects = await resp.json();
+  } catch(e) {
     document.getElementById('profileBody').innerHTML =
       '<div style="color:var(--muted);font-size:14px;padding:40px 0;text-align:center">Could not load profile.</div>';
     return;
   }
-
-  const userProjects = data || [];
+  userProjects = userProjects || [];
   const totalUpvotes = userProjects.reduce((s, p) => s + (p.upvotes || 0), 0);
   const buildCount   = userProjects.length;
 

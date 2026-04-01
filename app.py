@@ -648,6 +648,32 @@ def api_projects():
         return {'error': 'Could not fetch projects'}, 502
 
 
+@app.route('/api/profile/<path:handle>')
+def api_profile(handle):
+    """Return approved projects for a given author handle as JSON.
+    Routes through Flask so browser-side Supabase JS lock contention cannot block it."""
+    key = SUPABASE_ANON_KEY
+    if not SUPABASE_URL or not key:
+        return {'error': 'Server not configured'}, 503
+    safe_handle = urllib.parse.quote('@' + handle.lstrip('@'), safe='')
+    endpoint = (SUPABASE_URL.rstrip('/') +
+                f'/rest/v1/projects?select=id,name,description,emoji,author,cat,upvotes,demo,tools,created_at'
+                f'&status=eq.approved&author=eq.{safe_handle}&order=upvotes.desc')
+    req = urllib.request.Request(endpoint, headers={
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            body = r.read()
+        resp = Response(body, mimetype='application/json')
+        resp.headers['Cache-Control'] = 'public, max-age=30'
+        return resp
+    except Exception as e:
+        app.logger.error('api_profile error for %s: %s', handle, e)
+        return {'error': 'Could not fetch profile'}, 502
+
+
 # ── Forum proxy endpoints (server-side reads — avoids browser cross-origin blocking) ──
 
 def _sb_get(path, params=''):
