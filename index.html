@@ -2422,48 +2422,57 @@ async function submitProject() {
   if (!currentUser) { closeSubmit(); openAuth(); return; }
   const submitBtn = document.querySelector('#submitModal .btn-primary');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
-  // Get session JWT so server can verify identity and handle insert + email
-  const { data: sessionData } = await sb.auth.getSession();
-  const token = sessionData?.session?.access_token;
-  if (!token) {
-    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit project →'; }
-    closeSubmit(); openAuth(); return;
-  }
-  const projectPayload = {
-    name, description: desc,
-    idea: document.getElementById('f_idea').value.trim() || null,
-    build_time: document.getElementById('f_time').value.trim() || null,
-    cost: document.getElementById('f_cost').value.trim() || null,
-    demo: document.getElementById('f_demo').value.trim() || '#',
-    tools: (document.getElementById('f_tools').value||'').split(',').map(t=>t.trim()).filter(Boolean),
-    author: document.getElementById('f_author').value.trim() || currentUser.handle || '@anon',
-    emoji: document.getElementById('f_emoji').value.trim() || '🚀',
-    cat: document.getElementById('f_cat').value
-  };
-  let resp, respData;
-  const _abortCtrl = new AbortController();
-  const _submitTimeout = setTimeout(() => _abortCtrl.abort(), 15000);
   try {
-    resp = await fetch('/api/submit-project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify(projectPayload),
-      signal: _abortCtrl.signal
-    });
-    clearTimeout(_submitTimeout);
-    respData = await resp.json();
+    // Get session JWT — wrapped in try so any auth error surfaces instead of freezing
+    const { data: sessionData, error: sessionErr } = await sb.auth.getSession();
+    if (sessionErr) throw new Error('Session error: ' + sessionErr.message);
+    const token = sessionData?.session?.access_token;
+    if (!token) {
+      closeSubmit(); openAuth(); return;
+    }
+    const projectPayload = {
+      name, description: desc,
+      idea: document.getElementById('f_idea').value.trim() || null,
+      build_time: document.getElementById('f_time').value.trim() || null,
+      cost: document.getElementById('f_cost').value.trim() || null,
+      demo: document.getElementById('f_demo').value.trim() || '#',
+      tools: (document.getElementById('f_tools').value||'').split(',').map(t=>t.trim()).filter(Boolean),
+      author: document.getElementById('f_author').value.trim() || currentUser.handle || '@anon',
+      emoji: document.getElementById('f_emoji').value.trim() || '🚀',
+      cat: document.getElementById('f_cat').value
+    };
+    const _abortCtrl = new AbortController();
+    const _submitTimeout = setTimeout(() => _abortCtrl.abort(), 15000);
+    let resp, respData;
+    try {
+      resp = await fetch('/api/submit-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(projectPayload),
+        signal: _abortCtrl.signal
+      });
+      clearTimeout(_submitTimeout);
+      respData = await resp.json();
+    } catch(fetchErr) {
+      clearTimeout(_submitTimeout);
+      console.error('submitProject fetch error:', fetchErr);
+      throw fetchErr;
+    }
+    if (!resp.ok || !respData.ok) {
+      throw new Error(respData?.error || ('HTTP ' + resp.status));
+    }
+    // Project is pending review — do NOT add to local grid yet
+    closeSubmit();
+    ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_tools','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+    showToast('🎉 Project submitted! We\'ll review it and publish it shortly.');
   } catch(e) {
-    clearTimeout(_submitTimeout);
+    console.error('submitProject error:', e);
+    alert(e.name === 'AbortError'
+      ? 'Request timed out, please try again.'
+      : ('Could not submit project: ' + (e.message || 'Unknown error. Please try again.')));
+  } finally {
     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit project →'; }
-    alert(e.name === 'AbortError' ? 'Request timed out, please try again.' : 'Network error, please try again.');
-    return;
   }
-  if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit project →'; }
-  if (!resp.ok || !respData.ok) { alert('Error submitting: ' + (respData?.error || resp.status)); return; }
-  // Project is pending review — do NOT add to local grid yet
-  closeSubmit();
-  ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_tools','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  showToast('🎉 Project submitted! We\'ll review it and publish it shortly.');
 }
 
 /* ════════════════════════════════
