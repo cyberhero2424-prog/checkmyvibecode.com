@@ -193,19 +193,26 @@ def _admin_set_status(project_id, new_status):
 
 
 def _admin_list_forum_threads():
-    data, err = _sb_service_request('GET', 'forum_threads?select=*&order=created_at.desc')
-    return data or [], err
+    """List all forum threads using anon key (public RLS read policy)."""
+    raw, err = _sb_get('forum_threads', 'select=*&order=created_at.desc')
+    data = json.loads(raw) if raw else []
+    return data, err
 
 
 def _admin_list_forum_replies(thread_id):
+    """List replies for a thread using anon key (public RLS read policy)."""
     safe_id = urllib.parse.quote(str(thread_id), safe='')
-    data, err = _sb_service_request('GET',
-        f'forum_replies?thread_id=eq.{safe_id}&order=created_at.asc&select=*')
-    return data or [], err
+    raw, err = _sb_get('forum_replies',
+        f'thread_id=eq.{safe_id}&order=created_at.asc&select=*')
+    data = json.loads(raw) if raw else []
+    return data, err
 
 
 def _sb_admin_delete(table, column, value):
     """Generic service-key DELETE for admin moderation. Returns error string or None."""
+    if len(SUPABASE_SERVICE_KEY) < 20:
+        return ('SUPABASE_SERVICE_KEY is not properly configured — '
+                'set it in Secrets to enable forum deletion')
     safe_val = urllib.parse.quote(str(value), safe='')
     _, err = _sb_service_request('DELETE', f'{table}?{column}=eq.{safe_val}')
     return err
@@ -220,9 +227,10 @@ def _admin_delete_forum_reply(reply_id):
 
 
 def _admin_forum_thread_count():
-    """Return total number of forum threads (lightweight count for tab badge)."""
-    data, _ = _sb_service_request('GET', 'forum_threads?select=id')
-    return len(data) if data else 0
+    """Return total number of forum threads using anon key (public RLS read policy)."""
+    raw, _ = _sb_get('forum_threads', 'select=id')
+    data = json.loads(raw) if raw else []
+    return len(data)
 
 
 # ── Public routes ─────────────────────────────────────────────────────────────
