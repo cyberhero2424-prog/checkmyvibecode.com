@@ -554,6 +554,8 @@ def _sb_get(path, params=''):
 
 @app.route('/api/forum/threads')
 def api_forum_threads():
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return {'error': 'Server not configured'}, 503
     body, err = _sb_get('forum_threads', 'select=*&order=created_at.desc')
     if err:
         app.logger.error('api_forum_threads error: %s', err)
@@ -563,9 +565,14 @@ def api_forum_threads():
     return resp
 
 
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+
+
 @app.route('/api/forum/threads/<thread_id>/replies')
 def api_forum_replies(thread_id):
-    if not re.match(r'^[0-9a-f-]{36}$', thread_id):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return {'error': 'Server not configured'}, 503
+    if not _UUID_RE.match(thread_id):
         return {'error': 'Invalid thread id'}, 400
     body, err = _sb_get('forum_replies',
                          f'select=*&thread_id=eq.{thread_id}&order=created_at.asc')
