@@ -1356,7 +1356,8 @@ sb.auth.onAuthStateChange(async (event, session) => {
       name,
       handle,
       email: user.email || '',
-      avatar: name[0].toUpperCase()
+      avatar: name[0].toUpperCase(),
+      accessToken: session.access_token
     });
 
     if (event === 'SIGNED_IN') showToast('✓ Welcome back, ' + name + '!');
@@ -2126,21 +2127,30 @@ async function submitNewThread() {
   const origText = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 8000);
+  const t = setTimeout(() => ctrl.abort(), 10000);
   try {
-    const { data, error } = await Promise.race([
-      sb.from('forum_threads').insert({ title, body, author_handle: currentUser.handle, author_id: currentUser.id }).select().single(),
-      new Promise((_, rej) => ctrl.signal.addEventListener('abort', () => rej(new Error('timeout'))))
-    ]);
-    if (error) throw error;
-    forumThreads.unshift(data);
+    const resp = await fetch('/api/forum/threads', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (currentUser.accessToken || '')
+      },
+      body: JSON.stringify({ title, body, author_handle: currentUser.handle, author_id: currentUser.id }),
+      signal: ctrl.signal
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const result = await resp.json();
+    const newThread = Array.isArray(result) ? result[0] : result;
+    if (!newThread || !newThread.id) throw new Error('No data returned');
+    forumThreads.unshift(newThread);
     closeNewThreadModal();
     document.getElementById('newThreadTitle').value = '';
     document.getElementById('newThreadBody').value = '';
     renderForumThreadList();
     showToast('Thread posted!');
   } catch(e) {
-    showToast(e.message === 'timeout' ? 'Request timed out — please try again' : 'Error posting thread');
+    const msg = e.name === 'AbortError' ? 'Request timed out — please try again' : 'Error posting thread';
+    showToast(msg);
   } finally {
     clearTimeout(t);
     if (btn) { btn.disabled = false; btn.textContent = origText; }
@@ -2156,21 +2166,27 @@ async function postForumReply() {
   const origText = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 8000);
+  const t = setTimeout(() => ctrl.abort(), 10000);
   try {
-    const { error } = await Promise.race([
-      sb.from('forum_replies').insert({ thread_id: currentForumThreadId, body, author_handle: currentUser.handle, author_id: currentUser.id }),
-      new Promise((_, rej) => ctrl.signal.addEventListener('abort', () => rej(new Error('timeout'))))
-    ]);
-    if (error) throw error;
+    const resp = await fetch('/api/forum/threads/' + currentForumThreadId + '/replies', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (currentUser.accessToken || '')
+      },
+      body: JSON.stringify({ body, author_handle: currentUser.handle, author_id: currentUser.id }),
+      signal: ctrl.signal
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
     inp.value = '';
     const thread = forumThreads.find(t => t.id === currentForumThreadId);
     if (thread) thread.reply_count = (thread.reply_count||0) + 1;
-    await sb.rpc('update_thread_reply_count', { p_thread_id: currentForumThreadId });
+    sb.rpc('update_thread_reply_count', { p_thread_id: currentForumThreadId }).catch(() => {});
     loadForumReplies(currentForumThreadId);
     showToast('Reply posted!');
   } catch(e) {
-    showToast(e.message === 'timeout' ? 'Request timed out — please try again' : 'Error posting reply');
+    const msg = e.name === 'AbortError' ? 'Request timed out — please try again' : 'Error posting reply';
+    showToast(msg);
   } finally {
     clearTimeout(t);
     if (btn) { btn.disabled = false; btn.textContent = origText; }

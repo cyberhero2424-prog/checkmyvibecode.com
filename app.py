@@ -552,6 +552,24 @@ def _sb_get(path, params=''):
         return None, str(e)
 
 
+def _sb_post(path, payload, user_jwt, params=''):
+    """Helper: POST to Supabase REST using user JWT (satisfies RLS auth.uid()). Returns (body_bytes, error)."""
+    key = SUPABASE_ANON_KEY
+    url = SUPABASE_URL.rstrip('/') + '/rest/v1/' + path + (('?' + params) if params else '')
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=data, headers={
+        'apikey': key,
+        'Authorization': f'Bearer {user_jwt}',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return r.read(), None
+    except Exception as e:
+        return None, str(e)
+
+
 @app.route('/api/forum/threads')
 def api_forum_threads():
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
@@ -582,6 +600,69 @@ def api_forum_replies(thread_id):
     resp = Response(body, mimetype='application/json')
     resp.headers['Cache-Control'] = 'public, max-age=15'
     return resp
+
+
+def _get_user_jwt():
+    """Extract Bearer token from the incoming Authorization header. Returns token or None."""
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer ') and len(auth) > 10:
+        return auth[7:]
+    return None
+
+
+@app.route('/api/forum/threads', methods=['POST'])
+def api_forum_create_thread():
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return {'error': 'Server not configured'}, 503
+    user_jwt = _get_user_jwt()
+    if not user_jwt:
+        return {'error': 'Unauthorized'}, 401
+    try:
+        payload = request.get_json(force=True) or {}
+        title = str(payload.get('title', '')).strip()[:300]
+        body_text = str(payload.get('body', '')).strip()[:5000]
+        author_handle = str(payload.get('author_handle', '')).strip()[:100]
+        author_id = str(payload.get('author_id', '')).strip()
+        if not title or not body_text or not author_id:
+            return {'error': 'Missing required fields'}, 400
+    except Exception:
+        return {'error': 'Bad request'}, 400
+    result, err = _sb_post('forum_threads',
+                            {'title': title, 'body': body_text,
+                             'author_handle': author_handle, 'author_id': author_id},
+                            user_jwt)
+    if err:
+        app.logger.error('api_forum_create_thread error: %s', err)
+        return {'error': 'Could not create thread'}, 502
+    return Response(result, mimetype='application/json')
+
+
+@app.route('/api/forum/threads/<thread_id>/replies', methods=['POST'])
+def api_forum_create_reply(thread_id):
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return {'error': 'Server not configured'}, 503
+    if not _UUID_RE.match(thread_id):
+        return {'error': 'Invalid thread id'}, 400
+    user_jwt = _get_user_jwt()
+    if not user_jwt:
+        return {'error': 'Unauthorized'}, 401
+    try:
+        payload = request.get_json(force=True) or {}
+        body_text = str(payload.get('body', '')).strip()[:5000]
+        author_handle = str(payload.get('author_handle', '')).strip()[:100]
+        author_id = str(payload.get('author_id', '')).strip()
+        if not body_text or not author_id:
+            return {'error': 'Missing required fields'}, 400
+    except Exception:
+        return {'error': 'Bad request'}, 400
+    result, err = _sb_post('forum_replies',
+                            {'thread_id': thread_id, 'body': body_text,
+                             'author_handle': author_handle, 'author_id': author_id},
+                            user_jwt)
+    if err:
+        app.logger.error('api_forum_create_reply error: %s', err)
+        return {'error': 'Could not post reply'}, 502
+    return Response(result, mimetype='application/json')
 
 
 # ── robots.txt ────────────────────────────────────────────────────────────────
