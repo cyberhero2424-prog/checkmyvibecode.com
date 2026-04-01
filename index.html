@@ -672,20 +672,23 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .forum-page-header-left .forum-eyebrow { font-size:11px; font-weight:600; color:var(--green); letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; }
 .forum-page-header-left h2 { font-size:clamp(24px,3.5vw,32px); font-weight:700; letter-spacing:-.8px; margin-bottom:6px; }
 .forum-page-header-left p { font-size:13px; color:var(--muted2); }
-.forum-thread-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 18px; cursor:pointer; transition:box-shadow .2s var(--ease),transform .2s var(--ease),border-color .2s; box-shadow:var(--sh); margin-bottom:10px; display:flex; gap:14px; align-items:flex-start; }
-.forum-thread-card:hover { box-shadow:var(--sh-md); transform:translateY(-1px); border-color:var(--border2); }
-.forum-thread-upvote { display:flex; flex-direction:column; align-items:center; gap:3px; flex-shrink:0; padding:4px 6px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface2); cursor:pointer; transition:all .15s var(--ease); min-width:40px; }
-.forum-thread-upvote:hover { border-color:var(--green-border); background:var(--green-bg); color:var(--green); }
+.forum-thread-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px 20px; cursor:pointer; transition:box-shadow .2s var(--ease),transform .18s var(--ease),border-color .2s; box-shadow:var(--sh); margin-bottom:10px; display:flex; gap:16px; align-items:flex-start; position:relative; overflow:hidden; }
+.forum-thread-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background .2s; border-radius:4px 0 0 4px; }
+.forum-thread-card:hover { box-shadow:var(--sh-md); transform:translateY(-2px); border-color:var(--border2); }
+.forum-thread-card:hover::before { background:var(--accent,#6366f1); }
+.forum-thread-upvote { display:flex; flex-direction:column; align-items:center; gap:2px; flex-shrink:0; padding:8px 10px; border-radius:10px; border:1.5px solid var(--border2); background:var(--surface2); cursor:pointer; transition:all .15s var(--ease); min-width:48px; font-family:var(--mono); }
+.forum-thread-upvote:hover { border-color:var(--green-border); background:var(--green-bg); color:var(--green); transform:scale(1.06); }
 .forum-thread-upvote.voted { background:var(--green-bg); border-color:var(--green-border); color:var(--green); }
-.forum-thread-upvote-icon { font-size:14px; line-height:1; }
-.forum-thread-upvote-count { font-size:11px; font-weight:700; font-family:var(--mono); }
+.forum-thread-upvote-icon { font-size:16px; line-height:1; }
+.forum-thread-upvote-count { font-size:12px; font-weight:700; letter-spacing:-.5px; }
 .forum-thread-content { flex:1; min-width:0; }
-.forum-thread-title { font-size:15px; font-weight:600; letter-spacing:-.3px; line-height:1.35; margin-bottom:6px; color:var(--text); }
-.forum-thread-preview { font-size:13px; color:var(--muted2); line-height:1.5; margin-bottom:10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.forum-thread-meta { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
-.forum-thread-meta .t-author { color:var(--muted2); font-weight:500; }
-.forum-thread-meta .t-sep { width:2px; height:2px; background:var(--muted); border-radius:50%; }
-.forum-thread-meta .t-replies { display:inline-flex; align-items:center; gap:3px; }
+.forum-thread-title { font-size:16px; font-weight:700; letter-spacing:-.4px; line-height:1.3; margin-bottom:6px; color:var(--text); }
+.forum-thread-preview { font-size:13.5px; color:var(--muted2); line-height:1.55; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.forum-thread-meta { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+.forum-thread-meta .t-author { color:var(--text); font-weight:600; font-size:12px; }
+.forum-thread-meta .t-sep { width:3px; height:3px; background:var(--border2); border-radius:50%; flex-shrink:0; }
+.forum-thread-meta .t-time { color:var(--muted); }
+.forum-thread-meta .t-replies { display:inline-flex; align-items:center; gap:4px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:2px 8px; font-size:11.5px; font-weight:500; color:var(--muted2); margin-left:2px; }
 .forum-empty { text-align:center; padding:60px 20px; color:var(--muted2); }
 .forum-empty-icon { font-size:36px; margin-bottom:12px; }
 .forum-empty-title { font-size:16px; font-weight:600; color:var(--text); margin-bottom:6px; }
@@ -2049,21 +2052,21 @@ function renderForumThreadList() {
   }
   el.innerHTML = forumThreads.map(t => {
     const voted = forumVotedIds.has(t.id);
+    const rc = t.reply_count || 0;
     return `<div class="forum-thread-card" onclick="openForumThread('${t.id}')">
       <button class="forum-thread-upvote${voted?' voted':''}" onclick="event.stopPropagation();toggleThreadUpvote('${t.id}',this)" title="${voted?'Remove upvote':'Upvote'}">
-        <span class="forum-thread-upvote-icon">▲</span>
+        <svg class="forum-thread-upvote-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 4l9 14H3z"/></svg>
         <span class="forum-thread-upvote-count" id="fuv-${t.id}">${t.upvotes||0}</span>
       </button>
       <div class="forum-thread-content">
         <div class="forum-thread-title">${escHtml(t.title)}</div>
         <div class="forum-thread-preview">${escHtml(t.body)}</div>
         <div class="forum-thread-meta">
-          <span class="forum-reply-avatar" style="width:22px;height:22px;font-size:9px;border-radius:5px;flex-shrink:0">${forumAvatar(t.author_handle)}</span>
+          <span class="forum-reply-avatar" style="width:24px;height:24px;font-size:9px;border-radius:6px;flex-shrink:0">${forumAvatar(t.author_handle)}</span>
           <span class="t-author">${escHtml(t.author_handle)}</span>
           <span class="t-sep"></span>
-          <span>${fmtForumDate(t.created_at)}</span>
-          <span class="t-sep"></span>
-          <span class="t-replies">💬 ${t.reply_count||0} ${(t.reply_count===1)?'reply':'replies'}</span>
+          <span class="t-time">${fmtForumDate(t.created_at)}</span>
+          <span class="t-replies"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ${rc}</span>
         </div>
       </div>
     </div>`;
