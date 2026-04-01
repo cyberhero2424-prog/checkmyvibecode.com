@@ -515,7 +515,7 @@ def api_projects():
     """Return approved projects as JSON, fetched server-side.
     The browser calls checkmyvibecode.com/api/projects (same origin),
     so privacy browsers that block supabase.co cannot interfere."""
-    key = SUPABASE_SERVICE_KEY if len(SUPABASE_SERVICE_KEY) > 50 else SUPABASE_ANON_KEY
+    key = SUPABASE_ANON_KEY
     if not SUPABASE_URL or not key:
         return {'error': 'Server not configured'}, 503
     endpoint = (SUPABASE_URL.rstrip('/') +
