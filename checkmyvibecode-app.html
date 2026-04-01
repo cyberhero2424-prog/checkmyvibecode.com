@@ -620,12 +620,12 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 }
 .user-avatar:hover { opacity:.8; }
 
-/* User dropdown */
+/* User dropdown — position:fixed so nav backdrop-filter doesn't trap it (Safari bug) */
 .user-dropdown {
-  position:absolute; top:46px; right:20px;
+  position:fixed; top:58px; right:20px;
   background:var(--surface); border:1px solid var(--border2);
   border-radius:var(--r-lg); padding:8px;
-  box-shadow:var(--sh-xl); z-index:300; min-width:200px;
+  box-shadow:var(--sh-xl); z-index:400; min-width:200px;
   display:none; animation:modalIn .15s var(--ease);
 }
 .user-dropdown.open { display:block; }
@@ -813,26 +813,28 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 
   <button class="mobile-search-btn" onclick="openMobileSearch()" title="Search">⌕</button>
 
-  <div class="nav-right" style="position:relative">
+  <div class="nav-right">
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
     <button class="btn btn-ghost" id="navLoginBtn" onclick="openAuth()" style="display:flex">Sign in</button>
     <button class="user-avatar" id="navAvatar" onclick="toggleDropdown()" style="display:none">?</button>
-    <div class="user-dropdown" id="userDropdown">
-      <div class="dropdown-header">
-        <div class="dropdown-name" id="dropdownName">—</div>
-        <div class="dropdown-email" id="dropdownEmail">—</div>
-      </div>
-      <button class="dropdown-item" onclick="openSubmit();closeDropdown()">＋ Submit project</button>
-      <button class="dropdown-item" id="myBuildsDropBtn" onclick="activateMyBuilds();closeDropdown()">◈ My builds (<span id="myBuildsCount">0</span>)</button>
-      <button class="dropdown-item" id="savedDropBtn" onclick="activateSaved();closeDropdown()" style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Saved (<span id="savedCount">0</span>)</button>
-      <button class="dropdown-item" id="myProfileDropBtn" onclick="if(currentUser)openProfile(currentUser.handle);closeDropdown()">👤 My profile</button>
-      <button class="dropdown-item" onclick="switchPage('forum');closeDropdown()">◎ Forum</button>
-      <button class="dropdown-item" onclick="switchPage('checker');closeDropdown()">⚡ Code Checker <span class="nav-soon" style="margin-left:4px">Soon</span></button>
-      <button class="dropdown-item danger" onclick="signOut()">→ Sign out</button>
-    </div>
     <button class="btn btn-primary" id="navSubmitBtn" onclick="requireAuth(openSubmit)" style="display:none">+ Submit project</button>
   </div>
 </nav>
+
+<!-- Dropdown lives outside nav to avoid backdrop-filter fixed-position Safari bug -->
+<div class="user-dropdown" id="userDropdown">
+  <div class="dropdown-header">
+    <div class="dropdown-name" id="dropdownName">—</div>
+    <div class="dropdown-email" id="dropdownEmail">—</div>
+  </div>
+  <button class="dropdown-item" onclick="openSubmit();closeDropdown()">＋ Submit project</button>
+  <button class="dropdown-item" id="myBuildsDropBtn" onclick="activateMyBuilds();closeDropdown()">◈ My builds (<span id="myBuildsCount">0</span>)</button>
+  <button class="dropdown-item" id="savedDropBtn" onclick="activateSaved();closeDropdown()" style="display:inline-flex;align-items:center;gap:6px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> Saved (<span id="savedCount">0</span>)</button>
+  <button class="dropdown-item" id="myProfileDropBtn" onclick="if(currentUser)openProfile(currentUser.handle);closeDropdown()">👤 My profile</button>
+  <button class="dropdown-item" onclick="switchPage('forum');closeDropdown()">◎ Forum</button>
+  <button class="dropdown-item" onclick="switchPage('checker');closeDropdown()">⚡ Code Checker <span class="nav-soon" style="margin-left:4px">Soon</span></button>
+  <button class="dropdown-item danger" onclick="signOut()">→ Sign out</button>
+</div>
 
 <!-- ══════════════════════════════════
      PAGE: PROJECTS
