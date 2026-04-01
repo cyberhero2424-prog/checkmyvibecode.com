@@ -1472,10 +1472,12 @@ async function loadProjects() {
   const grid = document.getElementById('grid');
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)"><div style="width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px">Loading projects...</div></div>';
   const ctrl = new AbortController();
-  const fetchTimeout = setTimeout(() => ctrl.abort(), 6000);
+  const fetchTimeout = setTimeout(() => ctrl.abort(), 8000);
   let data, error;
   try {
-    ({ data, error } = await sb.from('projects').select('*').order('upvotes', { ascending: false }).abortSignal(ctrl.signal));
+    const resp = await fetch('/api/projects', { signal: ctrl.signal });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    data = await resp.json();
   } catch(e) {
     error = e;
   }

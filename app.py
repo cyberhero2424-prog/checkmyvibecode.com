@@ -508,6 +508,33 @@ def submit_project():
     return {'ok': True}, 201
 
 
+# ── Public project listing (server-side proxy — avoids browser cross-origin blocking) ──
+
+@app.route('/api/projects')
+def api_projects():
+    """Return approved projects as JSON, fetched server-side.
+    The browser calls checkmyvibecode.com/api/projects (same origin),
+    so privacy browsers that block supabase.co cannot interfere."""
+    key = SUPABASE_SERVICE_KEY if len(SUPABASE_SERVICE_KEY) > 50 else SUPABASE_ANON_KEY
+    if not SUPABASE_URL or not key:
+        return {'error': 'Server not configured'}, 503
+    endpoint = (SUPABASE_URL.rstrip('/') +
+                '/rest/v1/projects?select=*&status=eq.approved&order=upvotes.desc')
+    req = urllib.request.Request(endpoint, headers={
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            body = r.read()
+        resp = Response(body, mimetype='application/json')
+        resp.headers['Cache-Control'] = 'public, max-age=30'
+        return resp
+    except Exception as e:
+        app.logger.error('api_projects error: %s', e)
+        return {'error': 'Could not fetch projects'}, 502
+
+
 # ── robots.txt ────────────────────────────────────────────────────────────────
 
 @app.route('/robots.txt')
