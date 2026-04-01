@@ -226,7 +226,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .card-desc { font-size:13px; color:var(--muted2); line-height:1.5; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:14px; }
 .tag { padding:2px 7px; border-radius:4px; font-size:11px; font-weight:500; font-family:var(--mono); }
-.t-claude{background:var(--green-bg);color:var(--green)} .t-cursor{background:var(--blue-bg);color:var(--blue)} .t-gpt{background:#d1fae5;color:#065f46} .t-bolt{background:var(--amber-bg);color:var(--amber)} .t-v0{background:var(--surface3);color:var(--muted2)} .t-lovable{background:var(--purple-bg);color:var(--purple)} .t-cat{background:var(--surface2);color:var(--muted2);text-transform:capitalize}
+.t-claude{background:var(--green-bg);color:var(--green)} .t-cursor{background:var(--blue-bg);color:var(--blue)} .t-gpt{background:#d1fae5;color:#065f46} .t-bolt{background:var(--amber-bg);color:var(--amber)} .t-v0{background:var(--surface3);color:var(--muted2)} .t-lovable{background:var(--purple-bg);color:var(--purple)} .t-replit{background:#fff0e6;color:#f26400} .t-gemini{background:#e8f0fe;color:#1a73e8} .t-windsurf{background:#eef2ff;color:#4f46e5} .t-copilot{background:#e0f4ff;color:#0369a1} .t-perplexity{background:#e0faf7;color:#0d9488} .t-canva{background:#fce7f3;color:#be185d} .t-grok{background:#f0fdf4;color:#15803d} .t-mistral{background:#fef3c7;color:#b45309} .t-cat{background:var(--surface2);color:var(--muted2);text-transform:capitalize}
 .card-footer { display:flex; align-items:center; gap:6px; padding-top:12px; border-top:1px solid var(--border); }
 .card-author { font-size:12px; color:var(--muted); flex:1; }
 .card-author strong { color:var(--muted2); }
@@ -1460,7 +1460,8 @@ function cookieConsent(choice) {
 const BM_ICON_OFF = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
 const BM_ICON_ON  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`;
 const scoreClass = s => !s?'':s>=75?'sp-great':s>=50?'sp-ok':'sp-bad';
-const tagClass = t => ({'Claude':'t-claude','Cursor':'t-cursor','ChatGPT':'t-gpt','Bolt':'t-bolt','v0':'t-v0','Lovable':'t-lovable'}[t]||'t-cat');
+const TOOL_CANONICAL = {'claude':'Claude','cursor':'Cursor','chatgpt':'ChatGPT','gpt':'ChatGPT','bolt':'Bolt','v0':'v0','lovable':'Lovable','replit':'Replit','windsurf':'Windsurf','gemini':'Gemini','copilot':'Copilot','github copilot':'Copilot','perplexity':'Perplexity','canva':'Canva','grok':'Grok','mistral':'Mistral','figma':'Figma','midjourney':'Midjourney','dalle':'DALL-E','dall-e':'DALL-E','anthropic':'Claude','openai':'ChatGPT','supabase':'Supabase','devin':'Devin','codeium':'Codeium','aider':'Aider','llama':'Llama','groq':'Groq'};
+const tagClass = t => ({'Claude':'t-claude','Cursor':'t-cursor','ChatGPT':'t-gpt','Bolt':'t-bolt','v0':'t-v0','Lovable':'t-lovable','Replit':'t-replit','Windsurf':'t-windsurf','Gemini':'t-gemini','Copilot':'t-copilot','Perplexity':'t-perplexity','Canva':'t-canva','Grok':'t-grok','Mistral':'t-mistral'}[t]||'t-cat');
 
 function stableColor(id) {
   let hash = 0; const str = String(id);
@@ -1469,7 +1470,8 @@ function stableColor(id) {
 }
 
 function mapProject(p) {
-  return { ...p, desc: p.description, buildTime: p.build_time, voted: votedProjectIds.has(p.id), bookmarked: bookmarkedIds.has(p.id), comments: [], timeline: [] };
+  const tools = (p.tools||[]).map(t => TOOL_CANONICAL[t.toLowerCase()] || t);
+  return { ...p, tools, desc: p.description, buildTime: p.build_time, voted: votedProjectIds.has(p.id), bookmarked: bookmarkedIds.has(p.id), comments: [], timeline: [] };
 }
 
 async function loadProjects() {

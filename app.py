@@ -171,7 +171,7 @@ def _sb_service_request(method, path, body=None):
 
 def _admin_list_projects(status='pending'):
     safe_s = urllib.parse.quote(status, safe='')
-    path = f"projects?status=eq.{safe_s}&order=created_at.asc&select=id,name,description,emoji,author,cat,status,upvotes,demo,tools,created_at"
+    path = f"projects?status=eq.{safe_s}&order=created_at.asc&select=id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at"
     data, err = _sb_service_request('GET', path)
     return data or [], err
 

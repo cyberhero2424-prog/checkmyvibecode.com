@@ -231,8 +231,21 @@
           </div>
           <div class="meta">by <b>{{ p.author }}</b> · {{ p.cat or 'uncategorized' }} · {{ p.upvotes or 0 }} upvotes · {{ p.created_at[:10] if p.created_at else '—' }}</div>
           <div class="desc">{{ p.description }}</div>
+          {% if p.idea %}
+          <div class="tools"><b>Idea:</b> {{ p.idea }}</div>
+          {% endif %}
+          {% if p.build_time or p.cost %}
+          <div class="tools">
+            {% if p.build_time %}<b>Build time:</b> {{ p.build_time }}{% endif %}
+            {% if p.build_time and p.cost %} &nbsp;·&nbsp; {% endif %}
+            {% if p.cost %}<b>Cost:</b> {{ p.cost }}{% endif %}
+          </div>
+          {% endif %}
           {% if p.tools %}
-          <div class="tools">Tools: {{ p.tools | join(', ') }}</div>
+          <div class="tools"><b>Tools:</b> {{ p.tools | join(', ') }}</div>
+          {% endif %}
+          {% if p.demo and p.demo != '#' %}
+          <div class="tools"><b>Demo:</b> <a href="{{ p.demo }}" target="_blank" rel="noopener" style="color:var(--green)">{{ p.demo }}</a></div>
           {% endif %}
         </div>
       </div>
