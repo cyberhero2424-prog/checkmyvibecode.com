@@ -2423,10 +2423,8 @@ async function submitProject() {
   const submitBtn = document.querySelector('#submitModal .btn-primary');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
   try {
-    // Get session JWT — wrapped in try so any auth error surfaces instead of freezing
-    const { data: sessionData, error: sessionErr } = await sb.auth.getSession();
-    if (sessionErr) throw new Error('Session error: ' + sessionErr.message);
-    const token = sessionData?.session?.access_token;
+    // Use cached token from onAuthStateChange — avoids Supabase localStorage lock contention
+    const token = currentUser?.accessToken;
     if (!token) {
       closeSubmit(); openAuth(); return;
     }
