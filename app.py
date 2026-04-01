@@ -652,10 +652,14 @@ def api_projects():
 def api_profile(handle):
     """Return approved projects for a given author handle as JSON.
     Routes through Flask so browser-side Supabase JS lock contention cannot block it."""
+    import re
+    clean = handle.lstrip('@')
+    if not clean or not re.match(r'^[A-Za-z0-9_.-]{1,40}$', clean):
+        return {'error': 'Invalid handle'}, 404
     key = SUPABASE_ANON_KEY
     if not SUPABASE_URL or not key:
         return {'error': 'Server not configured'}, 503
-    safe_handle = urllib.parse.quote('@' + handle.lstrip('@'), safe='')
+    safe_handle = urllib.parse.quote('@' + clean, safe='')
     endpoint = (SUPABASE_URL.rstrip('/') +
                 f'/rest/v1/projects?select=id,name,description,emoji,author,cat,upvotes,demo,tools,created_at'
                 f'&status=eq.approved&author=eq.{safe_handle}&order=upvotes.desc')
