@@ -2441,16 +2441,22 @@ async function submitProject() {
     cat: document.getElementById('f_cat').value
   };
   let resp, respData;
+  const _abortCtrl = new AbortController();
+  const _submitTimeout = setTimeout(() => _abortCtrl.abort(), 15000);
   try {
     resp = await fetch('/api/submit-project', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify(projectPayload)
+      body: JSON.stringify(projectPayload),
+      signal: _abortCtrl.signal
     });
+    clearTimeout(_submitTimeout);
     respData = await resp.json();
   } catch(e) {
+    clearTimeout(_submitTimeout);
     if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit project →'; }
-    alert('Network error, please try again.'); return;
+    alert(e.name === 'AbortError' ? 'Request timed out, please try again.' : 'Network error, please try again.');
+    return;
   }
   if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit project →'; }
   if (!resp.ok || !respData.ok) { alert('Error submitting: ' + (respData?.error || resp.status)); return; }

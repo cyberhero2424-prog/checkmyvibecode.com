@@ -3,6 +3,7 @@ import json
 import os
 import re
 import secrets
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -595,7 +596,7 @@ def submit_project():
     if err:
         return {'ok': False, 'error': f'DB error: {err}'}, 500
 
-    # 4. Send admin notification email — failure is non-blocking
+    # 4. Send admin notification email in a background thread (truly non-blocking)
     admin_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')) + '/admin'
     email_body = (
         f"New project submitted for review on CheckMyVibeCode!\n\n"
@@ -606,13 +607,15 @@ def submit_project():
         f"Description: {description[:300]}\n\n"
         f"Review it here: {admin_url}\n"
     )
-    ok, email_err = _send_resend_email(
-        to='contact@checkmyvibecode.com',
-        subject=f'[CheckMyVibeCode] New submission: {name}',
-        text_body=email_body,
-    )
-    if not ok:
-        app.logger.warning('Submit email notify failed: %s', email_err)
+    def _notify():
+        ok, email_err = _send_resend_email(
+            to='contact@checkmyvibecode.com',
+            subject=f'[CheckMyVibeCode] New submission: {name}',
+            text_body=email_body,
+        )
+        if not ok:
+            app.logger.warning('Submit email notify failed: %s', email_err)
+    threading.Thread(target=_notify, daemon=True).start()
 
     return {'ok': True}, 201
 
