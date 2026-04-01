@@ -204,16 +204,25 @@ def _admin_list_forum_replies(thread_id):
     return data or [], err
 
 
-def _admin_delete_forum_thread(thread_id):
-    safe_id = urllib.parse.quote(str(thread_id), safe='')
-    _, err = _sb_service_request('DELETE', f'forum_threads?id=eq.{safe_id}')
+def _sb_admin_delete(table, column, value):
+    """Generic service-key DELETE for admin moderation. Returns error string or None."""
+    safe_val = urllib.parse.quote(str(value), safe='')
+    _, err = _sb_service_request('DELETE', f'{table}?{column}=eq.{safe_val}')
     return err
+
+
+def _admin_delete_forum_thread(thread_id):
+    return _sb_admin_delete('forum_threads', 'id', thread_id)
 
 
 def _admin_delete_forum_reply(reply_id):
-    safe_id = urllib.parse.quote(str(reply_id), safe='')
-    _, err = _sb_service_request('DELETE', f'forum_replies?id=eq.{safe_id}')
-    return err
+    return _sb_admin_delete('forum_replies', 'id', reply_id)
+
+
+def _admin_forum_thread_count():
+    """Return total number of forum threads (lightweight count for tab badge)."""
+    data, _ = _sb_service_request('GET', 'forum_threads?select=id')
+    return len(data) if data else 0
 
 
 # ── Public routes ─────────────────────────────────────────────────────────────
@@ -334,12 +343,14 @@ def admin():
     flash_msg  = session.pop('flash_msg', None)
     flash_type = session.pop('flash_type', 'ok')
 
+    counts = _admin_count_by_status()
+    forum_thread_count = _admin_forum_thread_count()
+
     if tab == 'forum':
         forum_threads, _ = _admin_list_forum_threads()
         # Pre-load replies for each thread so template can render inline
         for t in forum_threads:
             t['replies'], _ = _admin_list_forum_replies(t['id'])
-        counts = _admin_count_by_status()
         return render_template(
             'admin.html',
             logged_in=True,
@@ -347,13 +358,13 @@ def admin():
             counts=counts,
             tab=tab,
             forum_threads=forum_threads,
+            forum_thread_count=forum_thread_count,
             flash_msg=flash_msg,
             flash_type=flash_type,
             csrf_token=_csrf_token(),
         )
 
     projects, err = _admin_list_projects(tab)
-    counts = _admin_count_by_status()
 
     return render_template(
         'admin.html',
@@ -362,6 +373,7 @@ def admin():
         counts=counts,
         tab=tab,
         forum_threads=[],
+        forum_thread_count=forum_thread_count,
         flash_msg=flash_msg,
         flash_type=flash_type,
         csrf_token=_csrf_token(),

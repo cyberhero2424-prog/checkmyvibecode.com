@@ -158,7 +158,7 @@
     <a href="/admin?tab=pending" class="tab {% if tab == 'pending' %}active{% endif %}">Pending ({{ counts.pending }})</a>
     <a href="/admin?tab=approved" class="tab {% if tab == 'approved' %}active{% endif %}">Approved</a>
     <a href="/admin?tab=rejected" class="tab {% if tab == 'rejected' %}active{% endif %}">Rejected</a>
-    <a href="/admin?tab=forum" class="tab {% if tab == 'forum' %}active{% endif %}">Forum{% if forum_threads %} ({{ forum_threads | length }}){% endif %}</a>
+    <a href="/admin?tab=forum" class="tab {% if tab == 'forum' %}active{% endif %}">Forum ({{ forum_thread_count }})</a>
   </div>
 
   {% if tab == 'forum' %}
