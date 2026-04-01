@@ -192,6 +192,30 @@ def _admin_set_status(project_id, new_status):
     return err
 
 
+def _admin_list_forum_threads():
+    data, err = _sb_service_request('GET', 'forum_threads?select=*&order=created_at.desc')
+    return data or [], err
+
+
+def _admin_list_forum_replies(thread_id):
+    safe_id = urllib.parse.quote(str(thread_id), safe='')
+    data, err = _sb_service_request('GET',
+        f'forum_replies?thread_id=eq.{safe_id}&order=created_at.asc&select=*')
+    return data or [], err
+
+
+def _admin_delete_forum_thread(thread_id):
+    safe_id = urllib.parse.quote(str(thread_id), safe='')
+    _, err = _sb_service_request('DELETE', f'forum_threads?id=eq.{safe_id}')
+    return err
+
+
+def _admin_delete_forum_reply(reply_id):
+    safe_id = urllib.parse.quote(str(reply_id), safe='')
+    _, err = _sb_service_request('DELETE', f'forum_replies?id=eq.{safe_id}')
+    return err
+
+
 # ── Public routes ─────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -304,14 +328,32 @@ def admin():
                                csrf_token=_csrf_token())
 
     tab = request.args.get('tab', 'pending')
-    if tab not in ('pending', 'approved', 'rejected'):
+    if tab not in ('pending', 'approved', 'rejected', 'forum'):
         tab = 'pending'
-
-    projects, err = _admin_list_projects(tab)
-    counts = _admin_count_by_status()
 
     flash_msg  = session.pop('flash_msg', None)
     flash_type = session.pop('flash_type', 'ok')
+
+    if tab == 'forum':
+        forum_threads, _ = _admin_list_forum_threads()
+        # Pre-load replies for each thread so template can render inline
+        for t in forum_threads:
+            t['replies'], _ = _admin_list_forum_replies(t['id'])
+        counts = _admin_count_by_status()
+        return render_template(
+            'admin.html',
+            logged_in=True,
+            projects=[],
+            counts=counts,
+            tab=tab,
+            forum_threads=forum_threads,
+            flash_msg=flash_msg,
+            flash_type=flash_type,
+            csrf_token=_csrf_token(),
+        )
+
+    projects, err = _admin_list_projects(tab)
+    counts = _admin_count_by_status()
 
     return render_template(
         'admin.html',
@@ -319,6 +361,7 @@ def admin():
         projects=projects,
         counts=counts,
         tab=tab,
+        forum_threads=[],
         flash_msg=flash_msg,
         flash_type=flash_type,
         csrf_token=_csrf_token(),
@@ -356,6 +399,52 @@ def admin_logout():
         return redirect(url_for('admin'))
     session.pop('admin', None)
     return redirect(url_for('admin'))
+
+
+@app.route('/admin/forum-action', methods=['POST'])
+def admin_forum_action():
+    if not _admin_logged_in():
+        return redirect(url_for('admin'))
+    if not _csrf_valid():
+        session['flash_msg']  = 'Invalid request token. Please try again.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='forum'))
+
+    action = request.form.get('action', '').strip()
+
+    if action == 'delete_thread':
+        thread_id = request.form.get('thread_id', '').strip()
+        if not _UUID_RE.match(thread_id):
+            session['flash_msg']  = 'Invalid thread ID.'
+            session['flash_type'] = 'err'
+            return redirect(url_for('admin', tab='forum'))
+        err = _admin_delete_forum_thread(thread_id)
+        if err:
+            session['flash_msg']  = f'Error deleting thread: {err}'
+            session['flash_type'] = 'err'
+        else:
+            session['flash_msg']  = 'Thread and all its replies deleted.'
+            session['flash_type'] = 'ok'
+
+    elif action == 'delete_reply':
+        reply_id = request.form.get('reply_id', '').strip()
+        if not _UUID_RE.match(reply_id):
+            session['flash_msg']  = 'Invalid reply ID.'
+            session['flash_type'] = 'err'
+            return redirect(url_for('admin', tab='forum'))
+        err = _admin_delete_forum_reply(reply_id)
+        if err:
+            session['flash_msg']  = f'Error deleting reply: {err}'
+            session['flash_type'] = 'err'
+        else:
+            session['flash_msg']  = 'Reply deleted.'
+            session['flash_type'] = 'ok'
+
+    else:
+        session['flash_msg']  = 'Invalid action.'
+        session['flash_type'] = 'err'
+
+    return redirect(url_for('admin', tab='forum'))
 
 
 @app.route('/admin/action', methods=['POST'])

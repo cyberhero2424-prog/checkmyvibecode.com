@@ -74,10 +74,31 @@
   .flash.ok { background: #0a2a0a; border: 1px solid #1a4a1a; color: #39ff14; }
   .flash.err { background: #2a0a0a; border: 1px solid #4a1a1a; color: #f87171; }
 
-  .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #111113; border: 1px solid #1e1e22; border-radius: 10px; padding: 4px; width: fit-content; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #111113; border: 1px solid #1e1e22; border-radius: 10px; padding: 4px; width: fit-content; flex-wrap: wrap; }
   .tab { padding: 7px 16px; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; color: #888; text-decoration: none; transition: background .15s, color .15s; }
   .tab.active { background: #1a1a1d; color: #e8e8e6; }
   .tab:hover:not(.active) { color: #ccc; }
+
+  /* ── Forum admin ── */
+  .forum-thread-admin { background: #1a1a1d; border: 1px solid #2a2a2e; border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .forum-thread-admin-head { padding: 16px 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .forum-thread-admin-title { font-size: 15px; font-weight: 700; color: #e8e8e6; margin-bottom: 4px; }
+  .forum-thread-admin-body { font-size: 13px; color: #888; line-height: 1.5; max-height: 48px; overflow: hidden; position: relative; margin-bottom: 8px; }
+  .forum-thread-admin-meta { font-size: 12px; color: #666; }
+  .forum-thread-admin-meta b { color: #aaa; }
+  .btn-del-thread { background: transparent; color: #f87171; font-size: 12px; font-weight: 600; padding: 6px 14px; border: 1px solid #4a1a1a; border-radius: 7px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s, border-color .15s; }
+  .btn-del-thread:hover { background: #2a0a0a; border-color: #f87171; }
+  .forum-replies-toggle { width: 100%; padding: 10px 20px; background: #111113; border: none; border-top: 1px solid #1e1e22; color: #666; font-size: 12px; font-weight: 500; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color .15s; }
+  .forum-replies-toggle:hover { color: #aaa; }
+  .forum-replies-panel { border-top: 1px solid #1e1e22; display: none; }
+  .forum-replies-panel.open { display: block; }
+  .forum-reply-admin { padding: 12px 20px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 1px solid #1a1a1d; }
+  .forum-reply-admin:last-child { border-bottom: none; }
+  .forum-reply-admin-body { font-size: 13px; color: #ccc; line-height: 1.5; flex: 1; min-width: 0; }
+  .forum-reply-admin-meta { font-size: 11px; color: #666; margin-top: 3px; }
+  .btn-del-reply { background: transparent; color: #f87171; font-size: 11px; font-weight: 600; padding: 4px 10px; border: 1px solid #3a1515; border-radius: 6px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s; }
+  .btn-del-reply:hover { background: #2a0a0a; border-color: #f87171; }
+  .forum-no-replies { padding: 14px 20px; font-size: 12px; color: #555; font-style: italic; }
 </style>
 </head>
 <body>
@@ -137,8 +158,65 @@
     <a href="/admin?tab=pending" class="tab {% if tab == 'pending' %}active{% endif %}">Pending ({{ counts.pending }})</a>
     <a href="/admin?tab=approved" class="tab {% if tab == 'approved' %}active{% endif %}">Approved</a>
     <a href="/admin?tab=rejected" class="tab {% if tab == 'rejected' %}active{% endif %}">Rejected</a>
+    <a href="/admin?tab=forum" class="tab {% if tab == 'forum' %}active{% endif %}">Forum{% if forum_threads %} ({{ forum_threads | length }}){% endif %}</a>
   </div>
 
+  {% if tab == 'forum' %}
+  <div class="section-head">Forum threads</div>
+  {% if forum_threads %}
+    {% for t in forum_threads %}
+    <div class="forum-thread-admin">
+      <div class="forum-thread-admin-head">
+        <div style="flex:1;min-width:0">
+          <div class="forum-thread-admin-title">{{ t.title }}</div>
+          <div class="forum-thread-admin-body">{{ t.body }}</div>
+          <div class="forum-thread-admin-meta">
+            by <b>{{ t.author_handle }}</b> &middot;
+            {{ t.created_at[:10] if t.created_at else '—' }} &middot;
+            {{ t.reply_count or 0 }} {{ 'reply' if (t.reply_count or 0) == 1 else 'replies' }} &middot;
+            {{ t.upvotes or 0 }} upvotes
+          </div>
+        </div>
+        <form method="post" action="/admin/forum-action" style="margin:0" onsubmit="return confirm('Delete this thread and ALL its replies?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="action" value="delete_thread">
+          <input type="hidden" name="thread_id" value="{{ t.id }}">
+          <button type="submit" class="btn-del-thread">✕ Delete Thread</button>
+        </form>
+      </div>
+      {% if t.replies %}
+      <button class="forum-replies-toggle" onclick="var p=this.nextElementSibling;p.classList.toggle('open');this.textContent=(p.classList.contains('open')?'▲ Hide':'▼ Show')+' {{ t.replies | length }} {{ "reply" if (t.replies | length) == 1 else "replies" }}'">
+        ▼ Show {{ t.replies | length }} {{ 'reply' if (t.replies | length) == 1 else 'replies' }}
+      </button>
+      <div class="forum-replies-panel">
+        {% for r in t.replies %}
+        <div class="forum-reply-admin">
+          <div style="flex:1;min-width:0">
+            <div class="forum-reply-admin-body">{{ r.body }}</div>
+            <div class="forum-reply-admin-meta">by <b>{{ r.author_handle }}</b> &middot; {{ r.created_at[:10] if r.created_at else '—' }}</div>
+          </div>
+          <form method="post" action="/admin/forum-action" style="margin:0" onsubmit="return confirm('Delete this reply?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="delete_reply">
+            <input type="hidden" name="reply_id" value="{{ r.id }}">
+            <button type="submit" class="btn-del-reply">✕ Delete</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="forum-no-replies">No replies yet.</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">
+      <div class="icon">💬</div>
+      <p>No forum threads yet.</p>
+    </div>
+  {% endif %}
+
+  {% else %}
   <div class="section-head">{{ tab | capitalize }} submissions</div>
 
   {% if projects %}
@@ -186,6 +264,7 @@
       <div class="icon">{% if tab == 'pending' %}🎉{% elif tab == 'approved' %}📋{% else %}🗑{% endif %}</div>
       <p>{% if tab == 'pending' %}No pending submissions — you're all caught up!{% else %}No {{ tab }} submissions yet.{% endif %}</p>
     </div>
+  {% endif %}
   {% endif %}
 </div>
 {% endif %}
