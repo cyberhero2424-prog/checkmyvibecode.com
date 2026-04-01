@@ -594,7 +594,8 @@ def submit_project():
     # 3. Insert using service key (bypasses RLS — safe because we verified the JWT)
     _, err = _sb_service_request('POST', 'projects', new_project)
     if err:
-        return {'ok': False, 'error': f'DB error: {err}'}, 500
+        app.logger.error('submit_project DB insert failed: %s', err)
+        return {'ok': False, 'error': 'Could not save project. Please try again later.'}, 500
 
     # 4. Send admin notification email in a background thread (truly non-blocking)
     admin_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')) + '/admin'
