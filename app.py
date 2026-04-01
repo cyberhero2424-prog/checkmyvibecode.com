@@ -535,6 +535,48 @@ def api_projects():
         return {'error': 'Could not fetch projects'}, 502
 
 
+# ── Forum proxy endpoints (server-side reads — avoids browser cross-origin blocking) ──
+
+def _sb_get(path, params=''):
+    """Helper: GET from Supabase REST using anon key, return (body_bytes, error)."""
+    key = SUPABASE_ANON_KEY
+    url = SUPABASE_URL.rstrip('/') + '/rest/v1/' + path + (('?' + params) if params else '')
+    req = urllib.request.Request(url, headers={
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return r.read(), None
+    except Exception as e:
+        return None, str(e)
+
+
+@app.route('/api/forum/threads')
+def api_forum_threads():
+    body, err = _sb_get('forum_threads', 'select=*&order=created_at.desc')
+    if err:
+        app.logger.error('api_forum_threads error: %s', err)
+        return {'error': 'Could not fetch threads'}, 502
+    resp = Response(body, mimetype='application/json')
+    resp.headers['Cache-Control'] = 'public, max-age=15'
+    return resp
+
+
+@app.route('/api/forum/threads/<thread_id>/replies')
+def api_forum_replies(thread_id):
+    if not re.match(r'^[0-9a-f-]{36}$', thread_id):
+        return {'error': 'Invalid thread id'}, 400
+    body, err = _sb_get('forum_replies',
+                         f'select=*&thread_id=eq.{thread_id}&order=created_at.asc')
+    if err:
+        app.logger.error('api_forum_replies error: %s', err)
+        return {'error': 'Could not fetch replies'}, 502
+    resp = Response(body, mimetype='application/json')
+    resp.headers['Cache-Control'] = 'public, max-age=15'
+    return resp
+
+
 # ── robots.txt ────────────────────────────────────────────────────────────────
 
 @app.route('/robots.txt')

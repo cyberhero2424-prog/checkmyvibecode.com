@@ -2008,13 +2008,21 @@ function forumAvatar(handle) {
 }
 
 async function loadForumThreads() {
-  const { data, error } = await sb.from('forum_threads').select('*').order('created_at', { ascending: false });
-  if (!error && data) {
-    forumThreads = data;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const resp = await fetch('/api/forum/threads', { signal: ctrl.signal });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    forumThreads = Array.isArray(data) ? data : [];
     if (currentUser) {
       const { data: voted } = await sb.from('forum_thread_upvotes').select('thread_id').eq('user_id', currentUser.id);
       if (voted) voted.forEach(r => forumVotedIds.add(r.thread_id));
     }
+  } catch(e) {
+    console.error('loadForumThreads error:', e);
+  } finally {
+    clearTimeout(t);
   }
   renderForumThreadList();
   if (currentUser) document.getElementById('forumNewBtn').style.display = '';
@@ -2062,11 +2070,17 @@ async function openForumThread(id) {
 }
 
 async function loadForumReplies(threadId) {
-  const { data, error } = await sb.from('forum_replies').select('*').eq('thread_id', threadId).order('created_at', { ascending: true });
   const el = document.getElementById('forum-replies-list');
   const titleEl = document.getElementById('forum-replies-title');
   if (!el) return;
-  const replies = (error || !data) ? [] : data;
+  let replies = [];
+  try {
+    const resp = await fetch('/api/forum/threads/' + threadId + '/replies');
+    if (resp.ok) {
+      const data = await resp.json();
+      replies = Array.isArray(data) ? data : [];
+    }
+  } catch(e) { console.error('loadForumReplies error:', e); }
   if (titleEl) titleEl.textContent = `Replies (${replies.length})`;
   if (!replies.length) { el.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:12px 0">No replies yet — be the first to respond.</div>`; return; }
   el.innerHTML = `<div class="comment-list">${replies.map(r=>`<div class="forum-reply-item"><div class="forum-reply-avatar">${forumAvatar(r.author_handle)}</div><div><div class="forum-reply-meta"><strong>${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div></div>`).join('')}</div>`;
@@ -2095,14 +2109,29 @@ async function submitNewThread() {
   const body = document.getElementById('newThreadBody').value.trim();
   if (!title) { document.getElementById('newThreadTitle').focus(); return; }
   if (!body) { document.getElementById('newThreadBody').focus(); return; }
-  const { data, error } = await sb.from('forum_threads').insert({ title, body, author_handle: currentUser.handle, author_id: currentUser.id }).select().single();
-  if (error) { showToast('Error posting thread'); return; }
-  forumThreads.unshift(data);
-  closeNewThreadModal();
-  document.getElementById('newThreadTitle').value = '';
-  document.getElementById('newThreadBody').value = '';
-  renderForumThreadList();
-  showToast('Thread posted!');
+  const btn = document.querySelector('#newThreadModal .btn-primary');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const { data, error } = await Promise.race([
+      sb.from('forum_threads').insert({ title, body, author_handle: currentUser.handle, author_id: currentUser.id }).select().single(),
+      new Promise((_, rej) => ctrl.signal.addEventListener('abort', () => rej(new Error('timeout'))))
+    ]);
+    if (error) throw error;
+    forumThreads.unshift(data);
+    closeNewThreadModal();
+    document.getElementById('newThreadTitle').value = '';
+    document.getElementById('newThreadBody').value = '';
+    renderForumThreadList();
+    showToast('Thread posted!');
+  } catch(e) {
+    showToast(e.message === 'timeout' ? 'Request timed out — please try again' : 'Error posting thread');
+  } finally {
+    clearTimeout(t);
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
 }
 
 async function postForumReply() {
@@ -2110,14 +2139,29 @@ async function postForumReply() {
   const inp = document.getElementById('forumReplyInput');
   const body = inp ? inp.value.trim() : '';
   if (!body) return;
-  const { error } = await sb.from('forum_replies').insert({ thread_id: currentForumThreadId, body, author_handle: currentUser.handle, author_id: currentUser.id });
-  if (error) { showToast('Error posting reply'); return; }
-  inp.value = '';
-  const thread = forumThreads.find(t => t.id === currentForumThreadId);
-  if (thread) thread.reply_count = (thread.reply_count||0) + 1;
-  await sb.rpc('update_thread_reply_count', { p_thread_id: currentForumThreadId });
-  loadForumReplies(currentForumThreadId);
-  showToast('Reply posted!');
+  const btn = document.querySelector('.forum-reply-post');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const { error } = await Promise.race([
+      sb.from('forum_replies').insert({ thread_id: currentForumThreadId, body, author_handle: currentUser.handle, author_id: currentUser.id }),
+      new Promise((_, rej) => ctrl.signal.addEventListener('abort', () => rej(new Error('timeout'))))
+    ]);
+    if (error) throw error;
+    inp.value = '';
+    const thread = forumThreads.find(t => t.id === currentForumThreadId);
+    if (thread) thread.reply_count = (thread.reply_count||0) + 1;
+    await sb.rpc('update_thread_reply_count', { p_thread_id: currentForumThreadId });
+    loadForumReplies(currentForumThreadId);
+    showToast('Reply posted!');
+  } catch(e) {
+    showToast(e.message === 'timeout' ? 'Request timed out — please try again' : 'Error posting reply');
+  } finally {
+    clearTimeout(t);
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
 }
 
 async function toggleThreadUpvote(id, btn) {
