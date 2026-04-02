@@ -32,17 +32,21 @@ BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
 
 # ── Rate limiting & brute force protection ────────────────────────────────────
 
-_submit_log   = defaultdict(list)   # ip -> [timestamps]
 _login_log    = defaultdict(list)   # ip -> [timestamps]
 
-def _rate_limit_submit(ip, max_calls=5, window=3600):
-    """Allow max 5 project submissions per IP per hour."""
-    now = time.time()
-    _submit_log[ip] = [t for t in _submit_log[ip] if now - t < window]
-    if len(_submit_log[ip]) >= max_calls:
-        return False
-    _submit_log[ip].append(now)
-    return True
+def _rate_limit_submit_supabase(author_handle, max_calls=5, window_secs=3600):
+    """Allow max 5 submissions per author per hour via Supabase query.
+    Works correctly across all workers and server restarts."""
+    if not author_handle:
+        return True
+    cutoff = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - window_secs))
+    safe_author = urllib.parse.quote(author_handle, safe='')
+    path = f"projects?author=eq.{safe_author}&created_at=gt.{cutoff}&select=id"
+    data, err = _sb_service_request('GET', path)
+    if err:
+        app.logger.warning('Rate limit check error: %s', err)
+        return True  # allow on error to avoid blocking legitimate users
+    return len(data or []) < max_calls
 
 def _rate_limit_login(ip, max_attempts=10, window=900):
     """Lock out IP after 10 failed login attempts within 15 minutes."""
@@ -574,10 +578,6 @@ def submit_project():
     if not user:
         return {'ok': False, 'error': 'Invalid or expired session'}, 401
 
-    # 1b. Rate limit — max 5 submissions per IP per hour
-    if not _rate_limit_submit(request.remote_addr):
-        return {'ok': False, 'error': 'Too many submissions. Please wait before trying again.'}, 429
-
     # 2. Parse and sanitise project data
     payload = request.get_json(silent=True) or {}
     name        = str(payload.get('name', '')).strip()[:200]
@@ -604,6 +604,10 @@ def submit_project():
         'upvotes':     0,
         'status':      'pending',
     }
+
+    # 2b. Rate limit — max 5 submissions per author per hour (Supabase-backed, works across all workers)
+    if not _rate_limit_submit_supabase(new_project['author']):
+        return {'ok': False, 'error': 'Too many submissions. Please wait before trying again.'}, 429
 
     # 3. Insert using service key (bypasses RLS — safe because we verified the JWT)
     _, err = _sb_service_request('POST', 'projects', new_project)
