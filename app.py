@@ -34,13 +34,29 @@ BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
 
 _login_log    = defaultdict(list)   # ip -> [timestamps]
 
-def _rate_limit_submit_supabase(author_handle, max_calls=5, window_secs=3600):
-    """Allow max 5 submissions per author per hour via Supabase query.
+def _derive_author_handle(user):
+    """Derive the canonical author handle from a verified Supabase JWT user dict.
+    Mirrors the frontend's derivation logic so the handle matches what is stored
+    in projects.author. Because this comes from the verified JWT, it cannot be
+    spoofed by client-supplied payload data."""
+    meta = user.get('user_metadata') or {}
+    app_meta = user.get('app_metadata') or {}
+    provider = app_meta.get('provider', '')
+    if provider == 'github' and meta.get('user_name'):
+        return '@' + str(meta['user_name'])
+    email = user.get('email', '')
+    if email:
+        return '@' + email.split('@')[0]
+    return '@user_' + str(user.get('id', 'unknown'))[:8]
+
+def _rate_limit_submit_supabase(jwt_handle, max_calls=5, window_secs=3600):
+    """Allow max 5 submissions per authenticated author per hour via Supabase.
+    The key is the JWT-derived handle (tamper-proof), not the client payload.
     Works correctly across all workers and server restarts."""
-    if not author_handle:
+    if not jwt_handle:
         return True
     cutoff = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(time.time() - window_secs))
-    safe_author = urllib.parse.quote(author_handle, safe='')
+    safe_author = urllib.parse.quote(jwt_handle, safe='')
     path = f"projects?author=eq.{safe_author}&created_at=gt.{cutoff}&select=id"
     data, err = _sb_service_request('GET', path)
     if err:
@@ -578,6 +594,14 @@ def submit_project():
     if not user:
         return {'ok': False, 'error': 'Invalid or expired session'}, 401
 
+    # 1b. Derive canonical author handle from JWT — cannot be spoofed by payload
+    jwt_handle = _derive_author_handle(user)
+
+    # 1c. Rate limit — max 5 submissions per authenticated author per hour
+    #     Key is JWT-derived (tamper-proof) and checked via Supabase (works across all workers)
+    if not _rate_limit_submit_supabase(jwt_handle):
+        return {'ok': False, 'error': 'Too many submissions. Please wait before trying again.'}, 429
+
     # 2. Parse and sanitise project data
     payload = request.get_json(silent=True) or {}
     name        = str(payload.get('name', '')).strip()[:200]
@@ -598,16 +622,12 @@ def submit_project():
         'demo':        _safe_url(_s('demo', 500)),
         'tools':       [str(t).strip()[:100] for t in (payload.get('tools') or []) if str(t).strip()][:20],
         'score':       None,
-        'author':      _s('author', 100) or '@anon',
+        'author':      jwt_handle,  # always set from JWT, not from client payload
         'emoji':       _s('emoji', 10) or '🚀',
         'cat':         _s('cat', 100) or 'Other',
         'upvotes':     0,
         'status':      'pending',
     }
-
-    # 2b. Rate limit — max 5 submissions per author per hour (Supabase-backed, works across all workers)
-    if not _rate_limit_submit_supabase(new_project['author']):
-        return {'ok': False, 'error': 'Too many submissions. Please wait before trying again.'}, 429
 
     # 3. Insert using service key (bypasses RLS — safe because we verified the JWT)
     _, err = _sb_service_request('POST', 'projects', new_project)
