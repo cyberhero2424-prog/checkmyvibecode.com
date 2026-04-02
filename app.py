@@ -144,20 +144,42 @@ def _fetch_project(project_id):
         return None
 
 
-def _inject_project_og(html, project):
-    """Replace generic OG / Twitter title + description with project-specific values."""
+def _inject_project_og(html, project, project_url):
+    """Replace generic OG / Twitter tags with project-specific values.
+
+    Sets og:title, og:description, og:url, twitter:title, twitter:description,
+    meta[name=description], and injects a <link rel="canonical"> tag.
+    """
     name   = project.get('name', '') or ''
     emoji  = project.get('emoji', '') or ''
     desc   = project.get('description', '') or ''
     if len(desc) > 250:
         desc = desc[:247] + '...'
 
-    title = f"{emoji} {name} — CheckMyVibeCode" if emoji else f"{name} — CheckMyVibeCode"
+    title      = f"{emoji} {name} — CheckMyVibeCode" if emoji else f"{name} — CheckMyVibeCode"
     safe_title = html_module.escape(title)
     safe_desc  = html_module.escape(desc)
+    safe_url   = html_module.escape(project_url)
 
     html = re.sub(r'<title>[^<]*</title>', f'<title>{safe_title}</title>', html, count=1)
+
+    # Replace og:url with the project-specific URL
+    html = re.sub(
+        r'<meta property="og:url"[^>]*>',
+        f'<meta property="og:url" content="{safe_url}">',
+        html, count=1
+    )
+
+    # Replace the generic meta description
+    html = re.sub(
+        r'<meta name="description"[^>]*>',
+        f'<meta name="description" content="{safe_desc}">',
+        html, count=1
+    )
+
+    # Prepend OG/Twitter title+description overrides and canonical link
     og_tags = (
+        f'<link rel="canonical" href="{safe_url}">\n'
         f'<meta property="og:title" content="{safe_title}">\n'
         f'<meta property="og:description" content="{safe_desc}">\n'
         f'<meta name="twitter:title" content="{safe_title}">\n'
@@ -332,7 +354,8 @@ def project_detail(project_id):
     html = html.replace('__BASE_URL__', base_url)
     project = _fetch_project(project_id)
     if project:
-        html = _inject_project_og(html, project)
+        project_url = base_url + '/p/' + urllib.parse.quote(str(project_id), safe='')
+        html = _inject_project_og(html, project, project_url)
     html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
