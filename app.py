@@ -10,6 +10,7 @@ import urllib.request
 from collections import defaultdict
 from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template
 from dotenv import load_dotenv
+from whitenoise import WhiteNoise
 
 load_dotenv()
 
@@ -21,6 +22,7 @@ HTML_ENTRY_POINTS = {'index.html', 'checkmyvibecode-app.html'}
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
+app.wsgi_app = WhiteNoise(app.wsgi_app, root=STATIC_DIR, prefix='static', max_age=31536000)
 
 SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
@@ -263,9 +265,6 @@ def index():
         return redirect(url_for('project_detail', project_id=pid), code=301)
     return serve_app()
 
-@app.route('/static/<path:path>')
-def static_files(path):
-    return send_from_directory(STATIC_DIR, path)
 
 
 def _fetch_profile_stats(handle):
