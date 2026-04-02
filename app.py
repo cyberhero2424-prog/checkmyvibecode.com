@@ -213,7 +213,7 @@ def _sb_admin_delete(table, column, value):
     """Generic service-key DELETE for admin moderation. Returns error string or None."""
     if len(SUPABASE_SERVICE_KEY) < 20:
         return ('SUPABASE_SERVICE_KEY is not properly configured — '
-                'set it in Secrets to enable forum deletion')
+                'set it in Secrets to enable admin deletion')
     safe_val = urllib.parse.quote(str(value), safe='')
     _, err = _sb_service_request('DELETE', f'{table}?{column}=eq.{safe_val}')
     return err
