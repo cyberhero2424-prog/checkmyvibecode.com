@@ -480,10 +480,24 @@ def admin_action():
     project_id = request.form.get('project_id', '').strip()
     action     = request.form.get('action', '').strip()
 
-    if not project_id or action not in ('approve', 'reject'):
+    tab = request.form.get('tab', 'pending').strip()
+    if tab not in ('pending', 'approved', 'rejected'):
+        tab = 'pending'
+
+    if not project_id or action not in ('approve', 'reject', 'delete'):
         session['flash_msg']  = 'Invalid action.'
         session['flash_type'] = 'err'
-        return redirect(url_for('admin'))
+        return redirect(url_for('admin', tab=tab))
+
+    if action == 'delete':
+        err = _sb_admin_delete('projects', 'id', project_id)
+        if err:
+            session['flash_msg']  = f'Error: {err}'
+            session['flash_type'] = 'err'
+        else:
+            session['flash_msg']  = 'Project permanently deleted.'
+            session['flash_type'] = 'ok'
+        return redirect(url_for('admin', tab=tab))
 
     new_status = 'approved' if action == 'approve' else 'rejected'
     err = _admin_set_status(project_id, new_status)
@@ -496,7 +510,7 @@ def admin_action():
         session['flash_msg']  = f'Project {verb} successfully.'
         session['flash_type'] = 'ok'
 
-    return redirect(url_for('admin', tab='pending'))
+    return redirect(url_for('admin', tab=tab))
 
 
 # ── Email notification helper ─────────────────────────────────────────────────

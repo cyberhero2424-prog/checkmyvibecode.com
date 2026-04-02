@@ -65,6 +65,8 @@
   .btn-approve:hover { opacity: .85; }
   .btn-reject { background: transparent; color: #f87171; font-size: 13px; font-weight: 600; padding: 8px 18px; border: 1px solid #4a1a1a; border-radius: 8px; cursor: pointer; transition: border-color .15s, color .15s; }
   .btn-reject:hover { border-color: #f87171; color: #fca5a5; }
+  .btn-delete { background: #7f1d1d; color: #fca5a5; font-size: 13px; font-weight: 600; padding: 8px 18px; border: 1px solid #991b1b; border-radius: 8px; cursor: pointer; transition: background .15s; }
+  .btn-delete:hover { background: #991b1b; color: #fecaca; }
 
   .empty-state { text-align: center; padding: 60px 20px; color: #555; }
   .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
@@ -255,6 +257,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="project_id" value="{{ p.id }}">
           <input type="hidden" name="action" value="approve">
+          <input type="hidden" name="tab" value="{{ tab }}">
           <button type="submit" class="btn-approve">✓ Approve</button>
         </form>
         {% endif %}
@@ -263,9 +266,17 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="project_id" value="{{ p.id }}">
           <input type="hidden" name="action" value="reject">
+          <input type="hidden" name="tab" value="{{ tab }}">
           <button type="submit" class="btn-reject">✕ Reject</button>
         </form>
         {% endif %}
+        <form method="post" action="/admin/action" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="project_id" value="{{ p.id }}">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="tab" value="{{ tab }}">
+          <button type="submit" class="btn-delete" onclick="return confirm('Permanently delete "{{ p.name }}"? This cannot be undone.')">🗑 Delete</button>
+        </form>
         {% if p.demo and p.demo != '#' %}
         <a class="demo-link" href="{{ p.demo }}" target="_blank" rel="noopener">↗ View project</a>
         {% endif %}
