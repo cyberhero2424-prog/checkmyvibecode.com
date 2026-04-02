@@ -46,6 +46,7 @@ Run `migrations/forum.sql` in the Supabase Dashboard > SQL Editor to enable the 
 - `static/logo2.png` — nav logo
 - `static/logo-preloader.png` — preloader logo
 - `static/og-image.png` — 1200×630 OG image
+- `static/favicon-logo.png` — favicon + apple-touch-icon (the grid/checkmark logo)
 
 ## Migrations
 - `migrations/bookmarks.sql` — bookmarks table + RLS
