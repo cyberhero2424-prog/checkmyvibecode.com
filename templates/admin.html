@@ -275,7 +275,7 @@
           <input type="hidden" name="project_id" value="{{ p.id }}">
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="tab" value="{{ tab }}">
-          <button type="submit" class="btn-delete" onclick="return confirm('Permanently delete "{{ p.name }}"? This cannot be undone.')">🗑 Delete</button>
+          <button type="submit" class="btn-delete" onclick="return confirm('Permanently delete this project? This cannot be undone.')">🗑 Delete</button>
         </form>
         {% if p.demo and p.demo != '#' %}
         <a class="demo-link" href="{{ p.demo }}" target="_blank" rel="noopener">↗ View project</a>
