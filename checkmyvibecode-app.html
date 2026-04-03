@@ -1532,9 +1532,16 @@ async function loadProjects() {
 }
 
 async function loadUserVotes(userId) {
-  const { data, error } = await sb.from('upvotes').select('project_id').eq('user_id', userId);
-  if (error) { console.warn('loadUserVotes error:', error.message); return; }
-  votedProjectIds = new Set((data || []).map(v => v.project_id));
+  try {
+    const token = await _getAccessToken();
+    const resp = await fetch('/api/projects/user-votes', {
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+    });
+    const ids = resp.ok ? await resp.json() : [];
+    votedProjectIds = new Set(Array.isArray(ids) ? ids : []);
+  } catch(e) {
+    console.warn('loadUserVotes error:', e.message);
+  }
   projects.forEach(p => { p.voted = votedProjectIds.has(p.id); });
   renderProjects();
 }
@@ -1926,34 +1933,39 @@ async function upvote(id) {
   if (p.voted) fireVoteEffects(id);
   updateStats();
 
-  // Persist to Supabase — check {error} field from each response
-  let dbError;
-  if (p.voted) {
-    const { error } = await sb.from('upvotes').insert([{ project_id: id, user_id: currentUser.id }]);
-    dbError = error;
-  } else {
-    const { error } = await sb.from('upvotes').delete().eq('project_id', id).eq('user_id', currentUser.id);
-    dbError = error;
-  }
-
-  if (dbError) {
-    // Revert optimistic update on failure (e.g. duplicate vote attempt)
+  try {
+    const token = await _getAccessToken();
+    const resp = await fetch('/api/projects/' + id + '/toggle-upvote', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = resp.ok ? await resp.json() : null;
+    if (!data || !data.ok) {
+      // Revert optimistic update on failure
+      p.voted = wasVoted;
+      p.upvotes += p.voted ? 1 : -1;
+      if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
+      updateVoteUI(id, p.voted, p.upvotes);
+      updateStats();
+      console.warn('Upvote error:', data?.error || resp.status);
+      return;
+    }
+    // Use authoritative count from server
+    if (data.count !== null && data.count !== undefined) {
+      p.upvotes = data.count;
+      p.voted = data.voted;
+      if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
+      updateVoteUI(id, p.voted, data.count);
+      updateStats();
+    }
+  } catch(e) {
+    // Revert on network error
     p.voted = wasVoted;
     p.upvotes += p.voted ? 1 : -1;
     if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
     updateVoteUI(id, p.voted, p.upvotes);
     updateStats();
-    console.warn('Upvote error:', dbError.message);
-    return;
-  }
-
-  // Fetch authoritative count from DB to avoid race conditions from concurrent clients
-  const { count } = await sb.from('upvotes').select('*', { count: 'exact', head: true }).eq('project_id', id);
-  if (count !== null) {
-    p.upvotes = count;
-    await sb.from('projects').update({ upvotes: count }).eq('id', id);
-    updateVoteUI(id, p.voted, count);
-    updateStats();
+    console.warn('Upvote network error:', e.message);
   }
 }
 

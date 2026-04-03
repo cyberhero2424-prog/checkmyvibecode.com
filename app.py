@@ -1110,6 +1110,68 @@ def api_profile(handle):
     return {'error': 'Could not fetch profile'}, 502
 
 
+# ── Project upvote toggle (service-key, bypasses RLS) ──────────────────────────
+
+@app.route('/api/projects/<project_id>/toggle-upvote', methods=['POST'])
+def toggle_project_upvote(project_id):
+    """Toggle upvote for a project. Uses service key so RLS cannot block writes."""
+    import re
+    if not re.match(r'^[0-9a-f-]{36}$', project_id):
+        return {'error': 'Invalid project id'}, 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return {'error': 'Invalid or expired session'}, 401
+
+    # Check if user already voted
+    existing, err = _sb_service_request(
+        'GET', f'upvotes?select=id&project_id=eq.{project_id}&user_id=eq.{user_id}&limit=1'
+    )
+    if err:
+        app.logger.error('toggle_project_upvote check error: %s', err)
+        return {'error': 'Database error'}, 502
+
+    if existing:
+        # Remove vote
+        _, err = _sb_service_request(
+            'DELETE', f'upvotes?project_id=eq.{project_id}&user_id=eq.{user_id}'
+        )
+        voted = False
+    else:
+        # Add vote
+        _, err = _sb_service_request(
+            'POST', 'upvotes', {'project_id': project_id, 'user_id': user_id}
+        )
+        voted = True
+
+    if err:
+        app.logger.error('toggle_project_upvote write error: %s', err)
+        return {'error': 'Could not save vote'}, 502
+
+    # Get authoritative count and update projects table
+    rows, _ = _sb_service_request('GET', f'upvotes?select=id&project_id=eq.{project_id}')
+    count = len(rows) if isinstance(rows, list) else None
+    if count is not None:
+        _sb_service_request('PATCH', f'projects?id=eq.{project_id}', {'upvotes': count})
+
+    return {'ok': True, 'voted': voted, 'count': count}
+
+
+@app.route('/api/projects/user-votes')
+def project_user_votes():
+    """Return list of project IDs the current user has upvoted."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return json.dumps([]), 200, {'Content-Type': 'application/json'}
+    rows, err = _sb_service_request('GET', f'upvotes?select=project_id&user_id=eq.{user_id}')
+    if err or not rows:
+        return json.dumps([]), 200, {'Content-Type': 'application/json'}
+    return json.dumps([r['project_id'] for r in rows]), 200, {'Content-Type': 'application/json'}
+
+
 # ── Forum proxy endpoints (server-side reads — avoids browser cross-origin blocking) ──
 
 def _sb_get(path, params=''):
