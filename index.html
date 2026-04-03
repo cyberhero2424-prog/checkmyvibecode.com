@@ -1806,13 +1806,17 @@ async function postComment() {
   if (!currentProject) { showToast('Please open a project first.'); return; }
   if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
   if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
   try {
     const token = await _getAccessToken();
     const resp = await fetch('/api/projects/' + currentProject.id + '/comments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ body: text, author: currentUser.handle })
+      body: JSON.stringify({ body: text, author: currentUser.handle }),
+      signal: ctrl.signal
     });
+    clearTimeout(timer);
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
     if (!resp.ok) { showToast('Could not post comment. Please try again.'); return; }
     if (!currentProject.comments) currentProject.comments = [];
@@ -1822,8 +1826,9 @@ async function postComment() {
     if (countEl) countEl.textContent = `(${currentProject.comments.length})`;
     input.value = '';
   } catch(e) {
+    clearTimeout(timer);
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
-    showToast('Could not post comment. Please try again.');
+    showToast(e.name === 'AbortError' ? 'Request timed out. Please try again.' : 'Could not post comment. Please try again.');
   }
 }
 
