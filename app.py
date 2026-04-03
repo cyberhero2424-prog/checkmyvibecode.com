@@ -32,6 +32,11 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 
 BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
 
+SCREENSHOT_BUCKET = 'project-screenshots'
+ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+IMAGE_EXT_MAP = {'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp'}
+MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024  # 5 MB
+
 # ── Rate limiting & brute force protection ────────────────────────────────────
 
 _login_log    = defaultdict(list)   # ip -> [timestamps]
@@ -129,7 +134,7 @@ def _fetch_project(project_id):
         api_url = (
             f"{SUPABASE_URL}/rest/v1/projects"
             f"?id=eq.{safe_id}"
-            f"&select=id,name,description,emoji,author,cat"
+            f"&select=id,name,description,emoji,author,cat,screenshot_url"
             f"&status=eq.approved"
             f"&limit=1"
         )
@@ -215,7 +220,7 @@ def _sb_service_request(method, path, body=None):
 
 def _admin_list_projects(status='pending'):
     safe_s = urllib.parse.quote(status, safe='')
-    path = f"projects?status=eq.{safe_s}&order=created_at.asc&select=id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at"
+    path = f"projects?status=eq.{safe_s}&order=created_at.asc&select=id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at,screenshot_url"
     data, err = _sb_service_request('GET', path)
     return data or [], err
 
@@ -276,6 +281,58 @@ def _admin_forum_thread_count():
     raw, _ = _sb_get('forum_threads', 'select=id')
     data = json.loads(raw) if raw else []
     return len(data)
+
+
+# ── Supabase Storage helpers ─────────────────────────────────────────────────
+
+def _storage_request(method, path, data=None, content_type='application/json'):
+    """Make a Supabase Storage API request with the service key."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return None, 'Storage not configured'
+    url = f"{SUPABASE_URL}/storage/v1/{path}"
+    headers = {
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+        'Content-Type': content_type,
+    }
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read(), None
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        return None, f'HTTP {e.code}: {body[:200]}'
+    except Exception as ex:
+        return None, str(ex)
+
+
+def _ensure_storage_bucket():
+    """Create the project-screenshots storage bucket if it doesn't exist."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return
+    payload = json.dumps({'id': SCREENSHOT_BUCKET, 'name': SCREENSHOT_BUCKET, 'public': True}).encode()
+    _, err = _storage_request('POST', 'bucket', data=payload)
+    if err:
+        if 'already exists' in err.lower() or 'HTTP 409' in err or 'HTTP 400' in err:
+            app.logger.debug('Storage bucket "%s" already exists.', SCREENSHOT_BUCKET)
+        else:
+            app.logger.warning('Could not create storage bucket "%s": %s', SCREENSHOT_BUCKET, err)
+    else:
+        app.logger.info('Storage bucket "%s" created successfully.', SCREENSHOT_BUCKET)
+
+
+def _startup_init():
+    """Run once at startup: ensure storage bucket exists and log migration hint."""
+    _ensure_storage_bucket()
+    app.logger.info(
+        'MIGRATION HINT — Run in Supabase SQL Editor if not done yet:\n'
+        '  ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;\n'
+        '  ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();'
+    )
+
+
+# Run startup tasks in a background thread so gunicorn boot stays fast
+threading.Thread(target=_startup_init, daemon=True).start()
 
 
 # ── Public routes ─────────────────────────────────────────────────────────────
@@ -635,20 +692,26 @@ def submit_project():
         v = payload.get(key)
         return str(v).strip()[:limit] if v else None
 
+    raw_screenshot_url = _s('screenshot_url', 500)
+    screenshot_url = _safe_url(raw_screenshot_url) if raw_screenshot_url else None
+    if screenshot_url == '#':
+        screenshot_url = None
+
     new_project = {
-        'name':        name,
-        'description': description,
-        'idea':        _s('idea'),
-        'build_time':  _s('build_time', 200),
-        'cost':        _s('cost', 200),
-        'demo':        _safe_url(_s('demo', 500)),
-        'tools':       [str(t).strip()[:100] for t in (payload.get('tools') or []) if str(t).strip()][:20],
-        'score':       None,
-        'author':      jwt_handle,  # always set from JWT, not from client payload
-        'emoji':       _s('emoji', 10) or '🚀',
-        'cat':         _s('cat', 100) or 'Other',
-        'upvotes':     0,
-        'status':      'pending',
+        'name':           name,
+        'description':    description,
+        'idea':           _s('idea'),
+        'build_time':     _s('build_time', 200),
+        'cost':           _s('cost', 200),
+        'demo':           _safe_url(_s('demo', 500)),
+        'tools':          [str(t).strip()[:100] for t in (payload.get('tools') or []) if str(t).strip()][:20],
+        'score':          None,
+        'author':         jwt_handle,  # always set from JWT, not from client payload
+        'emoji':          _s('emoji', 10) or '🚀',
+        'cat':            _s('cat', 100) or 'Other',
+        'upvotes':        0,
+        'status':         'pending',
+        'screenshot_url': screenshot_url,
     }
 
     # 3. Insert using service key (bypasses RLS — safe because we verified the JWT)
@@ -704,6 +767,47 @@ def submit_project():
     return {'ok': True}, 201
 
 
+@app.route('/api/upload-screenshot', methods=['POST'])
+def upload_screenshot():
+    """Upload a project screenshot to Supabase Storage.
+    Requires a valid Supabase JWT. Accepts multipart/form-data with a 'screenshot' file field.
+    Returns {'ok': True, 'url': '<public_url>'} on success."""
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return {'ok': False, 'error': 'Unauthorized'}, 401
+    user = _verify_supabase_token(auth_header[7:])
+    if not user:
+        return {'ok': False, 'error': 'Invalid or expired session'}, 401
+
+    file = request.files.get('screenshot')
+    if not file:
+        return {'ok': False, 'error': 'No file provided'}, 400
+
+    content_type = (file.content_type or '').split(';')[0].strip().lower()
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        return {'ok': False, 'error': 'Only jpg, png, gif, webp images are allowed'}, 400
+
+    data = file.read(MAX_SCREENSHOT_BYTES + 1)
+    if len(data) > MAX_SCREENSHOT_BYTES:
+        return {'ok': False, 'error': 'Image must be 5 MB or smaller'}, 413
+
+    ext = IMAGE_EXT_MAP.get(content_type, 'jpg')
+    filename = f"{secrets.token_hex(20)}.{ext}"
+
+    _, err = _storage_request(
+        'POST',
+        f'object/{SCREENSHOT_BUCKET}/{filename}',
+        data=data,
+        content_type=content_type,
+    )
+    if err:
+        app.logger.error('Screenshot upload failed: %s', err)
+        return {'ok': False, 'error': 'Upload failed, please try again'}, 502
+
+    public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SCREENSHOT_BUCKET}/{filename}"
+    return {'ok': True, 'url': public_url}
+
+
 # ── Public project listing (server-side proxy — avoids browser cross-origin blocking) ──
 
 @app.route('/api/projects')
@@ -744,7 +848,7 @@ def api_profile(handle):
         return {'error': 'Server not configured'}, 503
     safe_handle = urllib.parse.quote('@' + clean, safe='')
     endpoint = (SUPABASE_URL.rstrip('/') +
-                f'/rest/v1/projects?select=id,name,description,emoji,author,cat,upvotes,demo,tools,created_at'
+                f'/rest/v1/projects?select=id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,screenshot_url'
                 f'&status=eq.approved&author=eq.{safe_handle}&order=upvotes.desc')
     req = urllib.request.Request(endpoint, headers={
         'apikey': key,

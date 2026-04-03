@@ -216,7 +216,8 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .card.featured:hover { border-color:rgba(234,179,8,0.6); box-shadow:0 0 0 1px rgba(234,179,8,0.25), var(--sh-md); transform:translateY(-2px); }
 .featured-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; background:#fefce8; border:1px solid rgba(234,179,8,0.3); border-radius:20px; font-size:10px; font-weight:700; color:#854d0e; letter-spacing:.3px; text-transform:uppercase; }
 @keyframes cardIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
-.card-thumb { width:100%; height:160px; display:flex; align-items:center; justify-content:center; font-size:48px; }
+.card-thumb { width:100%; height:160px; display:flex; align-items:center; justify-content:center; font-size:48px; overflow:hidden; }
+.card-thumb img.card-screenshot { width:100%; height:100%; object-fit:cover; display:block; border-radius:0; }
 .card-body { padding:14px 16px 16px; }
 .card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:7px; }
 .card-title { font-size:15px; font-weight:600; letter-spacing:-.3px; line-height:1.3; }
@@ -270,7 +271,8 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .drawer-header { padding:20px 24px 0; position:sticky; top:0; background:var(--surface); z-index:10; border-bottom:1px solid var(--border); padding-bottom:16px; }
 .drawer-close { position:absolute; top:18px; left:20px; width:30px; height:30px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--muted2); font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
 .drawer-close:hover { background:var(--surface3); color:var(--text); }
-.drawer-thumb { width:100%; height:200px; display:flex; align-items:center; justify-content:center; font-size:72px; border-radius:var(--r-lg); margin:48px 0 20px; }
+.drawer-thumb { width:100%; height:200px; display:flex; align-items:center; justify-content:center; font-size:72px; border-radius:var(--r-lg); margin:48px 0 20px; overflow:hidden; }
+.drawer-thumb img.drawer-screenshot { width:100%; height:100%; object-fit:cover; display:block; border-radius:var(--r-lg); }
 .drawer-title-row { display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; }
 .drawer-title { font-size:22px; font-weight:700; letter-spacing:-.5px; flex:1; line-height:1.2; }
 .drawer-tags { display:flex; flex-wrap:wrap; gap:6px; }
@@ -424,6 +426,14 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .tool-toggle:hover { color:var(--text); }
 .tool-toggle.on { background:var(--text); color:var(--bg); border-color:var(--text); }
 .modal-footer { display:flex; gap:8px; margin-top:18px; }
+.screenshot-upload-zone { border:1.5px dashed var(--border2); border-radius:var(--r-sm); padding:12px 14px; cursor:pointer; transition:border-color .15s; display:flex; align-items:center; gap:10px; position:relative; }
+.screenshot-upload-zone:hover { border-color:var(--text); }
+.screenshot-upload-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+.screenshot-upload-hint { font-size:12px; color:var(--muted); flex:1; }
+.screenshot-preview-wrap { display:none; margin-top:8px; position:relative; width:100%; }
+.screenshot-preview-wrap.visible { display:block; }
+.screenshot-preview-img { width:100%; max-height:120px; object-fit:cover; border-radius:var(--r-sm); border:1px solid var(--border2); display:block; }
+.screenshot-preview-remove { position:absolute; top:5px; right:5px; background:rgba(0,0,0,.6); color:#fff; border:none; border-radius:50%; width:22px; height:22px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; padding:0; }
 
 /* ═══════════════════════════════════
    MOBILE STYLES
@@ -997,6 +1007,18 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
       <div class="fgroup"><label class="flabel">Your handle</label><input class="finput" id="f_author" placeholder="@you"></div>
       <div class="fgroup"><label class="flabel">Project emoji</label><input class="finput" id="f_emoji" placeholder="🚀" maxlength="2"></div>
     </div>
+    <div class="fgroup">
+      <label class="flabel">Screenshot <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(optional, max 5 MB)</span></label>
+      <div class="screenshot-upload-zone" id="screenshotZone">
+        <span style="font-size:18px">🖼</span>
+        <span class="screenshot-upload-hint" id="screenshotHint">Click to upload a screenshot — jpg, png, gif or webp</span>
+        <input type="file" id="f_screenshot" accept="image/jpeg,image/png,image/gif,image/webp" onchange="onScreenshotChange(this)">
+      </div>
+      <div class="screenshot-preview-wrap" id="screenshotPreviewWrap">
+        <img class="screenshot-preview-img" id="screenshotPreviewImg" src="" alt="Screenshot preview">
+        <button class="screenshot-preview-remove" onclick="clearScreenshot()" title="Remove">✕</button>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeSubmit()" style="flex:1">Cancel</button>
       <button class="btn btn-primary" onclick="submitProject()" style="flex:2">Submit project →</button>
@@ -1118,8 +1140,13 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
      tools text[] default '{}', score int, author text not null,
      emoji text default '🚀', cat text default 'app',
      upvotes int default 1, featured boolean default false,
-     created_at timestamptz default now()
+     screenshot_url text,
+     created_at timestamptz default now(),
+     updated_at timestamptz default now()
    );
+   -- Migration (run once if table already exists):
+   -- ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;
+   -- ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
    create table comments (
      id uuid default gen_random_uuid() primary key,
      project_id uuid references projects(id) on delete cascade,
@@ -1599,8 +1626,8 @@ function renderProjects() {
   document.getElementById('grid').innerHTML = list.map((p,i) => `
     <div class="card${p.featured?' featured':''}" style="animation-delay:${i*.07}s" onclick="openDrawer('${p.id}')">
       <div class="card-thumb" style="background:${stableColor(p.id)};position:relative">
-        ${p.featured ? `<div style="position:absolute;top:10px;left:10px"><span class="featured-badge">✦ Featured</span></div>` : ''}
-        ${p.emoji}
+        ${p.featured ? `<div style="position:absolute;top:10px;left:10px;z-index:1"><span class="featured-badge">✦ Featured</span></div>` : ''}
+        ${p.screenshot_url ? `<img class="card-screenshot" src="${escAttr(p.screenshot_url)}" alt="${escAttr(p.name)}" loading="lazy" onerror="this.style.display='none'">` : p.emoji}
       </div>
       <div class="card-body">
         <div class="card-top">
@@ -1705,7 +1732,7 @@ function openDrawer(id) {
   currentProject = p;
   document.body.style.overflow = 'hidden';
   document.getElementById('drawerHeader').innerHTML=`
-    <div class="drawer-thumb" style="background:${stableColor(p.id)}">${p.emoji}</div>
+    <div class="drawer-thumb" style="background:${stableColor(p.id)}">${p.screenshot_url ? `<img class="drawer-screenshot" src="${escAttr(p.screenshot_url)}" alt="${escAttr(p.name)}" loading="lazy" onerror="this.style.display='none'">` : p.emoji}</div>
     <div class="drawer-title-row"><div class="drawer-title">${esc(p.name)}</div>${p.score?`<div class="score-pill ${scoreClass(p.score)}">✦ ${p.score}</div>`:''}</div>
     <div class="drawer-tags">${(p.tools||[]).map(t=>`<span class="tag ${tagClass(t)}">${t}</span>`).join('')}<span class="tag t-cat">${p.cat}</span></div>`;
   document.getElementById('drawerBody').innerHTML=`
@@ -2358,6 +2385,30 @@ function closeSubmit() {
   document.getElementById('submitModal').classList.remove('open');
   ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_tools','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const sc=document.getElementById('f_cat');if(sc)sc.selectedIndex=0;
+  clearScreenshot();
+}
+function onScreenshotChange(input) {
+  const file = input.files && input.files[0];
+  if (!file) { clearScreenshot(); return; }
+  const hint = document.getElementById('screenshotHint');
+  if (hint) hint.textContent = file.name;
+  const preview = document.getElementById('screenshotPreviewImg');
+  const wrap = document.getElementById('screenshotPreviewWrap');
+  if (preview && wrap) {
+    const reader = new FileReader();
+    reader.onload = e => { preview.src = e.target.result; wrap.classList.add('visible'); };
+    reader.readAsDataURL(file);
+  }
+}
+function clearScreenshot() {
+  const fi = document.getElementById('f_screenshot');
+  if (fi) fi.value = '';
+  const hint = document.getElementById('screenshotHint');
+  if (hint) hint.textContent = 'Click to upload a screenshot — jpg, png, gif or webp';
+  const wrap = document.getElementById('screenshotPreviewWrap');
+  if (wrap) wrap.classList.remove('visible');
+  const preview = document.getElementById('screenshotPreviewImg');
+  if (preview) preview.src = '';
 }
 
 let boostProjectId = null;
@@ -2431,11 +2482,36 @@ async function submitProject() {
   const submitBtn = document.querySelector('#submitModal .btn-primary');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
   try {
-    // Use cached token from onAuthStateChange — avoids Supabase localStorage lock contention
     const token = currentUser?.accessToken;
-    if (!token) {
-      closeSubmit(); openAuth(); return;
+    if (!token) { closeSubmit(); openAuth(); return; }
+
+    // Upload screenshot first if a file was selected
+    let screenshotUrl = null;
+    const screenshotFile = document.getElementById('f_screenshot')?.files?.[0];
+    if (screenshotFile) {
+      if (submitBtn) submitBtn.textContent = 'Uploading screenshot...';
+      const formData = new FormData();
+      formData.append('screenshot', screenshotFile);
+      try {
+        const uploadResp = await fetch('/api/upload-screenshot', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData,
+        });
+        const uploadData = await uploadResp.json();
+        if (uploadResp.ok && uploadData.ok && uploadData.url) {
+          screenshotUrl = uploadData.url;
+        } else {
+          console.warn('Screenshot upload failed:', uploadData.error);
+          // Non-blocking: continue without screenshot
+        }
+      } catch(uploadErr) {
+        console.warn('Screenshot upload error:', uploadErr);
+        // Non-blocking: continue without screenshot
+      }
+      if (submitBtn) submitBtn.textContent = 'Submitting...';
     }
+
     const projectPayload = {
       name, description: desc,
       idea: document.getElementById('f_idea').value.trim() || null,
@@ -2445,7 +2521,8 @@ async function submitProject() {
       tools: (document.getElementById('f_tools').value||'').split(',').map(t=>t.trim()).filter(Boolean),
       author: document.getElementById('f_author').value.trim() || currentUser.handle || '@anon',
       emoji: document.getElementById('f_emoji').value.trim() || '🚀',
-      cat: document.getElementById('f_cat').value
+      cat: document.getElementById('f_cat').value,
+      screenshot_url: screenshotUrl,
     };
     const _abortCtrl = new AbortController();
     const _submitTimeout = setTimeout(() => _abortCtrl.abort(), 15000);
@@ -2467,7 +2544,6 @@ async function submitProject() {
     if (!resp.ok || !respData.ok) {
       throw new Error(respData?.error || ('HTTP ' + resp.status));
     }
-    // Project is pending review — do NOT add to local grid yet
     closeSubmit();
     ['f_name','f_desc','f_idea','f_time','f_cost','f_demo','f_tools','f_author','f_emoji'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     showToast('🎉 Project submitted! We\'ll review it and publish it shortly.');

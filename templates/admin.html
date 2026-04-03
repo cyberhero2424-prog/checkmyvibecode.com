@@ -47,6 +47,7 @@
   .project-card { background: #1a1a1d; border: 1px solid #2a2a2e; border-radius: 12px; padding: 20px; margin-bottom: 14px; }
   .project-card .top { display: flex; align-items: flex-start; gap: 14px; }
   .project-card .emoji { font-size: 28px; flex-shrink: 0; }
+  .project-card .thumb-img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid #2a2a2e; flex-shrink: 0; }
   .project-card .info { flex: 1; min-width: 0; }
   .project-card .name { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
   .project-card .meta { font-size: 12px; color: #888; margin-bottom: 8px; }
@@ -225,7 +226,11 @@
     {% for p in projects %}
     <div class="project-card">
       <div class="top">
+        {% if p.screenshot_url %}
+        <img class="thumb-img" src="{{ p.screenshot_url }}" alt="{{ p.name }}" loading="lazy">
+      {% else %}
         <div class="emoji">{{ p.emoji or '🚀' }}</div>
+      {% endif %}
         <div class="info">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <div class="name">{{ p.name }}</div>
