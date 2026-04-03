@@ -972,6 +972,10 @@ def submit_project():
         app.logger.error('submit_project DB insert failed: %s', err)
         return {'ok': False, 'error': 'Could not save project. Please try again later.'}, 500
 
+    # New submission doesn't affect public feed (status='pending') but invalidate anyway
+    # so that if a project transitions quickly it won't show stale data
+    _cache_delete('projects')
+
     # 4. Send emails in a background thread (truly non-blocking)
     site_url   = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
     admin_url  = site_url + '/admin'
@@ -1091,7 +1095,7 @@ def api_projects():
         try:
             with urllib.request.urlopen(req, timeout=8) as r:
                 body = r.read()
-            _cache_set('projects', body, ttl=60)
+            _cache_set('projects', body, ttl=30)
             resp = Response(body, mimetype='application/json')
             resp.headers['Cache-Control'] = 'public, max-age=60'
             return resp
@@ -1247,8 +1251,8 @@ def _sb_post(path, payload, user_jwt, params=''):
         return None, str(e)
 
 
-_FORUM_THREAD_COLS = 'id,title,body,author_handle,author_id,created_at,upvotes'
-_FORUM_REPLY_COLS  = 'id,thread_id,body,author_handle,author_id,created_at'
+_FORUM_THREAD_COLS = 'id,title,body,author_handle,created_at,upvotes'
+_FORUM_REPLY_COLS  = 'id,thread_id,body,author_handle,created_at'
 
 
 @app.route('/api/forum/threads')
