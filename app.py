@@ -28,6 +28,9 @@ SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
+# Optional: direct PostgreSQL connection URL (e.g. from Supabase Project Settings > Database)
+# Format: postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+DATABASE_URL        = os.environ.get('DATABASE_URL', '')
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 
 BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
@@ -331,7 +334,7 @@ def _ensure_storage_bucket():
     payload = json.dumps({'id': SCREENSHOT_BUCKET, 'name': SCREENSHOT_BUCKET, 'public': True}).encode()
     _, err = _storage_request('POST', 'bucket', data=payload)
     if err:
-        if 'already exists' in err.lower() or 'HTTP 409' in err or 'HTTP 400' in err:
+        if 'already exists' in err.lower() or 'HTTP 409' in err:
             app.logger.debug('Storage bucket "%s" already exists.', SCREENSHOT_BUCKET)
         else:
             app.logger.warning('Could not create storage bucket "%s": %s', SCREENSHOT_BUCKET, err)
@@ -361,8 +364,30 @@ def _column_exists(column_name):
         return True  # network error — assume exists
 
 
-def _run_db_migration_via_mgmt_api(sql):
-    """Attempt DDL via Supabase Management REST API. Returns (success, error_msg)."""
+def _run_migration_via_psycopg2(sql):
+    """Execute DDL via a direct PostgreSQL connection (DATABASE_URL env var).
+    Returns (success, error_msg)."""
+    try:
+        import psycopg2
+    except ImportError:
+        return False, 'psycopg2 not installed'
+    db_url = DATABASE_URL
+    if not db_url:
+        return False, 'DATABASE_URL not set'
+    try:
+        conn = psycopg2.connect(db_url, connect_timeout=10)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(sql)
+        conn.close()
+        return True, None
+    except Exception as ex:
+        return False, str(ex)
+
+
+def _run_migration_via_mgmt_api(sql):
+    """Attempt DDL via Supabase Management REST API (requires management PAT as service key).
+    Returns (success, error_msg)."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         return False, 'not configured'
     m = re.match(r'https://([^.]+)\.supabase\.co', SUPABASE_URL.rstrip('/'))
@@ -386,18 +411,24 @@ def _run_db_migration_via_mgmt_api(sql):
 
 
 def _ensure_screenshot_column():
-    """Try to add screenshot_url column; log actionable instructions if not possible."""
+    """Try to add screenshot_url column at startup via available mechanisms."""
     if _column_exists('screenshot_url'):
         app.logger.debug('screenshot_url column already exists.')
         return
-    # Attempt migration via Supabase Management API (requires service key with mgmt scope)
     sql = 'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
-    ok, err = _run_db_migration_via_mgmt_api(sql)
+    # 1. Try direct PostgreSQL connection (most reliable — needs DATABASE_URL secret)
+    ok, err = _run_migration_via_psycopg2(sql)
+    if ok:
+        app.logger.info('screenshot_url column added via direct DB connection.')
+        return
+    app.logger.debug('psycopg2 migration skipped/failed: %s', err)
+    # 2. Fall back to Supabase Management API (needs management PAT as service key)
+    ok, err = _run_migration_via_mgmt_api(sql)
     if ok:
         app.logger.info('screenshot_url column added via Management API.')
         return
     app.logger.warning(
-        'Could not auto-migrate via Management API (%s). '
+        'Could not auto-migrate (tried psycopg2 + Management API: %s). '
         'ACTION REQUIRED — run once in Supabase SQL Editor:\n  %s', err, sql
     )
 

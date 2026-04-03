@@ -3,3 +3,4 @@ python-dotenv>=1.0.0
 gunicorn>=21.2.0
 Pillow
 whitenoise[brotli]
+psycopg2-binary>=2.9
