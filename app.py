@@ -594,17 +594,21 @@ def api_admin_toggle_featured():
     Body: {"project_id": "<uuid>", "featured": true|false}"""
     if not _admin_logged_in():
         return {'ok': False, 'error': 'Unauthorized'}, 401
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(force=True, silent=True) or {}
     project_id = str(body.get('project_id', '')).strip()
-    featured = bool(body.get('featured', False))
+    featured = body.get('featured')
+    if featured is None or not isinstance(featured, bool):
+        return {'ok': False, 'error': '"featured" must be a JSON boolean'}, 400
     if not project_id:
         return {'ok': False, 'error': 'project_id required'}, 400
     safe_id = urllib.parse.quote(project_id, safe='')
-    _, err = _sb_service_request('PATCH', f'projects?id=eq.{safe_id}',
-                                 {'featured': featured})
+    rows, err = _sb_service_request('PATCH', f'projects?id=eq.{safe_id}',
+                                    {'featured': featured})
     if err:
         app.logger.error('toggle-featured failed for %s: %s', project_id, err)
         return {'ok': False, 'error': 'Could not update project'}, 500
+    if not rows:
+        return {'ok': False, 'error': 'Project not found'}, 404
     return {'ok': True, 'featured': featured}
 
 
