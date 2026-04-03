@@ -868,14 +868,69 @@ def api_forum_create_reply(thread_id):
     return Response(result, mimetype='application/json')
 
 
+# ── Sitemap ───────────────────────────────────────────────────────────────────
+
+@app.route('/sitemap.xml')
+def sitemap():
+    """Dynamic XML sitemap: homepage + all approved project pages."""
+    base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
+
+    urls = []
+
+    # Homepage (highest priority)
+    urls.append({'loc': base_url + '/', 'changefreq': 'daily', 'priority': '1.0'})
+
+    # All approved projects
+    try:
+        raw, err = _sb_get('projects', 'status=eq.approved&select=id,updated_at')
+        if raw and not err:
+            rows = json.loads(raw)
+            for row in rows:
+                pid = str(row.get('id', ''))
+                if not pid:
+                    continue
+                loc = base_url + '/p/' + urllib.parse.quote(pid, safe='')
+                # updated_at may be "2024-01-15T10:30:00+00:00" — take date part only
+                raw_ts = row.get('updated_at') or ''
+                lastmod = raw_ts[:10] if len(raw_ts) >= 10 else ''
+                entry = {'loc': loc, 'changefreq': 'weekly', 'priority': '0.7'}
+                if lastmod:
+                    entry['lastmod'] = lastmod
+                urls.append(entry)
+    except Exception:
+        pass  # if Supabase is unavailable, serve homepage-only sitemap
+
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    for u in urls:
+        lines.append('  <url>')
+        lines.append(f'    <loc>{html_module.escape(u["loc"])}</loc>')
+        if 'lastmod' in u:
+            lines.append(f'    <lastmod>{html_module.escape(u["lastmod"])}</lastmod>')
+        lines.append(f'    <changefreq>{u["changefreq"]}</changefreq>')
+        lines.append(f'    <priority>{u["priority"]}</priority>')
+        lines.append('  </url>')
+    lines.append('</urlset>')
+
+    xml = '\n'.join(lines)
+    resp = Response(xml, mimetype='application/xml')
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
+
+
 # ── robots.txt ────────────────────────────────────────────────────────────────
 
 @app.route('/robots.txt')
 def robots():
-    return Response(
-        "User-agent: *\nDisallow: /admin\nDisallow: /api/\n",
-        mimetype='text/plain'
+    base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
+    sitemap_url = base_url + '/sitemap.xml'
+    body = (
+        "User-agent: *\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
+        f"Sitemap: {sitemap_url}\n"
     )
+    return Response(body, mimetype='text/plain')
 
 # ── 404 handler ───────────────────────────────────────────────────────────────
 
