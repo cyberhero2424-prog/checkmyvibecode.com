@@ -28,9 +28,10 @@ SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
-# Optional: direct PostgreSQL connection URL (e.g. from Supabase Project Settings > Database)
+# Optional: Supabase direct PostgreSQL connection URL for startup DB migration.
+# Find it in Supabase Dashboard > Project Settings > Database > Connection string (URI mode).
 # Format: postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
-DATABASE_URL        = os.environ.get('DATABASE_URL', '')
+SUPABASE_DB_URL     = os.environ.get('SUPABASE_DB_URL', '')
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 
 BASE_URL_OVERRIDE = os.environ.get('BASE_URL', '').rstrip('/')
@@ -365,15 +366,15 @@ def _column_exists(column_name):
 
 
 def _run_migration_via_psycopg2(sql):
-    """Execute DDL via a direct PostgreSQL connection (DATABASE_URL env var).
+    """Execute DDL via a direct PostgreSQL connection (SUPABASE_DB_URL env var).
     Returns (success, error_msg)."""
     try:
         import psycopg2
     except ImportError:
         return False, 'psycopg2 not installed'
-    db_url = DATABASE_URL
+    db_url = SUPABASE_DB_URL
     if not db_url:
-        return False, 'DATABASE_URL not set'
+        return False, 'SUPABASE_DB_URL not set'
     try:
         conn = psycopg2.connect(db_url, connect_timeout=10)
         conn.autocommit = True
@@ -544,6 +545,29 @@ def _csrf_token():
 def _csrf_valid():
     """Check that the submitted form CSRF token matches the session token."""
     return request.form.get('csrf_token') == session.get('csrf_token')
+
+
+@app.route('/api/admin/run-migration', methods=['POST'])
+def api_admin_run_migration():
+    """Admin-only endpoint to run pending DB migrations on demand.
+    Requires admin session (ADMIN_PASSWORD). Useful when SUPABASE_DB_URL is not set at boot."""
+    if not _admin_logged_in():
+        return {'ok': False, 'error': 'Unauthorized'}, 401
+    sql = 'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
+    if _column_exists('screenshot_url'):
+        return {'ok': True, 'message': 'screenshot_url column already exists — nothing to do.'}
+    ok, err = _run_migration_via_psycopg2(sql)
+    if ok:
+        return {'ok': True, 'message': 'Migration applied via direct DB connection.'}
+    ok2, err2 = _run_migration_via_mgmt_api(sql)
+    if ok2:
+        return {'ok': True, 'message': 'Migration applied via Management API.'}
+    return {
+        'ok': False,
+        'error': f'Could not apply migration. psycopg2: {err}; mgmt API: {err2}',
+        'sql': sql,
+        'hint': 'Set SUPABASE_DB_URL secret (from Supabase Dashboard > Project Settings > Database) and restart, or run the SQL in Supabase SQL Editor.',
+    }, 500
 
 
 @app.route('/admin')
