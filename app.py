@@ -834,6 +834,12 @@ def submit_project():
     screenshot_url = _safe_url(raw_screenshot_url) if raw_screenshot_url else None
     if screenshot_url == '#':
         screenshot_url = None
+    # Restrict screenshot URLs to our own Supabase Storage domain to prevent external injection
+    if screenshot_url and SUPABASE_URL:
+        storage_host = SUPABASE_URL.rstrip('/').split('://')[-1]
+        if storage_host not in screenshot_url:
+            app.logger.warning('submit_project: screenshot_url not from storage host, ignoring: %s', screenshot_url)
+            screenshot_url = None
 
     new_project = {
         'name':        name,
@@ -971,21 +977,33 @@ def api_projects():
     key = SUPABASE_ANON_KEY
     if not SUPABASE_URL or not key:
         return {'error': 'Server not configured'}, 503
-    endpoint = (SUPABASE_URL.rstrip('/') +
-                '/rest/v1/projects?select=*&status=eq.approved&order=upvotes.desc')
-    req = urllib.request.Request(endpoint, headers={
-        'apikey': key,
-        'Authorization': f'Bearer {key}',
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=8) as r:
-            body = r.read()
-        resp = Response(body, mimetype='application/json')
-        resp.headers['Cache-Control'] = 'public, max-age=30'
-        return resp
-    except Exception as e:
-        app.logger.error('api_projects error: %s', e)
-        return {'error': 'Could not fetch projects'}, 502
+    base_qs = '&status=eq.approved&order=upvotes.desc'
+    select_with = ('id,name,description,emoji,author,cat,upvotes,'
+                   'demo,tools,created_at,score,screenshot_url')
+    select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score'
+    for select in (select_with, select_without):
+        endpoint = (SUPABASE_URL.rstrip('/') +
+                    f'/rest/v1/projects?select={select}{base_qs}')
+        req = urllib.request.Request(endpoint, headers={
+            'apikey': key,
+            'Authorization': f'Bearer {key}',
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=8) as r:
+                body = r.read()
+            resp = Response(body, mimetype='application/json')
+            resp.headers['Cache-Control'] = 'public, max-age=30'
+            return resp
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode().lower()
+            if 'screenshot_url' in err_body or ('column' in err_body and 'does not exist' in err_body):
+                continue
+            app.logger.error('api_projects error: %s', e)
+            return {'error': 'Could not fetch projects'}, 502
+        except Exception as e:
+            app.logger.error('api_projects error: %s', e)
+            return {'error': 'Could not fetch projects'}, 502
+    return {'error': 'Could not fetch projects'}, 502
 
 
 @app.route('/api/profile/<path:handle>')
