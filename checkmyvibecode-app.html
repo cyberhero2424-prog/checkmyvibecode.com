@@ -1354,11 +1354,11 @@ function closeDropdown() {
 }
 
 async function signOut() {
-  try { await sb.auth.signOut(); } catch(e) { /* ignore network errors */ }
   currentUser = null;
   updateNavForUser();
   closeDropdown();
   showToast('👋 Signed out. See you soon!');
+  sb.auth.signOut().catch(() => {});
 }
 
 function requireAuth(callback) {
