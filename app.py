@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 from collections import defaultdict
 from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template
+from flask_compress import Compress
 from dotenv import load_dotenv
 from whitenoise import WhiteNoise
 
@@ -23,7 +24,35 @@ HTML_ENTRY_POINTS = {'index.html', 'checkmyvibecode-app.html'}
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
+app.config['COMPRESS_MIMETYPES'] = [
+    'text/html', 'text/css', 'text/javascript',
+    'application/javascript', 'application/json',
+]
+app.config['COMPRESS_LEVEL'] = 6
+app.config['COMPRESS_MIN_SIZE'] = 500
+Compress(app)
 app.wsgi_app = WhiteNoise(app.wsgi_app, root=STATIC_DIR, prefix='static', max_age=31536000)
+
+# ── Simple in-process TTL cache ────────────────────────────────────────────────
+_cache: dict = {}
+_cache_lock = threading.Lock()
+
+def _cache_get(key: str):
+    """Return (value, hit) — hit=False means expired/missing."""
+    with _cache_lock:
+        entry = _cache.get(key)
+        if entry and time.monotonic() < entry['exp']:
+            return entry['val'], True
+        return None, False
+
+def _cache_set(key: str, value, ttl: int = 30):
+    with _cache_lock:
+        _cache[key] = {'val': value, 'exp': time.monotonic() + ttl}
+
+def _cache_delete(*keys):
+    with _cache_lock:
+        for k in keys:
+            _cache.pop(k, None)
 
 SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
@@ -610,6 +639,7 @@ def api_admin_toggle_featured():
         return {'ok': False, 'error': 'Could not update project'}, 500
     if not rows:
         return {'ok': False, 'error': 'Project not found'}, 404
+    _cache_delete('projects')
     return {'ok': True, 'featured': featured}
 
 
@@ -769,6 +799,7 @@ def admin_action():
             session['flash_msg']  = f'Error: {err}'
             session['flash_type'] = 'err'
         else:
+            _cache_delete('projects')
             session['flash_msg']  = 'Project permanently deleted.'
             session['flash_type'] = 'ok'
         return redirect(url_for('admin', tab=tab))
@@ -780,6 +811,7 @@ def admin_action():
         session['flash_msg']  = f'Error: {err}'
         session['flash_type'] = 'err'
     else:
+        _cache_delete('projects')
         verb = 'approved' if new_status == 'approved' else 'rejected'
         session['flash_msg']  = f'Project {verb} successfully.'
         session['flash_type'] = 'ok'
@@ -1035,10 +1067,16 @@ def upload_screenshot():
 def api_projects():
     """Return approved projects as JSON, fetched server-side.
     The browser calls checkmyvibecode.com/api/projects (same origin),
-    so privacy browsers that block supabase.co cannot interfere."""
+    so privacy browsers that block supabase.co cannot interfere.
+    Responses are cached server-side for 60s to avoid Supabase round trips."""
     key = SUPABASE_ANON_KEY
     if not SUPABASE_URL or not key:
         return {'error': 'Server not configured'}, 503
+    cached, hit = _cache_get('projects')
+    if hit:
+        resp = Response(cached, mimetype='application/json')
+        resp.headers['Cache-Control'] = 'public, max-age=60'
+        return resp
     base_qs = '&status=eq.approved&order=upvotes.desc'
     select_with = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured'
     select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url'
@@ -1053,8 +1091,9 @@ def api_projects():
         try:
             with urllib.request.urlopen(req, timeout=8) as r:
                 body = r.read()
+            _cache_set('projects', body, ttl=60)
             resp = Response(body, mimetype='application/json')
-            resp.headers['Cache-Control'] = 'public, max-age=30'
+            resp.headers['Cache-Control'] = 'public, max-age=60'
             return resp
         except urllib.error.HTTPError as e:
             err_body = e.read().decode().lower()
@@ -1154,6 +1193,7 @@ def toggle_project_upvote(project_id):
     count = len(rows) if isinstance(rows, list) else None
     if count is not None:
         _sb_service_request('PATCH', f'projects?id=eq.{project_id}', {'upvotes': count})
+    _cache_delete('projects')
 
     return {'ok': True, 'voted': voted, 'count': count}
 
@@ -1207,16 +1247,27 @@ def _sb_post(path, payload, user_jwt, params=''):
         return None, str(e)
 
 
+_FORUM_THREAD_COLS = 'id,title,body,author_handle,author_id,created_at,upvotes'
+_FORUM_REPLY_COLS  = 'id,thread_id,body,author_handle,author_id,created_at'
+
+
 @app.route('/api/forum/threads')
 def api_forum_threads():
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return {'error': 'Server not configured'}, 503
-    body, err = _sb_get('forum_threads', 'select=*&order=created_at.desc')
+    cached, hit = _cache_get('forum_threads')
+    if hit:
+        resp = Response(cached, mimetype='application/json')
+        resp.headers['Cache-Control'] = 'public, max-age=60'
+        return resp
+    body, err = _sb_get('forum_threads',
+                         f'select={_FORUM_THREAD_COLS}&order=created_at.desc')
     if err:
         app.logger.error('api_forum_threads error: %s', err)
         return {'error': 'Could not fetch threads'}, 502
+    _cache_set('forum_threads', body, ttl=30)
     resp = Response(body, mimetype='application/json')
-    resp.headers['Cache-Control'] = 'public, max-age=15'
+    resp.headers['Cache-Control'] = 'public, max-age=60'
     return resp
 
 
@@ -1229,13 +1280,20 @@ def api_forum_replies(thread_id):
         return {'error': 'Server not configured'}, 503
     if not _UUID_RE.match(thread_id):
         return {'error': 'Invalid thread id'}, 400
+    cache_key = f'forum_replies:{thread_id}'
+    cached, hit = _cache_get(cache_key)
+    if hit:
+        resp = Response(cached, mimetype='application/json')
+        resp.headers['Cache-Control'] = 'public, max-age=60'
+        return resp
     body, err = _sb_get('forum_replies',
-                         f'select=*&thread_id=eq.{thread_id}&order=created_at.asc')
+                         f'select={_FORUM_REPLY_COLS}&thread_id=eq.{thread_id}&order=created_at.asc')
     if err:
         app.logger.error('api_forum_replies error: %s', err)
         return {'error': 'Could not fetch replies'}, 502
+    _cache_set(cache_key, body, ttl=30)
     resp = Response(body, mimetype='application/json')
-    resp.headers['Cache-Control'] = 'public, max-age=15'
+    resp.headers['Cache-Control'] = 'public, max-age=60'
     return resp
 
 
@@ -1272,6 +1330,7 @@ def api_forum_create_thread():
     if err:
         app.logger.error('api_forum_create_thread error: %s', err)
         return {'error': 'Could not create thread'}, 502
+    _cache_delete('forum_threads')
     return Response(json.dumps(result), mimetype='application/json')
 
 
@@ -1301,6 +1360,7 @@ def api_forum_create_reply(thread_id):
     if err:
         app.logger.error('api_forum_create_reply error: %s', err)
         return {'error': 'Could not post reply'}, 502
+    _cache_delete(f'forum_replies:{thread_id}')
     return Response(json.dumps(result), mimetype='application/json')
 
 
@@ -1362,6 +1422,7 @@ def api_forum_toggle_upvote(thread_id):
     current_count = thread_data[0].get('upvotes') or 0 if thread_data else 0
     new_count = max(0, current_count + (1 if voted else -1))
     _sb_service_request('PATCH', f'forum_threads?id=eq.{safe_tid}', {'upvotes': new_count})
+    _cache_delete('forum_threads')
     return {'ok': True, 'voted': voted, 'upvotes': new_count}
 
 
