@@ -1884,7 +1884,9 @@ async function openProfile(handle) {
     <div class="profile-builds-label">BUILDS</div>
     ${userProjects.map(p => `
       <button class="profile-build-item" onclick="openProfileProject('${p.id}')">
-        <div class="profile-build-emoji">${esc(p.emoji || '📦')}</div>
+        ${p.screenshot_url
+          ? `<img src="${escAttr(p.screenshot_url)}" alt="${escAttr(p.name)}" loading="lazy" onerror="this.style.display='none'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;flex-shrink:0">`
+          : `<div class="profile-build-emoji">${esc(p.emoji || '📦')}</div>`}
         <div class="profile-build-info">
           <div class="profile-build-name">${esc(p.name)}</div>
           <div class="profile-build-cat">${esc(p.cat || '')}</div>
@@ -2503,11 +2505,11 @@ async function submitProject() {
           screenshotUrl = uploadData.url;
         } else {
           console.warn('Screenshot upload failed:', uploadData.error);
-          // Non-blocking: continue without screenshot
+          showToast('⚠️ Screenshot upload failed — submitting without it.');
         }
       } catch(uploadErr) {
         console.warn('Screenshot upload error:', uploadErr);
-        // Non-blocking: continue without screenshot
+        showToast('⚠️ Screenshot could not be uploaded — submitting without it.');
       }
       if (submitBtn) submitBtn.textContent = 'Submitting...';
     }

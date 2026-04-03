@@ -321,14 +321,39 @@ def _ensure_storage_bucket():
         app.logger.info('Storage bucket "%s" created successfully.', SCREENSHOT_BUCKET)
 
 
-def _startup_init():
-    """Run once at startup: ensure storage bucket exists and log migration hint."""
-    _ensure_storage_bucket()
-    app.logger.info(
-        'MIGRATION HINT — Run in Supabase SQL Editor if not done yet:\n'
-        '  ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;\n'
-        '  ALTER TABLE projects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();'
+def _ensure_screenshot_column():
+    """Try to add screenshot_url column via service key. Logs hint if not possible."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return
+    # Detect whether the column exists by querying it directly
+    check_url = (SUPABASE_URL.rstrip('/') +
+                 '/rest/v1/projects?select=screenshot_url&limit=0')
+    check_req = urllib.request.Request(check_url, headers={
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+    })
+    try:
+        with urllib.request.urlopen(check_req, timeout=10):
+            app.logger.debug('screenshot_url column already exists.')
+            return  # column present — nothing to do
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        if 'screenshot_url' not in body.lower() and 'column' not in body.lower():
+            app.logger.debug('screenshot_url check got unexpected error: %s %s', e.code, body[:100])
+            return
+    except Exception:
+        return
+    # Column is missing — log clear instructions (DDL not executable via REST without mgmt key)
+    app.logger.warning(
+        'ACTION REQUIRED — screenshot_url column is missing. Run in Supabase SQL Editor:\n'
+        '  ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
     )
+
+
+def _startup_init():
+    """Run once at startup: ensure storage bucket exists and verify screenshot column."""
+    _ensure_storage_bucket()
+    _ensure_screenshot_column()
 
 
 # Run startup tasks in a background thread so gunicorn boot stays fast
@@ -698,24 +723,32 @@ def submit_project():
         screenshot_url = None
 
     new_project = {
-        'name':           name,
-        'description':    description,
-        'idea':           _s('idea'),
-        'build_time':     _s('build_time', 200),
-        'cost':           _s('cost', 200),
-        'demo':           _safe_url(_s('demo', 500)),
-        'tools':          [str(t).strip()[:100] for t in (payload.get('tools') or []) if str(t).strip()][:20],
-        'score':          None,
-        'author':         jwt_handle,  # always set from JWT, not from client payload
-        'emoji':          _s('emoji', 10) or '🚀',
-        'cat':            _s('cat', 100) or 'Other',
-        'upvotes':        0,
-        'status':         'pending',
-        'screenshot_url': screenshot_url,
+        'name':        name,
+        'description': description,
+        'idea':        _s('idea'),
+        'build_time':  _s('build_time', 200),
+        'cost':        _s('cost', 200),
+        'demo':        _safe_url(_s('demo', 500)),
+        'tools':       [str(t).strip()[:100] for t in (payload.get('tools') or []) if str(t).strip()][:20],
+        'score':       None,
+        'author':      jwt_handle,  # always set from JWT, not from client payload
+        'emoji':       _s('emoji', 10) or '🚀',
+        'cat':         _s('cat', 100) or 'Other',
+        'upvotes':     0,
+        'status':      'pending',
     }
+    # Only include screenshot_url when actually provided — keeps inserts safe on old schemas
+    if screenshot_url:
+        new_project['screenshot_url'] = screenshot_url
 
     # 3. Insert using service key (bypasses RLS — safe because we verified the JWT)
     _, err = _sb_service_request('POST', 'projects', new_project)
+    if err:
+        # If insert failed because screenshot_url column is missing, retry without it
+        if screenshot_url and ('screenshot_url' in err or 'column' in err.lower()):
+            app.logger.warning('submit_project: screenshot_url column missing, retrying without: %s', err)
+            fallback = {k: v for k, v in new_project.items() if k != 'screenshot_url'}
+            _, err = _sb_service_request('POST', 'projects', fallback)
     if err:
         app.logger.error('submit_project DB insert failed: %s', err)
         return {'ok': False, 'error': 'Could not save project. Please try again later.'}, 500
