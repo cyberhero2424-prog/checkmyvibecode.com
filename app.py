@@ -236,13 +236,15 @@ def _sb_service_request(method, path, body=None):
 def _admin_list_projects(status='pending'):
     safe_s = urllib.parse.quote(status, safe='')
     for select in (
+        'id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at,screenshot_url,featured',
         'id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at,screenshot_url',
         'id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at',
     ):
         path = f"projects?status=eq.{safe_s}&order=created_at.asc&select={select}"
         data, err = _sb_service_request('GET', path)
-        if err and ('screenshot_url' in err or ('column' in err.lower() and 'does not exist' in err.lower())):
-            continue  # retry without screenshot_url
+        if err and any(col in err for col in ('screenshot_url', 'featured')) or (
+                err and 'column' in err.lower() and 'does not exist' in err.lower()):
+            continue
         return data or [], err
     return data or [], err
 
@@ -412,20 +414,30 @@ def _run_migration_via_mgmt_api(sql):
 
 
 def _apply_screenshot_migration():
-    """Try all available paths to add screenshot_url column. Returns (ok, message)."""
-    sql = 'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
-    if _column_exists('screenshot_url'):
-        return True, 'screenshot_url column already exists.'
-    ok, err = _run_migration_via_psycopg2(sql)
-    if ok:
-        return True, 'Migration applied via direct DB connection (psycopg2).'
-    ok2, err2 = _run_migration_via_mgmt_api(sql)
-    if ok2:
-        return True, 'Migration applied via Supabase Management API.'
-    hint = ('Set the SUPABASE_DB_URL secret (Supabase Dashboard → Project Settings → '
-            'Database → Connection string) and restart, or run this SQL in Supabase SQL Editor: '
-            + sql)
-    return False, f'Could not apply migration (psycopg2: {err}; mgmt API: {err2}). {hint}'
+    """Try all available migration SQLs. Returns (ok, message)."""
+    migrations = [
+        'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;',
+        'ALTER TABLE projects ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT false;',
+    ]
+    results = []
+    for sql in migrations:
+        col = sql.split('ADD COLUMN IF NOT EXISTS ')[1].split(' ')[0]
+        if _column_exists(col):
+            results.append(f'{col}: already exists')
+            continue
+        ok, err = _run_migration_via_psycopg2(sql)
+        if ok:
+            results.append(f'{col}: applied via psycopg2')
+            continue
+        ok2, err2 = _run_migration_via_mgmt_api(sql)
+        if ok2:
+            results.append(f'{col}: applied via mgmt API')
+            continue
+        hint = ('Set SUPABASE_DB_URL or run in Supabase SQL Editor: ' + sql)
+        results.append(f'{col}: FAILED (psycopg2: {err}; mgmt: {err2}). {hint}')
+    failed = [r for r in results if 'FAILED' in r]
+    msg = '; '.join(results)
+    return (len(failed) == 0), msg
 
 
 def _ensure_screenshot_column():
@@ -574,6 +586,26 @@ def api_admin_init_storage():
 def api_admin_run_migration():
     """Admin-only: alias for /api/admin/init-storage (migration + bucket init)."""
     return api_admin_init_storage()
+
+
+@app.route('/api/admin/toggle-featured', methods=['POST'])
+def api_admin_toggle_featured():
+    """Admin-only: pin or unpin a project to the top of the feed.
+    Body: {"project_id": "<uuid>", "featured": true|false}"""
+    if not _admin_logged_in():
+        return {'ok': False, 'error': 'Unauthorized'}, 401
+    body = request.get_json(silent=True) or {}
+    project_id = str(body.get('project_id', '')).strip()
+    featured = bool(body.get('featured', False))
+    if not project_id:
+        return {'ok': False, 'error': 'project_id required'}, 400
+    safe_id = urllib.parse.quote(project_id, safe='')
+    _, err = _sb_service_request('PATCH', f'projects?id=eq.{safe_id}',
+                                 {'featured': featured})
+    if err:
+        app.logger.error('toggle-featured failed for %s: %s', project_id, err)
+        return {'ok': False, 'error': 'Could not update project'}, 500
+    return {'ok': True, 'featured': featured}
 
 
 @app.route('/admin')
@@ -978,10 +1010,10 @@ def api_projects():
     if not SUPABASE_URL or not key:
         return {'error': 'Server not configured'}, 503
     base_qs = '&status=eq.approved&order=upvotes.desc'
-    select_with = ('id,name,description,emoji,author,cat,upvotes,'
-                   'demo,tools,created_at,score,screenshot_url')
-    select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score'
-    for select in (select_with, select_without):
+    select_with = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured'
+    select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url'
+    select_bare = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score'
+    for select in (select_with, select_without, select_bare):
         endpoint = (SUPABASE_URL.rstrip('/') +
                     f'/rest/v1/projects?select={select}{base_qs}')
         req = urllib.request.Request(endpoint, headers={
@@ -996,7 +1028,8 @@ def api_projects():
             return resp
         except urllib.error.HTTPError as e:
             err_body = e.read().decode().lower()
-            if 'screenshot_url' in err_body or ('column' in err_body and 'does not exist' in err_body):
+            if any(c in err_body for c in ('screenshot_url', 'featured')) or (
+                    'column' in err_body and 'does not exist' in err_body):
                 continue
             app.logger.error('api_projects error: %s', e)
             return {'error': 'Could not fetch projects'}, 502

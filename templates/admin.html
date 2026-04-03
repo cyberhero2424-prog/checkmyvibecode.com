@@ -68,6 +68,9 @@
   .btn-reject:hover { border-color: #f87171; color: #fca5a5; }
   .btn-delete { background: #7f1d1d; color: #fca5a5; font-size: 13px; font-weight: 600; padding: 8px 18px; border: 1px solid #991b1b; border-radius: 8px; cursor: pointer; transition: background .15s; }
   .btn-delete:hover { background: #991b1b; color: #fecaca; }
+  .btn-pin { background: transparent; color: #fbbf24; font-size: 13px; font-weight: 600; padding: 8px 18px; border: 1px solid #78350f; border-radius: 8px; cursor: pointer; transition: background .15s, border-color .15s; }
+  .btn-pin:hover { background: rgba(251,191,36,.1); border-color: #fbbf24; }
+  .btn-pin.pinned { background: rgba(251,191,36,.15); border-color: #fbbf24; color: #fde68a; }
 
   .empty-state { text-align: center; padding: 60px 20px; color: #555; }
   .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
@@ -282,6 +285,12 @@
           <input type="hidden" name="tab" value="{{ tab }}">
           <button type="submit" class="btn-delete" onclick="return confirm('Permanently delete this project? This cannot be undone.')">🗑 Delete</button>
         </form>
+        {% if p.status == 'approved' %}
+        <button class="btn-pin{% if p.featured %} pinned{% endif %}"
+                onclick="togglePin(this, '{{ p.id }}', {{ 'true' if p.featured else 'false' }})">
+          {{ '✦ Pinned' if p.featured else '✦ Pin to top' }}
+        </button>
+        {% endif %}
         {% if p.demo and p.demo != '#' %}
         <a class="demo-link" href="{{ p.demo }}" target="_blank" rel="noopener">↗ View project</a>
         {% endif %}
@@ -298,5 +307,30 @@
 </div>
 {% endif %}
 
+<script>
+async function togglePin(btn, projectId, currentlyFeatured) {
+  const newFeatured = !currentlyFeatured;
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/api/admin/toggle-featured', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_id: projectId, featured: newFeatured }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      btn.textContent = newFeatured ? '✦ Pinned' : '✦ Pin to top';
+      btn.classList.toggle('pinned', newFeatured);
+      btn.onclick = () => togglePin(btn, projectId, newFeatured);
+    } else {
+      alert('Could not update: ' + (data.error || 'unknown error'));
+    }
+  } catch(e) {
+    alert('Request failed: ' + e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
 </body>
 </html>
