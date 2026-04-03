@@ -1322,10 +1322,11 @@ function updateNavForUser() {
     document.getElementById('dropdownEmail').textContent = currentUser.email;
     if (savedChip) savedChip.style.display = 'inline-flex';
     if (window._forumLoaded && currentUser) {
-      sb.from('forum_thread_upvotes').select('thread_id').eq('user_id', currentUser.id).then(({ data: voted }) => {
-        forumVotedIds = new Set();
-        if (voted) voted.forEach(r => forumVotedIds.add(r.thread_id));
-        renderForumThreadList();
+      _getAccessToken().then(token => {
+        if (!token) return;
+        fetch('/api/forum/user-votes', { headers: { 'Authorization': 'Bearer ' + token } })
+          .then(r => r.ok ? r.json() : []).catch(() => [])
+          .then(ids => { forumVotedIds = new Set(Array.isArray(ids) ? ids : []); renderForumThreadList(); });
       });
     }
   } else {
@@ -2050,34 +2051,27 @@ function forumAvatar(handle) {
   return (handle||'?').replace('@','').slice(0,2).toUpperCase();
 }
 
-async function loadForumThreads() {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 8000);
+async function _getAccessToken() {
   try {
-    const resp = await fetch('/api/forum/threads', { signal: ctrl.signal });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    forumThreads = Array.isArray(data) ? data : [];
+    const { data: { session } } = await sb.auth.getSession();
+    return session?.access_token || currentUser?.accessToken || '';
   } catch(e) {
-    console.error('loadForumThreads error:', e);
-  } finally {
-    clearTimeout(t);
+    return currentUser?.accessToken || '';
   }
-  if (currentUser) {
-    const uvCtrl = new AbortController();
-    const uvTimer = setTimeout(() => uvCtrl.abort(), 5000);
-    try {
-      const { data: voted } = await Promise.race([
-        sb.from('forum_thread_upvotes').select('thread_id').eq('user_id', currentUser.id),
-        new Promise((_, rej) => uvCtrl.signal.addEventListener('abort', () => rej(new Error('timeout'))))
-      ]);
-      if (voted) voted.forEach(r => forumVotedIds.add(r.thread_id));
-    } catch(e) {
-      console.warn('forum upvote status unavailable:', e.message);
-    } finally {
-      clearTimeout(uvTimer);
-    }
-  }
+}
+
+async function loadForumThreads() {
+  const token = currentUser ? await _getAccessToken() : '';
+  const fetches = [
+    fetch('/api/forum/threads').then(r => r.ok ? r.json() : []).catch(() => []),
+    token
+      ? fetch('/api/forum/user-votes', { headers: { 'Authorization': 'Bearer ' + token } })
+          .then(r => r.ok ? r.json() : []).catch(() => [])
+      : Promise.resolve([])
+  ];
+  const [threads, votedIds] = await Promise.all(fetches);
+  forumThreads = Array.isArray(threads) ? threads : [];
+  forumVotedIds = new Set(Array.isArray(votedIds) ? votedIds : []);
   renderForumThreadList();
   if (currentUser) document.getElementById('forumNewBtn').style.display = '';
 }
@@ -2175,7 +2169,7 @@ async function submitNewThread() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + (currentUser.accessToken || '')
+        'Authorization': 'Bearer ' + await _getAccessToken()
       },
       body: JSON.stringify({ title, body, author_handle: currentUser.handle, author_id: currentUser.id }),
       signal: ctrl.signal
@@ -2214,7 +2208,7 @@ async function postForumReply() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + (currentUser.accessToken || '')
+        'Authorization': 'Bearer ' + await _getAccessToken()
       },
       body: JSON.stringify({ body, author_handle: currentUser.handle, author_id: currentUser.id }),
       signal: ctrl.signal
@@ -2239,9 +2233,10 @@ async function toggleThreadUpvote(id, btn) {
   if (!currentUser) { requireAuth(() => {}); return; }
   if (btn) btn.disabled = true;
   try {
+    const token = await _getAccessToken();
     const resp = await fetch('/api/forum/threads/' + id + '/toggle-upvote', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + (currentUser.accessToken || '') }
+      headers: { 'Authorization': 'Bearer ' + token }
     });
     if (!resp.ok) { showToast('Could not upvote — please try again'); return; }
     const data = await resp.json();

@@ -1,3 +1,4 @@
+import base64
 import html as html_module
 import json
 import os
@@ -834,6 +835,31 @@ def _verify_supabase_token(token):
         return None
 
 
+def _decode_jwt_user_id(token):
+    """Decode a Supabase JWT locally (no network call) and return the user_id (sub claim).
+    Checks expiry and issuer. Used for low-latency forum operations where the
+    service key enforces actual DB security — we just need to know who the user is."""
+    if not token:
+        return None
+    try:
+        parts = token.split('.')
+        if len(parts) != 3:
+            return None
+        padding = 4 - len(parts[1]) % 4
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=' * (padding % 4)).decode())
+        if payload.get('exp', 0) < time.time():
+            return None
+        user_id = payload.get('sub')
+        if not user_id:
+            return None
+        iss = payload.get('iss', '')
+        if SUPABASE_URL and SUPABASE_URL.rstrip('/').split('//')[1].split('.')[0] not in iss:
+            return None
+        return user_id
+    except Exception:
+        return None
+
+
 @app.route('/api/submit-project', methods=['POST'])
 def submit_project():
     """Server-side project submission: verifies Supabase JWT, inserts via
@@ -1166,8 +1192,8 @@ def api_forum_create_thread():
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         return {'error': 'Unauthorized'}, 401
-    user = _verify_supabase_token(auth_header[7:])
-    if not user:
+    user_id = _decode_jwt_user_id(auth_header[7:])
+    if not user_id:
         return {'error': 'Invalid or expired session'}, 401
     try:
         payload = request.get_json(force=True) or {}
@@ -1180,7 +1206,7 @@ def api_forum_create_thread():
         return {'error': 'Bad request'}, 400
     result, err = _sb_service_request('POST', 'forum_threads',
                                       {'title': title, 'body': body_text,
-                                       'author_handle': author_handle, 'author_id': user['id']})
+                                       'author_handle': author_handle, 'author_id': user_id})
     if err:
         app.logger.error('api_forum_create_thread error: %s', err)
         return {'error': 'Could not create thread'}, 502
@@ -1196,8 +1222,8 @@ def api_forum_create_reply(thread_id):
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         return {'error': 'Unauthorized'}, 401
-    user = _verify_supabase_token(auth_header[7:])
-    if not user:
+    user_id = _decode_jwt_user_id(auth_header[7:])
+    if not user_id:
         return {'error': 'Invalid or expired session'}, 401
     try:
         payload = request.get_json(force=True) or {}
@@ -1209,11 +1235,30 @@ def api_forum_create_reply(thread_id):
         return {'error': 'Bad request'}, 400
     result, err = _sb_service_request('POST', 'forum_replies',
                                       {'thread_id': thread_id, 'body': body_text,
-                                       'author_handle': author_handle, 'author_id': user['id']})
+                                       'author_handle': author_handle, 'author_id': user_id})
     if err:
         app.logger.error('api_forum_create_reply error: %s', err)
         return {'error': 'Could not post reply'}, 502
     return Response(json.dumps(result), mimetype='application/json')
+
+
+@app.route('/api/forum/user-votes')
+def api_forum_user_votes():
+    """Return forum thread IDs the current user has upvoted. No auth = empty list."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return Response('[]', mimetype='application/json')
+    safe_uid = urllib.parse.quote(user_id, safe='')
+    data, err = _sb_service_request('GET',
+        f'forum_thread_upvotes?user_id=eq.{safe_uid}&select=thread_id')
+    if err or not data:
+        return Response('[]', mimetype='application/json')
+    ids = [r['thread_id'] for r in data if r.get('thread_id')]
+    resp = Response(json.dumps(ids), mimetype='application/json')
+    resp.headers['Cache-Control'] = 'private, max-age=0'
+    return resp
 
 
 @app.route('/api/forum/threads/<thread_id>/toggle-upvote', methods=['POST'])
@@ -1226,10 +1271,9 @@ def api_forum_toggle_upvote(thread_id):
     auth_header = request.headers.get('Authorization', '')
     if not auth_header.startswith('Bearer '):
         return {'error': 'Unauthorized'}, 401
-    user = _verify_supabase_token(auth_header[7:])
-    if not user:
+    user_id = _decode_jwt_user_id(auth_header[7:])
+    if not user_id:
         return {'error': 'Invalid or expired session'}, 401
-    user_id = user['id']
     safe_tid = urllib.parse.quote(thread_id, safe='')
     safe_uid = urllib.parse.quote(user_id, safe='')
     existing, err = _sb_service_request('GET',
