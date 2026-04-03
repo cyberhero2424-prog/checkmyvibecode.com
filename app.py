@@ -1216,6 +1216,60 @@ def project_user_votes():
     return json.dumps([r['project_id'] for r in rows]), 200, {'Content-Type': 'application/json'}
 
 
+# ── Project comments (service-key, bypasses RLS) ────────────────────────────
+
+@app.route('/api/projects/<project_id>/comments')
+def get_project_comments(project_id):
+    """Return comments for a project, newest first. Public — no auth required."""
+    if not re.match(r'^[0-9a-f-]{36}$', project_id):
+        return {'error': 'Invalid project id'}, 400
+    rows, err = _sb_service_request(
+        'GET', f'comments?select=author,body,created_at&project_id=eq.{project_id}&order=created_at.desc'
+    )
+    if err:
+        app.logger.error('get_project_comments error: %s', err)
+        return {'error': 'Could not fetch comments'}, 502
+    return json.dumps(rows or []), 200, {'Content-Type': 'application/json'}
+
+
+@app.route('/api/projects/<project_id>/comments', methods=['POST'])
+def post_project_comment(project_id):
+    """Post a comment on a project. Auth required via JWT."""
+    if not re.match(r'^[0-9a-f-]{36}$', project_id):
+        return {'error': 'Invalid project id'}, 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return {'error': 'Invalid or expired session'}, 401
+    try:
+        payload = request.get_json(force=True) or {}
+        body_text = str(payload.get('body', '')).strip()[:2000]
+        author = str(payload.get('author', '')).strip()[:100]
+        if not body_text:
+            return {'error': 'Comment body is required'}, 400
+    except Exception:
+        return {'error': 'Bad request'}, 400
+    result, err = _sb_service_request('POST', 'comments', {
+        'project_id': project_id,
+        'author': author,
+        'body': body_text,
+        'user_id': user_id,
+    })
+    if err:
+        # user_id column may not exist on older schemas — retry without it
+        if 'user_id' in err or ('column' in err.lower() and 'does not exist' in err.lower()):
+            result, err = _sb_service_request('POST', 'comments', {
+                'project_id': project_id,
+                'author': author,
+                'body': body_text,
+            })
+    if err:
+        app.logger.error('post_project_comment error: %s', err)
+        return {'error': 'Could not save comment'}, 502
+    return json.dumps(result), 200, {'Content-Type': 'application/json'}
+
+
 # ── Forum proxy endpoints (server-side reads — avoids browser cross-origin blocking) ──
 
 def _sb_get(path, params=''):

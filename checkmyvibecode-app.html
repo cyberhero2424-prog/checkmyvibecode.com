@@ -1774,9 +1774,15 @@ function openDrawer(id) {
 }
 
 async function loadComments(projectId) {
-  const { data, error } = await sb.from('comments').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
-  if (error) { console.warn('loadComments error:', error.message); }
-  const comments = (data || []).map(c => ({ author: c.author, text: c.body, time: new Date(c.created_at).toLocaleDateString() }));
+  let comments = [];
+  try {
+    const resp = await fetch('/api/projects/' + projectId + '/comments');
+    const data = resp.ok ? await resp.json() : [];
+    comments = (Array.isArray(data) ? data : []).map(c => ({
+      author: c.author, text: c.body,
+      time: new Date(c.created_at).toLocaleDateString()
+    }));
+  } catch(e) { console.warn('loadComments error:', e.message); }
   const p = projects.find(x => x.id === projectId);
   if (p) p.comments = comments;
   const countEl = document.getElementById('commentCount');
@@ -1800,23 +1806,25 @@ async function postComment() {
   if (!currentProject) { showToast('Please open a project first.'); return; }
   if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
   if (btn) { btn.disabled = true; btn.textContent = '...'; }
-  let data, error;
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
-    ({ data, error } = await sb.from('comments').insert([{
-      project_id: currentProject.id, author: currentUser.handle, body: text
-    }]).select().single().abortSignal(ctrl.signal));
-    clearTimeout(t);
-  } catch(e) { error = e; }
-  if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
-  if (error) { showToast('Could not post comment. Please try again.'); return; }
-  if (!currentProject.comments) currentProject.comments = [];
-  currentProject.comments.unshift({ author: currentUser.handle, text, time: 'just now' });
-  document.getElementById('drawerComments').innerHTML = renderComments(currentProject);
-  const countEl = document.getElementById('commentCount');
-  if (countEl) countEl.textContent = `(${currentProject.comments.length})`;
-  input.value = '';
+    const token = await _getAccessToken();
+    const resp = await fetch('/api/projects/' + currentProject.id + '/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ body: text, author: currentUser.handle })
+    });
+    if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
+    if (!resp.ok) { showToast('Could not post comment. Please try again.'); return; }
+    if (!currentProject.comments) currentProject.comments = [];
+    currentProject.comments.unshift({ author: currentUser.handle, text, time: 'just now' });
+    document.getElementById('drawerComments').innerHTML = renderComments(currentProject);
+    const countEl = document.getElementById('commentCount');
+    if (countEl) countEl.textContent = `(${currentProject.comments.length})`;
+    input.value = '';
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
+    showToast('Could not post comment. Please try again.');
+  }
 }
 
 function closeDrawer() {
