@@ -657,9 +657,12 @@ def submit_project():
         app.logger.error('submit_project DB insert failed: %s', err)
         return {'ok': False, 'error': 'Could not save project. Please try again later.'}, 500
 
-    # 4. Send admin notification email in a background thread (truly non-blocking)
-    admin_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')) + '/admin'
-    email_body = (
+    # 4. Send emails in a background thread (truly non-blocking)
+    site_url   = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+    admin_url  = site_url + '/admin'
+    user_email = user.get('email', '').strip()
+
+    admin_body = (
         f"New project submitted for review on CheckMyVibeCode!\n\n"
         f"Name:        {name}\n"
         f"Author:      {new_project['author']}\n"
@@ -668,14 +671,34 @@ def submit_project():
         f"Description: {description[:300]}\n\n"
         f"Review it here: {admin_url}\n"
     )
+    confirm_body = (
+        f"Hey {jwt_handle},\n\n"
+        f"Thanks for submitting \"{name}\" to CheckMyVibeCode! \U0001f389\n\n"
+        f"Your project is now in our review queue. We\u2019ll take a look and approve it\n"
+        f"shortly. Once approved, it will appear on the platform and the community\n"
+        f"can start upvoting and commenting.\n\n"
+        f"In the meantime, feel free to browse other builds:\n"
+        f"{site_url}\n\n"
+        f"Questions? Reply to this email or reach us at contact@checkmyvibecode.com\n\n"
+        f"\u2014 The CheckMyVibeCode team\n"
+    )
+
     def _notify():
         ok, email_err = _send_resend_email(
             to='contact@checkmyvibecode.com',
             subject=f'[CheckMyVibeCode] New submission: {name}',
-            text_body=email_body,
+            text_body=admin_body,
         )
         if not ok:
-            app.logger.warning('Submit email notify failed: %s', email_err)
+            app.logger.warning('Submit admin email notify failed: %s', email_err)
+        if user_email:
+            ok2, err2 = _send_resend_email(
+                to=user_email,
+                subject='Your project is under review — CheckMyVibeCode',
+                text_body=confirm_body,
+            )
+            if not ok2:
+                app.logger.warning('Submit confirmation email failed: %s', err2)
     threading.Thread(target=_notify, daemon=True).start()
 
     return {'ok': True}, 201
