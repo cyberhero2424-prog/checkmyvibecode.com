@@ -412,26 +412,12 @@ def _run_migration_via_mgmt_api(sql):
 
 
 def _ensure_screenshot_column():
-    """Try to add screenshot_url column at startup via available mechanisms."""
-    if _column_exists('screenshot_url'):
-        app.logger.debug('screenshot_url column already exists.')
-        return
-    sql = 'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
-    # 1. Try direct PostgreSQL connection (most reliable — needs DATABASE_URL secret)
-    ok, err = _run_migration_via_psycopg2(sql)
+    """Try to add screenshot_url column at startup via all available mechanisms."""
+    ok, msg = _apply_screenshot_migration()
     if ok:
-        app.logger.info('screenshot_url column added via direct DB connection.')
-        return
-    app.logger.debug('psycopg2 migration skipped/failed: %s', err)
-    # 2. Fall back to Supabase Management API (needs management PAT as service key)
-    ok, err = _run_migration_via_mgmt_api(sql)
-    if ok:
-        app.logger.info('screenshot_url column added via Management API.')
-        return
-    app.logger.warning(
-        'Could not auto-migrate (tried psycopg2 + Management API: %s). '
-        'ACTION REQUIRED — run once in Supabase SQL Editor:\n  %s', err, sql
-    )
+        app.logger.info('screenshot_url column: %s', msg)
+    else:
+        app.logger.warning('screenshot_url column migration failed at startup: %s', msg)
 
 
 def _startup_init():
@@ -547,27 +533,44 @@ def _csrf_valid():
     return request.form.get('csrf_token') == session.get('csrf_token')
 
 
-@app.route('/api/admin/run-migration', methods=['POST'])
-def api_admin_run_migration():
-    """Admin-only endpoint to run pending DB migrations on demand.
-    Requires admin session (ADMIN_PASSWORD). Useful when SUPABASE_DB_URL is not set at boot."""
-    if not _admin_logged_in():
-        return {'ok': False, 'error': 'Unauthorized'}, 401
+def _apply_screenshot_migration():
+    """Try all available paths to add screenshot_url column. Returns (ok, message)."""
     sql = 'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
     if _column_exists('screenshot_url'):
-        return {'ok': True, 'message': 'screenshot_url column already exists — nothing to do.'}
+        return True, 'screenshot_url column already exists.'
     ok, err = _run_migration_via_psycopg2(sql)
     if ok:
-        return {'ok': True, 'message': 'Migration applied via direct DB connection.'}
+        return True, 'Migration applied via direct DB connection (psycopg2).'
     ok2, err2 = _run_migration_via_mgmt_api(sql)
     if ok2:
-        return {'ok': True, 'message': 'Migration applied via Management API.'}
+        return True, 'Migration applied via Supabase Management API.'
+    hint = ('Set the SUPABASE_DB_URL secret (Supabase Dashboard → Project Settings → '
+            'Database → Connection string) and restart, or run this SQL in Supabase SQL Editor: '
+            + sql)
+    return False, f'Could not apply migration (psycopg2: {err}; mgmt API: {err2}). {hint}'
+
+
+@app.route('/api/admin/init-storage', methods=['POST'])
+def api_admin_init_storage():
+    """Admin-only: ensure storage bucket exists and screenshot_url column is migrated.
+    Call once after deploy if SUPABASE_DB_URL secret is set but startup migration was skipped."""
+    if not _admin_logged_in():
+        return {'ok': False, 'error': 'Unauthorized'}, 401
+    # Bucket
+    _ensure_storage_bucket()
+    # Column
+    mig_ok, mig_msg = _apply_screenshot_migration()
     return {
-        'ok': False,
-        'error': f'Could not apply migration. psycopg2: {err}; mgmt API: {err2}',
-        'sql': sql,
-        'hint': 'Set SUPABASE_DB_URL secret (from Supabase Dashboard > Project Settings > Database) and restart, or run the SQL in Supabase SQL Editor.',
-    }, 500
+        'ok': mig_ok,
+        'bucket': SCREENSHOT_BUCKET,
+        'migration': mig_msg,
+    }, 200 if mig_ok else 500
+
+
+@app.route('/api/admin/run-migration', methods=['POST'])
+def api_admin_run_migration():
+    """Admin-only: alias for /api/admin/init-storage (migration + bucket init)."""
+    return api_admin_init_storage()
 
 
 @app.route('/admin')
@@ -851,11 +854,17 @@ def submit_project():
     # 3. Insert using service key (bypasses RLS — safe because we verified the JWT)
     _, err = _sb_service_request('POST', 'projects', new_project)
     if err:
-        # If insert failed because screenshot_url column is missing, retry without it
+        # If the column is missing, fail visibly so screenshots are never silently dropped
         if screenshot_url and ('screenshot_url' in err or 'column' in err.lower()):
-            app.logger.warning('submit_project: screenshot_url column missing, retrying without: %s', err)
-            fallback = {k: v for k, v in new_project.items() if k != 'screenshot_url'}
-            _, err = _sb_service_request('POST', 'projects', fallback)
+            app.logger.error(
+                'submit_project: screenshot_url column missing — failing visibly. '
+                'Run POST /api/admin/init-storage to apply the migration, or set '
+                'SUPABASE_DB_URL and restart. DB error: %s', err
+            )
+            return {
+                'ok': False,
+                'error': 'Screenshot column not yet migrated. Please contact the site admin.',
+            }, 500
     if err:
         app.logger.error('submit_project DB insert failed: %s', err)
         return {'ok': False, 'error': 'Could not save project. Please try again later.'}, 500
