@@ -411,13 +411,33 @@ def _run_migration_via_mgmt_api(sql):
         return False, str(ex)
 
 
+def _apply_screenshot_migration():
+    """Try all available paths to add screenshot_url column. Returns (ok, message)."""
+    sql = 'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
+    if _column_exists('screenshot_url'):
+        return True, 'screenshot_url column already exists.'
+    ok, err = _run_migration_via_psycopg2(sql)
+    if ok:
+        return True, 'Migration applied via direct DB connection (psycopg2).'
+    ok2, err2 = _run_migration_via_mgmt_api(sql)
+    if ok2:
+        return True, 'Migration applied via Supabase Management API.'
+    hint = ('Set the SUPABASE_DB_URL secret (Supabase Dashboard → Project Settings → '
+            'Database → Connection string) and restart, or run this SQL in Supabase SQL Editor: '
+            + sql)
+    return False, f'Could not apply migration (psycopg2: {err}; mgmt API: {err2}). {hint}'
+
+
 def _ensure_screenshot_column():
     """Try to add screenshot_url column at startup via all available mechanisms."""
-    ok, msg = _apply_screenshot_migration()
-    if ok:
-        app.logger.info('screenshot_url column: %s', msg)
-    else:
-        app.logger.warning('screenshot_url column migration failed at startup: %s', msg)
+    try:
+        ok, msg = _apply_screenshot_migration()
+        if ok:
+            app.logger.info('screenshot_url column: %s', msg)
+        else:
+            app.logger.warning('screenshot_url column migration failed at startup: %s', msg)
+    except Exception as ex:
+        app.logger.error('screenshot_url migration check raised: %s', ex)
 
 
 def _startup_init():
@@ -531,23 +551,6 @@ def _csrf_token():
 def _csrf_valid():
     """Check that the submitted form CSRF token matches the session token."""
     return request.form.get('csrf_token') == session.get('csrf_token')
-
-
-def _apply_screenshot_migration():
-    """Try all available paths to add screenshot_url column. Returns (ok, message)."""
-    sql = 'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
-    if _column_exists('screenshot_url'):
-        return True, 'screenshot_url column already exists.'
-    ok, err = _run_migration_via_psycopg2(sql)
-    if ok:
-        return True, 'Migration applied via direct DB connection (psycopg2).'
-    ok2, err2 = _run_migration_via_mgmt_api(sql)
-    if ok2:
-        return True, 'Migration applied via Supabase Management API.'
-    hint = ('Set the SUPABASE_DB_URL secret (Supabase Dashboard → Project Settings → '
-            'Database → Connection string) and restart, or run this SQL in Supabase SQL Editor: '
-            + sql)
-    return False, f'Could not apply migration (psycopg2: {err}; mgmt API: {err2}). {hint}'
 
 
 @app.route('/api/admin/init-storage', methods=['POST'])
