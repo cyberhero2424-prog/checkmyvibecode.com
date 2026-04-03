@@ -131,20 +131,31 @@ def _fetch_project(project_id):
         return None
     try:
         safe_id = urllib.parse.quote(str(project_id), safe='')
-        api_url = (
-            f"{SUPABASE_URL}/rest/v1/projects"
-            f"?id=eq.{safe_id}"
-            f"&select=id,name,description,emoji,author,cat,screenshot_url"
-            f"&status=eq.approved"
-            f"&limit=1"
-        )
-        req = urllib.request.Request(api_url, headers={
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
-        })
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode())
-            return data[0] if data else None
+        for select in (
+            'id,name,description,emoji,author,cat,screenshot_url',
+            'id,name,description,emoji,author,cat',  # fallback if column missing
+        ):
+            api_url = (
+                f"{SUPABASE_URL}/rest/v1/projects"
+                f"?id=eq.{safe_id}"
+                f"&select={select}"
+                f"&status=eq.approved"
+                f"&limit=1"
+            )
+            req = urllib.request.Request(api_url, headers={
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            })
+            try:
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    data = json.loads(resp.read().decode())
+                    return data[0] if data else None
+            except urllib.error.HTTPError as e:
+                body = e.read().decode().lower()
+                if 'screenshot_url' in body or ('column' in body and 'does not exist' in body):
+                    continue  # retry without screenshot_url
+                return None
+        return None
     except Exception:
         return None
 
@@ -220,8 +231,15 @@ def _sb_service_request(method, path, body=None):
 
 def _admin_list_projects(status='pending'):
     safe_s = urllib.parse.quote(status, safe='')
-    path = f"projects?status=eq.{safe_s}&order=created_at.asc&select=id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at,screenshot_url"
-    data, err = _sb_service_request('GET', path)
+    for select in (
+        'id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at,screenshot_url',
+        'id,name,description,idea,build_time,cost,emoji,author,cat,status,upvotes,demo,tools,created_at',
+    ):
+        path = f"projects?status=eq.{safe_s}&order=created_at.asc&select={select}"
+        data, err = _sb_service_request('GET', path)
+        if err and ('screenshot_url' in err or ('column' in err.lower() and 'does not exist' in err.lower())):
+            continue  # retry without screenshot_url
+        return data or [], err
     return data or [], err
 
 
@@ -321,32 +339,66 @@ def _ensure_storage_bucket():
         app.logger.info('Storage bucket "%s" created successfully.', SCREENSHOT_BUCKET)
 
 
-def _ensure_screenshot_column():
-    """Try to add screenshot_url column via service key. Logs hint if not possible."""
+def _column_exists(column_name):
+    """Return True if column exists in projects table (probe via anon GET)."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-        return
-    # Detect whether the column exists by querying it directly
+        return True  # assume exists when not configured
     check_url = (SUPABASE_URL.rstrip('/') +
-                 '/rest/v1/projects?select=screenshot_url&limit=0')
-    check_req = urllib.request.Request(check_url, headers={
+                 f'/rest/v1/projects?select={column_name}&limit=0')
+    req = urllib.request.Request(check_url, headers={
         'apikey': SUPABASE_SERVICE_KEY,
         'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
     })
     try:
-        with urllib.request.urlopen(check_req, timeout=10):
-            app.logger.debug('screenshot_url column already exists.')
-            return  # column present — nothing to do
+        with urllib.request.urlopen(req, timeout=8):
+            return True
+    except urllib.error.HTTPError as e:
+        body = e.read().decode().lower()
+        if column_name in body or 'column' in body or 'does not exist' in body:
+            return False
+        return True  # unexpected error — assume exists
+    except Exception:
+        return True  # network error — assume exists
+
+
+def _run_db_migration_via_mgmt_api(sql):
+    """Attempt DDL via Supabase Management REST API. Returns (success, error_msg)."""
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return False, 'not configured'
+    m = re.match(r'https://([^.]+)\.supabase\.co', SUPABASE_URL.rstrip('/'))
+    if not m:
+        return False, 'cannot parse project ref from SUPABASE_URL'
+    project_ref = m.group(1)
+    mgmt_url = f'https://api.supabase.com/v1/projects/{project_ref}/database/query'
+    payload = json.dumps({'query': sql}).encode()
+    req = urllib.request.Request(mgmt_url, data=payload, headers={
+        'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+        'Content-Type': 'application/json',
+    }, method='POST')
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            return True, None
     except urllib.error.HTTPError as e:
         body = e.read().decode()
-        if 'screenshot_url' not in body.lower() and 'column' not in body.lower():
-            app.logger.debug('screenshot_url check got unexpected error: %s %s', e.code, body[:100])
-            return
-    except Exception:
+        return False, f'HTTP {e.code}: {body[:150]}'
+    except Exception as ex:
+        return False, str(ex)
+
+
+def _ensure_screenshot_column():
+    """Try to add screenshot_url column; log actionable instructions if not possible."""
+    if _column_exists('screenshot_url'):
+        app.logger.debug('screenshot_url column already exists.')
         return
-    # Column is missing — log clear instructions (DDL not executable via REST without mgmt key)
+    # Attempt migration via Supabase Management API (requires service key with mgmt scope)
+    sql = 'ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
+    ok, err = _run_db_migration_via_mgmt_api(sql)
+    if ok:
+        app.logger.info('screenshot_url column added via Management API.')
+        return
     app.logger.warning(
-        'ACTION REQUIRED — screenshot_url column is missing. Run in Supabase SQL Editor:\n'
-        '  ALTER TABLE projects ADD COLUMN IF NOT EXISTS screenshot_url TEXT;'
+        'Could not auto-migrate via Management API (%s). '
+        'ACTION REQUIRED — run once in Supabase SQL Editor:\n  %s', err, sql
     )
 
 
@@ -825,10 +877,11 @@ def upload_screenshot():
         return {'ok': False, 'error': 'Image must be 5 MB or smaller'}, 413
 
     ext = IMAGE_EXT_MAP.get(content_type, 'jpg')
-    filename = f"{secrets.token_hex(20)}.{ext}"
+    filename = f"{secrets.token_hex(16)}.{ext}"
 
+    # Use PUT so the request is idempotent and aligns with Supabase Storage semantics
     _, err = _storage_request(
-        'POST',
+        'PUT',
         f'object/{SCREENSHOT_BUCKET}/{filename}',
         data=data,
         content_type=content_type,
@@ -880,22 +933,33 @@ def api_profile(handle):
     if not SUPABASE_URL or not key:
         return {'error': 'Server not configured'}, 503
     safe_handle = urllib.parse.quote('@' + clean, safe='')
-    endpoint = (SUPABASE_URL.rstrip('/') +
-                f'/rest/v1/projects?select=id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,screenshot_url'
-                f'&status=eq.approved&author=eq.{safe_handle}&order=upvotes.desc')
-    req = urllib.request.Request(endpoint, headers={
-        'apikey': key,
-        'Authorization': f'Bearer {key}',
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=8) as r:
-            body = r.read()
-        resp = Response(body, mimetype='application/json')
-        resp.headers['Cache-Control'] = 'public, max-age=30'
-        return resp
-    except Exception as e:
-        app.logger.error('api_profile error for %s: %s', handle, e)
-        return {'error': 'Could not fetch profile'}, 502
+    base_qs = f'&status=eq.approved&author=eq.{safe_handle}&order=upvotes.desc'
+    for select in (
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,screenshot_url',
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at',
+    ):
+        endpoint = (SUPABASE_URL.rstrip('/') +
+                    f'/rest/v1/projects?select={select}{base_qs}')
+        req = urllib.request.Request(endpoint, headers={
+            'apikey': key,
+            'Authorization': f'Bearer {key}',
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=8) as r:
+                body = r.read()
+            resp = Response(body, mimetype='application/json')
+            resp.headers['Cache-Control'] = 'public, max-age=30'
+            return resp
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode().lower()
+            if 'screenshot_url' in err_body or ('column' in err_body and 'does not exist' in err_body):
+                continue  # retry without screenshot_url
+            app.logger.error('api_profile error for %s: %s', handle, e)
+            return {'error': 'Could not fetch profile'}, 502
+        except Exception as e:
+            app.logger.error('api_profile error for %s: %s', handle, e)
+            return {'error': 'Could not fetch profile'}, 502
+    return {'error': 'Could not fetch profile'}, 502
 
 
 # ── Forum proxy endpoints (server-side reads — avoids browser cross-origin blocking) ──
