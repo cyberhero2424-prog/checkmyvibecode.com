@@ -1354,7 +1354,9 @@ function closeDropdown() {
 }
 
 async function signOut() {
-  await sb.auth.signOut();
+  try { await sb.auth.signOut(); } catch(e) { /* ignore network errors */ }
+  currentUser = null;
+  updateNavForUser();
   closeDropdown();
   showToast('👋 Signed out. See you soon!');
 }
