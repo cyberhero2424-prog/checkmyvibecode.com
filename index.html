@@ -2237,32 +2237,33 @@ async function postForumReply() {
 
 async function toggleThreadUpvote(id, btn) {
   if (!currentUser) { requireAuth(() => {}); return; }
-  const voted = forumVotedIds.has(id);
-  const thread = forumThreads.find(t => t.id === id);
-  if (voted) {
-    const { error } = await sb.from('forum_thread_upvotes').delete().eq('thread_id', id).eq('user_id', currentUser.id);
-    if (error) { showToast('Could not remove upvote'); return; }
-    forumVotedIds.delete(id);
-    if (thread) thread.upvotes = Math.max(0, (thread.upvotes||1) - 1);
-  } else {
-    const { error } = await sb.from('forum_thread_upvotes').insert({ thread_id: id, user_id: currentUser.id });
-    if (error) { showToast('Could not upvote'); return; }
-    forumVotedIds.add(id);
-    if (thread) thread.upvotes = (thread.upvotes||0) + 1;
+  if (btn) btn.disabled = true;
+  try {
+    const resp = await fetch('/api/forum/threads/' + id + '/toggle-upvote', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + (currentUser.accessToken || '') }
+    });
+    if (!resp.ok) { showToast('Could not upvote — please try again'); return; }
+    const data = await resp.json();
+    if (!data.ok) { showToast(data.error || 'Could not upvote'); return; }
+    const voted = data.voted;
+    const count = data.upvotes;
+    const thread = forumThreads.find(t => t.id === id);
+    if (thread) thread.upvotes = count;
+    if (voted) forumVotedIds.add(id); else forumVotedIds.delete(id);
+    [btn, document.getElementById('detail-upvote-btn')].forEach(b => {
+      if (!b) return;
+      b.classList.toggle('voted', voted);
+    });
+    [document.getElementById('fuv-'+id), document.getElementById('detail-upvote-count')].forEach(el => {
+      if (el) el.textContent = count;
+    });
+    if (voted && btn) spawnConfetti(btn);
+  } catch(e) {
+    showToast('Could not upvote — please try again');
+  } finally {
+    if (btn) btn.disabled = false;
   }
-  await sb.rpc('update_thread_upvote_count', { p_thread_id: id });
-  const { data: td } = await sb.from('forum_threads').select('upvotes').eq('id', id).single();
-  if (td && thread) thread.upvotes = td.upvotes;
-  const newVoted = forumVotedIds.has(id);
-  const count = thread ? thread.upvotes : 0;
-  [btn, document.getElementById('detail-upvote-btn')].forEach(b => {
-    if (!b) return;
-    b.classList.toggle('voted', newVoted);
-  });
-  [document.getElementById('fuv-'+id), document.getElementById('detail-upvote-count')].forEach(el => {
-    if (el) el.textContent = count;
-  });
-  if (newVoted) spawnConfetti(btn);
 }
 
 function escHtml(s) {

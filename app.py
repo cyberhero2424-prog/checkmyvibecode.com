@@ -1163,27 +1163,28 @@ def _get_user_jwt():
 def api_forum_create_thread():
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return {'error': 'Server not configured'}, 503
-    user_jwt = _get_user_jwt()
-    if not user_jwt:
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
         return {'error': 'Unauthorized'}, 401
+    user = _verify_supabase_token(auth_header[7:])
+    if not user:
+        return {'error': 'Invalid or expired session'}, 401
     try:
         payload = request.get_json(force=True) or {}
         title = str(payload.get('title', '')).strip()[:300]
         body_text = str(payload.get('body', '')).strip()[:5000]
         author_handle = str(payload.get('author_handle', '')).strip()[:100]
-        author_id = str(payload.get('author_id', '')).strip()
-        if not title or not body_text or not author_id:
+        if not title or not body_text:
             return {'error': 'Missing required fields'}, 400
     except Exception:
         return {'error': 'Bad request'}, 400
-    result, err = _sb_post('forum_threads',
-                            {'title': title, 'body': body_text,
-                             'author_handle': author_handle, 'author_id': author_id},
-                            user_jwt)
+    result, err = _sb_service_request('POST', 'forum_threads',
+                                      {'title': title, 'body': body_text,
+                                       'author_handle': author_handle, 'author_id': user['id']})
     if err:
         app.logger.error('api_forum_create_thread error: %s', err)
         return {'error': 'Could not create thread'}, 502
-    return Response(result, mimetype='application/json')
+    return Response(json.dumps(result), mimetype='application/json')
 
 
 @app.route('/api/forum/threads/<thread_id>/replies', methods=['POST'])
@@ -1192,26 +1193,70 @@ def api_forum_create_reply(thread_id):
         return {'error': 'Server not configured'}, 503
     if not _UUID_RE.match(thread_id):
         return {'error': 'Invalid thread id'}, 400
-    user_jwt = _get_user_jwt()
-    if not user_jwt:
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
         return {'error': 'Unauthorized'}, 401
+    user = _verify_supabase_token(auth_header[7:])
+    if not user:
+        return {'error': 'Invalid or expired session'}, 401
     try:
         payload = request.get_json(force=True) or {}
         body_text = str(payload.get('body', '')).strip()[:5000]
         author_handle = str(payload.get('author_handle', '')).strip()[:100]
-        author_id = str(payload.get('author_id', '')).strip()
-        if not body_text or not author_id:
+        if not body_text:
             return {'error': 'Missing required fields'}, 400
     except Exception:
         return {'error': 'Bad request'}, 400
-    result, err = _sb_post('forum_replies',
-                            {'thread_id': thread_id, 'body': body_text,
-                             'author_handle': author_handle, 'author_id': author_id},
-                            user_jwt)
+    result, err = _sb_service_request('POST', 'forum_replies',
+                                      {'thread_id': thread_id, 'body': body_text,
+                                       'author_handle': author_handle, 'author_id': user['id']})
     if err:
         app.logger.error('api_forum_create_reply error: %s', err)
         return {'error': 'Could not post reply'}, 502
-    return Response(result, mimetype='application/json')
+    return Response(json.dumps(result), mimetype='application/json')
+
+
+@app.route('/api/forum/threads/<thread_id>/toggle-upvote', methods=['POST'])
+def api_forum_toggle_upvote(thread_id):
+    """Toggle upvote for a forum thread. Returns {ok, voted, upvotes}."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return {'error': 'Server not configured'}, 503
+    if not _UUID_RE.match(thread_id):
+        return {'error': 'Invalid thread id'}, 400
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return {'error': 'Unauthorized'}, 401
+    user = _verify_supabase_token(auth_header[7:])
+    if not user:
+        return {'error': 'Invalid or expired session'}, 401
+    user_id = user['id']
+    safe_tid = urllib.parse.quote(thread_id, safe='')
+    safe_uid = urllib.parse.quote(user_id, safe='')
+    existing, err = _sb_service_request('GET',
+        f'forum_thread_upvotes?thread_id=eq.{safe_tid}&user_id=eq.{safe_uid}&select=id')
+    if err:
+        app.logger.error('api_forum_toggle_upvote check error: %s', err)
+        return {'error': 'Could not check vote status'}, 502
+    if existing:
+        _, err = _sb_service_request('DELETE',
+            f'forum_thread_upvotes?thread_id=eq.{safe_tid}&user_id=eq.{safe_uid}')
+        if err:
+            app.logger.error('api_forum_toggle_upvote delete error: %s', err)
+            return {'error': 'Could not remove upvote'}, 502
+        voted = False
+    else:
+        _, err = _sb_service_request('POST', 'forum_thread_upvotes',
+                                     {'thread_id': thread_id, 'user_id': user_id})
+        if err:
+            app.logger.error('api_forum_toggle_upvote insert error: %s', err)
+            return {'error': 'Could not add upvote'}, 502
+        voted = True
+    thread_data, _ = _sb_service_request('GET',
+        f'forum_threads?id=eq.{safe_tid}&select=upvotes')
+    current_count = thread_data[0].get('upvotes') or 0 if thread_data else 0
+    new_count = max(0, current_count + (1 if voted else -1))
+    _sb_service_request('PATCH', f'forum_threads?id=eq.{safe_tid}', {'upvotes': new_count})
+    return {'ok': True, 'voted': voted, 'upvotes': new_count}
 
 
 # ── Sitemap ───────────────────────────────────────────────────────────────────
