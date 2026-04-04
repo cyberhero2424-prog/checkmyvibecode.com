@@ -1545,35 +1545,56 @@ def get_project_upvote_count(project_id):
     return jsonify({'count': count})
 
 
-_view_seen = set()
-_click_seen = set()
+_stats_rate = {}
 _stats_lock = threading.Lock()
+_STATS_RATE_TTL = 300
 
 
-def _increment_stat(project_id, column, seen_set):
-    """Atomically increment a stats column via RPC. Returns (ok, dedup)."""
+def _is_rate_limited(key):
+    """Check if key was seen within TTL window. Returns True if rate-limited."""
+    import time as _time
+    now = _time.time()
+    with _stats_lock:
+        if len(_stats_rate) > 50000:
+            cutoff = now - _STATS_RATE_TTL
+            to_del = [k for k, t in _stats_rate.items() if t < cutoff]
+            for k in to_del:
+                del _stats_rate[k]
+        ts = _stats_rate.get(key)
+        if ts and (now - ts) < _STATS_RATE_TTL:
+            return True
+        _stats_rate[key] = now
+        return False
+
+
+def _increment_stat(project_id, column, rate_prefix):
+    """Atomically increment a stats column via RPC with rate-limit fallback. Returns (ok, dedup)."""
     if not _UUID_RE.match(project_id):
         return False, False
-    key = f"{request.remote_addr}:{project_id}"
-    with _stats_lock:
-        if key in seen_set:
-            return True, True
-        seen_set.add(key)
-        if len(seen_set) > 50000:
-            seen_set.clear()
+    key = f"{rate_prefix}:{request.remote_addr}:{project_id}"
+    if _is_rate_limited(key):
+        return True, True
     rpc_name = f'increment_{column}'
     result, err = _sb_service_request('POST', f'rpc/{rpc_name}', {'p_id': project_id})
     if err:
-        with _stats_lock:
-            seen_set.discard(key)
-        return False, False
+        rows, err2 = _sb_service_request('GET', f'projects?select={column}&id=eq.{project_id}&limit=1')
+        if err2 or not rows:
+            with _stats_lock:
+                _stats_rate.pop(key, None)
+            return False, False
+        current = (rows[0].get(column) or 0)
+        _, err3 = _sb_service_request('PATCH', f'projects?id=eq.{project_id}', {column: current + 1})
+        if err3:
+            with _stats_lock:
+                _stats_rate.pop(key, None)
+            return False, False
     return True, False
 
 
 @app.route('/api/projects/<project_id>/view', methods=['POST'])
 def track_project_view(project_id):
-    """Increment view_count for a project. Deduplicated per IP+project."""
-    ok, dedup = _increment_stat(project_id, 'view_count', _view_seen)
+    """Increment view_count for a project. Rate-limited per IP+project (5min)."""
+    ok, dedup = _increment_stat(project_id, 'view_count', 'v')
     if not ok:
         return jsonify({'ok': False}), 400 if not _UUID_RE.match(project_id) else 502
     return jsonify({'ok': True, 'dedup': dedup})
@@ -1581,8 +1602,8 @@ def track_project_view(project_id):
 
 @app.route('/api/projects/<project_id>/click', methods=['POST'])
 def track_project_click(project_id):
-    """Increment click_count for a project. Deduplicated per IP+project."""
-    ok, dedup = _increment_stat(project_id, 'click_count', _click_seen)
+    """Increment click_count for a project. Rate-limited per IP+project (5min)."""
+    ok, dedup = _increment_stat(project_id, 'click_count', 'c')
     if not ok:
         return jsonify({'ok': False}), 400 if not _UUID_RE.match(project_id) else 502
     return jsonify({'ok': True, 'dedup': dedup})
