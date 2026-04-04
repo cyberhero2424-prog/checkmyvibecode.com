@@ -1324,12 +1324,12 @@ function updateNavForUser() {
     document.getElementById('dropdownEmail').textContent = currentUser.email;
     if (savedChip) savedChip.style.display = 'inline-flex';
     if (window._forumLoaded && currentUser) {
-      _getAccessToken().then(token => {
+      ((token) => {
         if (!token) return;
         fetch('/api/forum/user-votes', { headers: { 'Authorization': 'Bearer ' + token } })
           .then(r => r.ok ? r.json() : []).catch(() => [])
           .then(ids => { forumVotedIds = new Set(Array.isArray(ids) ? ids : []); renderForumThreadList(); });
-      });
+      })(currentUser.accessToken || '');
     }
   } else {
     if (savedChip) savedChip.style.display = 'none';
@@ -1552,7 +1552,7 @@ async function loadProjects() {
 
 async function loadUserVotes(userId) {
   try {
-    const token = await _getAccessToken();
+    const token = currentUser?.accessToken || '';
     const resp = await fetch('/api/projects/user-votes', {
       headers: token ? { 'Authorization': 'Bearer ' + token } : {}
     });
@@ -2200,7 +2200,7 @@ async function _getAccessToken() {
 }
 
 async function loadForumThreads() {
-  const token = currentUser ? await _getAccessToken() : '';
+  const token = currentUser?.accessToken || '';
   const fetches = [
     fetch('/api/forum/threads').then(r => r.ok ? r.json() : []).catch(() => []),
     token
@@ -2308,7 +2308,7 @@ async function submitNewThread() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + await _getAccessToken()
+        'Authorization': 'Bearer ' + (currentUser?.accessToken || '')
       },
       body: JSON.stringify({ title, body, author_handle: currentUser.handle, author_id: currentUser.id }),
       signal: ctrl.signal
@@ -2347,7 +2347,7 @@ async function postForumReply() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + await _getAccessToken()
+        'Authorization': 'Bearer ' + (currentUser?.accessToken || '')
       },
       body: JSON.stringify({ body, author_handle: currentUser.handle, author_id: currentUser.id }),
       signal: ctrl.signal
@@ -2372,7 +2372,7 @@ async function toggleThreadUpvote(id, btn) {
   if (!currentUser) { requireAuth(() => {}); return; }
   if (btn) btn.disabled = true;
   try {
-    const token = await _getAccessToken();
+    const token = currentUser?.accessToken || '';
     const resp = await fetch('/api/forum/threads/' + id + '/toggle-upvote', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token }
