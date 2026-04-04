@@ -2189,11 +2189,9 @@ def sitemap():
 
     urls = []
 
-    # Homepage (highest priority)
-    urls.append({'loc': base_url + '/', 'changefreq': 'daily', 'priority': '1.0'})
-
     # All approved projects + collect unique authors for profile pages
     authors = {}
+    latest_date = ''
     try:
         rows = None
         for sel in ('id,created_at,author', 'id,author'):
@@ -2212,6 +2210,8 @@ def sitemap():
                 entry = {'loc': loc, 'changefreq': 'weekly', 'priority': '0.7'}
                 if lastmod:
                     entry['lastmod'] = lastmod
+                    if lastmod > latest_date:
+                        latest_date = lastmod
                 urls.append(entry)
                 author = row.get('author', '') or ''
                 if author:
@@ -2219,6 +2219,12 @@ def sitemap():
                         authors[author] = lastmod
     except Exception:
         pass
+
+    # Homepage (highest priority) — lastmod = latest project date
+    home_entry = {'loc': base_url + '/', 'changefreq': 'daily', 'priority': '1.0'}
+    if latest_date:
+        home_entry['lastmod'] = latest_date
+    urls.insert(0, home_entry)
 
     for author, lastmod in authors.items():
         bare = author.lstrip('@')
