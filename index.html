@@ -1834,16 +1834,18 @@ function openDrawer(id) {
 function trackView(pid) {
   const k = 'viewed_' + pid;
   if (sessionStorage.getItem(k)) return;
-  sessionStorage.setItem(k, '1');
   fetch('/api/projects/' + pid + '/view', {method:'POST'}).then(r=>{
     if (!r.ok) return;
     return r.json();
   }).then(d=>{
-    if (d && d.ok && !d.dedup) {
-      const el = document.getElementById('drawer-views');
-      if (el) el.textContent = parseInt(el.textContent||'0') + 1;
-      const p = projects.find(x=>x.id===pid);
-      if (p) p.view_count = (p.view_count||0) + 1;
+    if (d && d.ok) {
+      sessionStorage.setItem(k, '1');
+      if (!d.dedup) {
+        const el = document.getElementById('drawer-views');
+        if (el) el.textContent = parseInt(el.textContent||'0') + 1;
+        const p = projects.find(x=>x.id===pid);
+        if (p) p.view_count = (p.view_count||0) + 1;
+      }
     }
   }).catch(()=>{});
 }
@@ -1851,16 +1853,18 @@ function trackView(pid) {
 function trackDemoClick(pid) {
   const k = 'clicked_' + pid;
   if (sessionStorage.getItem(k)) return;
-  sessionStorage.setItem(k, '1');
   fetch('/api/projects/' + pid + '/click', {method:'POST'}).then(r=>{
     if (!r.ok) return;
     return r.json();
   }).then(d=>{
-    if (d && d.ok && !d.dedup) {
-      const el = document.getElementById('drawer-clicks');
-      if (el) el.textContent = parseInt(el.textContent||'0') + 1;
-      const p = projects.find(x=>x.id===pid);
-      if (p) p.click_count = (p.click_count||0) + 1;
+    if (d && d.ok) {
+      sessionStorage.setItem(k, '1');
+      if (!d.dedup) {
+        const el = document.getElementById('drawer-clicks');
+        if (el) el.textContent = parseInt(el.textContent||'0') + 1;
+        const p = projects.find(x=>x.id===pid);
+        if (p) p.click_count = (p.click_count||0) + 1;
+      }
     }
   }).catch(()=>{});
 }
