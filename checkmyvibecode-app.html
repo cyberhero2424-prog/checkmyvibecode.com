@@ -1809,27 +1809,49 @@ async function postComment() {
   if (!currentProject) { showToast('Please open a project first.'); return; }
   if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
   if (btn) { btn.disabled = true; btn.textContent = '...'; }
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 10000);
+  async function _tryPost(token) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    try {
+      const resp = await fetch('/api/projects/' + currentProject.id + '/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ body: text, author: currentUser.handle }),
+        signal: ctrl.signal
+      });
+      clearTimeout(timer);
+      return resp;
+    } catch(e) {
+      clearTimeout(timer);
+      throw e;
+    }
+  }
   try {
-    const token = await _getAccessToken();
-    const resp = await fetch('/api/projects/' + currentProject.id + '/comments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ body: text, author: currentUser.handle }),
-      signal: ctrl.signal
-    });
-    clearTimeout(timer);
+    let token = await _getAccessToken();
+    let resp = await _tryPost(token);
+    if (resp.status === 401) {
+      const { data: refreshed } = await sb.auth.refreshSession();
+      token = refreshed?.session?.access_token || '';
+      if (token) {
+        if (currentUser) currentUser.accessToken = token;
+        resp = await _tryPost(token);
+      }
+    }
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
-    if (!resp.ok) { showToast('Could not post comment. Please try again.'); return; }
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      showToast(errData.error === 'Invalid or expired session' ? 'Session expired — please sign in again.' : 'Could not post comment. Please try again.');
+      if (errData.error === 'Invalid or expired session') openAuth();
+      return;
+    }
     if (!currentProject.comments) currentProject.comments = [];
     currentProject.comments.unshift({ author: currentUser.handle, text, time: 'just now' });
     document.getElementById('drawerComments').innerHTML = renderComments(currentProject);
     const countEl = document.getElementById('commentCount');
     if (countEl) countEl.textContent = `(${currentProject.comments.length})`;
     input.value = '';
+    showToast('Comment posted!');
   } catch(e) {
-    clearTimeout(timer);
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
     showToast(e.name === 'AbortError' ? 'Request timed out. Please try again.' : 'Could not post comment. Please try again.');
   }
@@ -2092,7 +2114,26 @@ function forumAvatar(handle) {
 async function _getAccessToken() {
   try {
     const { data: { session } } = await sb.auth.getSession();
-    return session?.access_token || currentUser?.accessToken || '';
+    if (session?.access_token) {
+      try {
+        const payload = JSON.parse(atob(session.access_token.split('.')[1]));
+        if (payload.exp && payload.exp - Date.now()/1000 < 60) {
+          const { data: refreshed } = await sb.auth.refreshSession();
+          if (refreshed?.session?.access_token) {
+            if (currentUser) currentUser.accessToken = refreshed.session.access_token;
+            return refreshed.session.access_token;
+          }
+        }
+      } catch(e) {}
+      if (currentUser) currentUser.accessToken = session.access_token;
+      return session.access_token;
+    }
+    const { data: refreshed } = await sb.auth.refreshSession();
+    if (refreshed?.session?.access_token) {
+      if (currentUser) currentUser.accessToken = refreshed.session.access_token;
+      return refreshed.session.access_token;
+    }
+    return currentUser?.accessToken || '';
   } catch(e) {
     return currentUser?.accessToken || '';
   }
