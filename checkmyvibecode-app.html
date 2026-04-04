@@ -2124,13 +2124,17 @@ async function onNewProjectRealtime(raw) {
 }
 
 async function refreshProjectCount(projectId) {
-  const { count } = await sb.from('upvotes').select('*', { count: 'exact', head: true }).eq('project_id', projectId);
-  if (count === null) return;
-  const p = projects.find(x => x.id === projectId);
-  if (!p) return;
-  p.upvotes = count;
-  ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+p.id); if(el) el.textContent=count;});
-  updateStats();
+  try {
+    const resp = await fetch('/api/projects/' + projectId + '/upvote-count');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.count === undefined || data.count === null) return;
+    const p = projects.find(x => x.id === projectId);
+    if (!p) return;
+    p.upvotes = data.count;
+    ['uv-','duv-'].forEach(pre=>{const el=document.getElementById(pre+p.id); if(el) el.textContent=data.count;});
+    updateStats();
+  } catch(e) {}
 }
 
 function spawnConfetti(anchor) {

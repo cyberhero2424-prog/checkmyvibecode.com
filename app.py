@@ -1245,6 +1245,18 @@ def project_user_votes():
 
 # ── Project comments (service-key, bypasses RLS) ────────────────────────────
 
+@app.route('/api/projects/<project_id>/upvote-count')
+def get_project_upvote_count(project_id):
+    """Return the upvote count for a project. Public."""
+    if not re.match(r'^[0-9a-f-]{36}$', project_id):
+        return jsonify({'error': 'Invalid project id'}), 400
+    rows, err = _sb_service_request('GET', f'upvotes?select=id&project_id=eq.{project_id}')
+    if err:
+        return jsonify({'error': 'Could not fetch count'}), 502
+    count = len(rows) if rows else 0
+    return jsonify({'count': count})
+
+
 @app.route('/api/projects/<project_id>/comments')
 def get_project_comments(project_id):
     """Return comments for a project, newest first. Public — no auth required."""
@@ -1253,6 +1265,10 @@ def get_project_comments(project_id):
     rows, err = _sb_service_request(
         'GET', f'comments?select=id,author,body,user_id,created_at&project_id=eq.{project_id}&order=created_at.desc'
     )
+    if err and 'user_id' in err:
+        rows, err = _sb_service_request(
+            'GET', f'comments?select=id,author,body,created_at&project_id=eq.{project_id}&order=created_at.desc'
+        )
     if err:
         app.logger.error('get_project_comments error: %s', err)
         return {'error': 'Could not fetch comments'}, 502
@@ -1315,9 +1331,12 @@ def delete_comment(comment_id):
     if not user_id:
         return jsonify({'error': 'Invalid or expired session'}), 401
     rows, err = _sb_service_request('GET', f'comments?select=id,user_id&id=eq.{comment_id}&limit=1')
+    if err and 'user_id' in err:
+        rows, err = _sb_service_request('GET', f'comments?select=id,author&id=eq.{comment_id}&limit=1')
     if err or not rows:
         return jsonify({'error': 'Comment not found'}), 404
-    if rows[0].get('user_id') != user_id:
+    comment_user_id = rows[0].get('user_id')
+    if comment_user_id and comment_user_id != user_id:
         return jsonify({'error': 'You can only delete your own comments'}), 403
     _, err = _sb_service_request('DELETE', f'comments?id=eq.{comment_id}')
     if err:
