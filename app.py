@@ -514,7 +514,7 @@ def _apply_unsubscribe_migration():
 
 
 def _ensure_stats_columns():
-    """Try to add view_count and click_count columns at startup."""
+    """Try to add view_count/click_count columns and RPC functions at startup."""
     try:
         migrations = [
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS view_count integer default 0;",
@@ -524,6 +524,23 @@ def _ensure_stats_columns():
         app.logger.info('stats columns: %s', msg)
     except Exception as ex:
         app.logger.warning('stats columns migration check raised: %s', ex)
+    rpc_sql = (
+        "CREATE OR REPLACE FUNCTION increment_view_count(p_id uuid) "
+        "RETURNS integer LANGUAGE sql AS $$ "
+        "UPDATE projects SET view_count = COALESCE(view_count,0)+1 WHERE id=p_id RETURNING view_count; $$; "
+        "CREATE OR REPLACE FUNCTION increment_click_count(p_id uuid) "
+        "RETURNS integer LANGUAGE sql AS $$ "
+        "UPDATE projects SET click_count = COALESCE(click_count,0)+1 WHERE id=p_id RETURNING click_count; $$;"
+    )
+    ok, err = _run_migration_via_psycopg2(rpc_sql)
+    if ok:
+        app.logger.info('stats RPC functions: created via psycopg2')
+        return
+    ok2, err2 = _run_migration_via_mgmt_api(rpc_sql)
+    if ok2:
+        app.logger.info('stats RPC functions: created via mgmt API')
+        return
+    app.logger.info('stats RPC functions: not created (%s / %s) — run migrations/project_stats.sql', err, err2)
 
 
 def _apply_column_migrations(migrations):
@@ -1568,7 +1585,7 @@ def _is_rate_limited(key):
 
 
 def _increment_stat(project_id, column, rate_prefix):
-    """Atomically increment a stats column via RPC with rate-limit fallback. Returns (ok, dedup)."""
+    """Atomically increment a stats column via RPC. Returns (ok, dedup)."""
     if not _UUID_RE.match(project_id):
         return False, False
     key = f"{rate_prefix}:{request.remote_addr}:{project_id}"
@@ -1577,17 +1594,10 @@ def _increment_stat(project_id, column, rate_prefix):
     rpc_name = f'increment_{column}'
     result, err = _sb_service_request('POST', f'rpc/{rpc_name}', {'p_id': project_id})
     if err:
-        rows, err2 = _sb_service_request('GET', f'projects?select={column}&id=eq.{project_id}&limit=1')
-        if err2 or not rows:
-            with _stats_lock:
-                _stats_rate.pop(key, None)
-            return False, False
-        current = (rows[0].get(column) or 0)
-        _, err3 = _sb_service_request('PATCH', f'projects?id=eq.{project_id}', {column: current + 1})
-        if err3:
-            with _stats_lock:
-                _stats_rate.pop(key, None)
-            return False, False
+        with _stats_lock:
+            _stats_rate.pop(key, None)
+        app.logger.warning('stat increment failed for %s/%s: %s — run migrations/project_stats.sql', project_id, column, err)
+        return False, False
     return True, False
 
 
