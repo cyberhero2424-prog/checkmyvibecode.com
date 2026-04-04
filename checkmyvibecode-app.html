@@ -976,7 +976,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   <div class="drawer-body" id="drawerBody"></div>
   <div class="drawer-actions" id="drawerActions"></div>
   <div class="comment-form">
-    <input class="comment-input" id="commentInput" placeholder="Leave a comment...">
+    <input class="comment-input" id="commentInput" placeholder="Leave a comment..." onkeydown="if(event.key==='Enter'){event.preventDefault();postComment();}">
     <button class="comment-post" onclick="postComment()">Post</button>
   </div>
 </div>
@@ -1809,51 +1809,58 @@ async function postComment() {
   if (!currentProject) { showToast('Please open a project first.'); return; }
   if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
   if (btn) { btn.disabled = true; btn.textContent = '...'; }
-  async function _tryPost(token) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
-    try {
-      const resp = await fetch('/api/projects/' + currentProject.id + '/comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ body: text, author: currentUser.handle }),
-        signal: ctrl.signal
-      });
-      clearTimeout(timer);
-      return resp;
-    } catch(e) {
-      clearTimeout(timer);
-      throw e;
-    }
-  }
   try {
     let token = await _getAccessToken();
-    let resp = await _tryPost(token);
+    console.log('[comment] token length:', token?.length, 'project:', currentProject.id);
+    async function _doPost(t) {
+      return fetch('/api/projects/' + currentProject.id + '/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + t },
+        body: JSON.stringify({ body: text, author: currentUser.handle || '@anon' })
+      });
+    }
+    let resp = await _doPost(token);
+    console.log('[comment] first attempt status:', resp.status);
     if (resp.status === 401) {
-      const { data: refreshed } = await sb.auth.refreshSession();
-      token = refreshed?.session?.access_token || '';
-      if (token) {
-        if (currentUser) currentUser.accessToken = token;
-        resp = await _tryPost(token);
+      console.log('[comment] 401, refreshing session...');
+      try {
+        const { data: refreshed } = await sb.auth.refreshSession();
+        token = refreshed?.session?.access_token || '';
+        console.log('[comment] refreshed token length:', token?.length);
+        if (token) {
+          if (currentUser) currentUser.accessToken = token;
+          resp = await _doPost(token);
+          console.log('[comment] retry status:', resp.status);
+        }
+      } catch(refreshErr) {
+        console.error('[comment] refresh failed:', refreshErr);
       }
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
     if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({}));
-      showToast(errData.error === 'Invalid or expired session' ? 'Session expired — please sign in again.' : 'Could not post comment. Please try again.');
-      if (errData.error === 'Invalid or expired session') openAuth();
+      let errMsg = 'Could not post comment.';
+      try { const errData = await resp.json(); errMsg = errData.error || errMsg; } catch(e) {}
+      console.error('[comment] failed:', resp.status, errMsg);
+      if (resp.status === 401) {
+        showToast('Session expired — please sign in again.');
+        openAuth();
+      } else {
+        showToast(errMsg);
+      }
       return;
     }
     if (!currentProject.comments) currentProject.comments = [];
-    currentProject.comments.unshift({ author: currentUser.handle, text, time: 'just now' });
+    currentProject.comments.unshift({ author: currentUser.handle || '@anon', text, time: 'just now' });
     document.getElementById('drawerComments').innerHTML = renderComments(currentProject);
     const countEl = document.getElementById('commentCount');
     if (countEl) countEl.textContent = `(${currentProject.comments.length})`;
     input.value = '';
     showToast('Comment posted!');
+    console.log('[comment] success');
   } catch(e) {
+    console.error('[comment] exception:', e);
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
-    showToast(e.name === 'AbortError' ? 'Request timed out. Please try again.' : 'Could not post comment. Please try again.');
+    showToast('Could not post comment: ' + (e.message || 'Unknown error'));
   }
 }
 
