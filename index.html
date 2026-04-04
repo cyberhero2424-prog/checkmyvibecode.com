@@ -2621,7 +2621,7 @@ async function submitProject() {
   const cost = document.getElementById('f_cost').value.trim();
   if (!name || !desc) { alert('Please fill in name and description!'); return; }
   const demo = document.getElementById('f_demo').value.trim();
-  if (!demo) { alert('Please add a demo link so people can try your project!'); document.getElementById('f_demo').focus(); return; }
+  if (!demo) { alert('Please add a demo link so people can try or see your project!'); document.getElementById('f_demo').focus(); return; }
   if (!buildTime || !cost) { alert('Please fill in Build time and Approx. cost — these help other builders learn from your project!'); document.getElementById(!buildTime?'f_time':'f_cost').focus(); return; }
   if (!currentUser) { closeSubmit(); openAuth(); return; }
   const submitBtn = document.querySelector('#submitModal .btn-primary');
