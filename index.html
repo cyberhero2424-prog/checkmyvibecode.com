@@ -1370,6 +1370,23 @@ function requireAuth(callback) {
 }
 
 // Supabase auth state listener — handles login, logout, and page-refresh sessions
+(async function initSession() {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    console.log('[auth] init session:', session ? 'found' : 'none');
+    if (session?.user && !currentUser) {
+      const user = session.user;
+      const meta = user.user_metadata || {};
+      let name = meta.full_name || meta.user_name || meta.name || (user.email ? user.email.split('@')[0] : 'User');
+      const handle = meta.user_name ? ('@' + meta.user_name) : ('@' + (user.email ? user.email.split('@')[0] : name.toLowerCase().replace(/\s+/g, '')));
+      loginUser({ id: user.id, name, handle, email: user.email || '', avatar: name[0].toUpperCase(), accessToken: session.access_token });
+      console.log('[auth] restored user:', handle);
+      await loadUserVotes(user.id);
+      await loadUserBookmarks(user.id);
+    }
+  } catch(e) { console.error('[auth] init session error:', e); }
+})();
+
 sb.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     const user = session.user;
@@ -1802,11 +1819,27 @@ function renderComments(p) {
 }
 
 async function postComment() {
+  console.log('[comment] postComment called, currentUser:', !!currentUser, 'currentProject:', !!currentProject);
   const input = document.getElementById('commentInput');
   const btn = document.querySelector('.comment-post');
   const text = input.value.trim();
   if (!text) return;
   if (!currentProject) { showToast('Please open a project first.'); return; }
+  if (!currentUser) {
+    console.log('[comment] no currentUser, trying to restore session...');
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session?.user) {
+        const user = session.user;
+        const meta = user.user_metadata || {};
+        const provider = user.app_metadata?.provider || '';
+        let name = meta.full_name || meta.user_name || meta.name || (user.email ? user.email.split('@')[0] : 'User');
+        const handle = meta.user_name ? ('@' + meta.user_name) : ('@' + (user.email ? user.email.split('@')[0] : name.toLowerCase().replace(/\s+/g, '')));
+        loginUser({ id: user.id, name, handle, email: user.email || '', avatar: name[0].toUpperCase(), accessToken: session.access_token });
+        console.log('[comment] session restored for', handle);
+      }
+    } catch(e) { console.error('[comment] session restore failed:', e); }
+  }
   if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
   if (btn) { btn.disabled = true; btn.textContent = '...'; }
   try {
@@ -1976,6 +2009,18 @@ function closeProfile() {
 }
 
 async function upvote(id) {
+  if (!currentUser) {
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (session?.user) {
+        const user = session.user;
+        const meta = user.user_metadata || {};
+        let name = meta.full_name || meta.user_name || meta.name || (user.email ? user.email.split('@')[0] : 'User');
+        const handle = meta.user_name ? ('@' + meta.user_name) : ('@' + (user.email ? user.email.split('@')[0] : name.toLowerCase().replace(/\s+/g, '')));
+        loginUser({ id: user.id, name, handle, email: user.email || '', avatar: name[0].toUpperCase(), accessToken: session.access_token });
+      }
+    } catch(e) {}
+  }
   if (!currentUser) { openAuth(); showToast('Please sign in to upvote!'); return; }
   const p = projects.find(x => x.id === id); if (!p) return;
 
