@@ -57,6 +57,14 @@ Run `migrations/forum.sql` in the Supabase Dashboard > SQL Editor to enable the 
 - Helper `_resolve_handle_to_email()` maps author handles to emails via Supabase Auth admin API (cached 10min)
 - Helper `_get_project_owner()` looks up project name + author for a project_id
 
+## Email Unsubscribe System
+- Users can unsubscribe from all notification emails via a signed link in the email footer
+- `/unsubscribe` GET endpoint verifies HMAC token, stores email in `email_unsubscribes` table
+- All `_notify_*` functions check `_is_unsubscribed(email)` before sending
+- All notification emails include an unsubscribe footer link via `_unsubscribe_footer(email)`
+- HMAC tokens are generated using `FLASK_SECRET_KEY`
+
 ## Migrations
 - `migrations/bookmarks.sql` — bookmarks table + RLS
 - `migrations/forum.sql` — forum tables + RLS (run in Supabase dashboard)
+- `migrations/email_unsubscribes.sql` — email unsubscribe list + RLS (run in Supabase dashboard)

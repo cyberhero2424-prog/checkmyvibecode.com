@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import hmac
 import html as html_module
 import json
 import os
@@ -482,10 +484,39 @@ def _ensure_screenshot_column():
         app.logger.error('screenshot_url migration check raised: %s', ex)
 
 
+def _apply_unsubscribe_migration():
+    """Create email_unsubscribes table if it doesn't exist."""
+    sql = (
+        "CREATE TABLE IF NOT EXISTS email_unsubscribes ("
+        "  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,"
+        "  email TEXT NOT NULL UNIQUE,"
+        "  created_at TIMESTAMPTZ DEFAULT now()"
+        ");"
+        "ALTER TABLE email_unsubscribes ENABLE ROW LEVEL SECURITY;"
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='email_unsubscribes' AND policyname='Service role full access') THEN "
+        "CREATE POLICY \"Service role full access\" ON email_unsubscribes FOR ALL USING (auth.role() = 'service_role'); "
+        "END IF; END $$;"
+    )
+    rows, err = _sb_service_request('GET', 'email_unsubscribes?limit=0')
+    if rows is not None:
+        return
+    ok, err = _run_migration_via_psycopg2(sql)
+    if ok:
+        app.logger.info('email_unsubscribes table created via psycopg2')
+        return
+    ok2, err2 = _run_migration_via_mgmt_api(sql)
+    if ok2:
+        app.logger.info('email_unsubscribes table created via mgmt API')
+    else:
+        app.logger.info('email_unsubscribes table not found — run migrations/email_unsubscribes.sql in Supabase Dashboard')
+
+
 def _startup_init():
     """Run once at startup: ensure storage bucket exists and verify screenshot column."""
     _ensure_storage_bucket()
     _ensure_screenshot_column()
+    _apply_unsubscribe_migration()
 
 
 # Run startup tasks in a background thread so gunicorn boot stays fast
@@ -877,6 +908,43 @@ def _send_resend_email(to, subject, text_body):
         return False, str(ex)
 
 
+def _make_unsubscribe_token(email):
+    """Create an HMAC-signed token for the unsubscribe link."""
+    return hmac.new(app.secret_key.encode() if isinstance(app.secret_key, str) else app.secret_key,
+                    email.lower().encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def _verify_unsubscribe_token(email, token):
+    """Verify an unsubscribe token matches the email."""
+    expected = _make_unsubscribe_token(email)
+    return hmac.compare_digest(expected, token)
+
+
+def _unsubscribe_link(email):
+    """Generate a full unsubscribe URL for an email address."""
+    site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
+    token = _make_unsubscribe_token(email)
+    return f"{site_url}/unsubscribe?email={urllib.parse.quote(email)}&token={token}"
+
+
+def _is_unsubscribed(email):
+    """Check if an email has unsubscribed from notifications.
+    Returns False if the table doesn't exist yet (graceful fallback)."""
+    if not email:
+        return False
+    safe_email = urllib.parse.quote(email.lower(), safe='')
+    rows, err = _sb_service_request('GET', f'email_unsubscribes?select=id&email=eq.{safe_email}&limit=1')
+    if err:
+        return False
+    return bool(rows)
+
+
+def _unsubscribe_footer(email):
+    """Return the unsubscribe footer text to append to notification emails."""
+    link = _unsubscribe_link(email)
+    return f"\n---\nDon't want these emails? Unsubscribe: {link}\n"
+
+
 _email_cache: dict = {}
 _email_cache_lock = threading.Lock()
 
@@ -961,6 +1029,8 @@ def _notify_project_approved(project_id, project_name, author_handle):
         email = _resolve_handle_to_email(author_handle)
         if not email:
             return
+        if _is_unsubscribed(email):
+            return
         site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
         project_url = f"{site_url}/p/{project_id}"
         body = (
@@ -970,7 +1040,8 @@ def _notify_project_approved(project_id, project_name, author_handle):
             f"Check it out: {project_url}\n\n"
             f"Share it with the community to get upvotes and feedback.\n\n"
             f"Questions? Reply to this email or reach us at contact@checkmyvibecode.com\n\n"
-            f"\u2014 The CheckMyVibeCode team\n"
+            f"\u2014 The CheckMyVibeCode team"
+            f"{_unsubscribe_footer(email)}"
         )
         ok, err = _send_resend_email(
             to=email,
@@ -993,6 +1064,8 @@ def _notify_new_comment(project_id, commenter_handle, comment_body):
         email = _resolve_handle_to_email(owner_handle)
         if not email:
             return
+        if _is_unsubscribed(email):
+            return
         site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
         project_url = f"{site_url}/p/{project_id}"
         preview = comment_body[:200] + ('...' if len(comment_body) > 200 else '')
@@ -1001,7 +1074,8 @@ def _notify_new_comment(project_id, commenter_handle, comment_body):
             f"{commenter_handle} commented on your project \"{proj_name}\":\n\n"
             f"\"{preview}\"\n\n"
             f"See it here: {project_url}\n\n"
-            f"\u2014 The CheckMyVibeCode team\n"
+            f"\u2014 The CheckMyVibeCode team"
+            f"{_unsubscribe_footer(email)}"
         )
         ok, err = _send_resend_email(
             to=email,
@@ -1026,6 +1100,9 @@ def _notify_new_upvote(project_id, upvote_count):
         if not email:
             _release_upvote_throttle(project_id)
             return
+        if _is_unsubscribed(email):
+            _release_upvote_throttle(project_id)
+            return
         site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
         project_url = f"{site_url}/p/{project_id}"
         body = (
@@ -1033,7 +1110,8 @@ def _notify_new_upvote(project_id, upvote_count):
             f"Your project \"{proj_name}\" just got upvoted! \U0001f44d\n"
             f"It now has {upvote_count} upvote{'s' if upvote_count != 1 else ''}.\n\n"
             f"See it here: {project_url}\n\n"
-            f"\u2014 The CheckMyVibeCode team\n"
+            f"\u2014 The CheckMyVibeCode team"
+            f"{_unsubscribe_footer(email)}"
         )
         ok, err = _send_resend_email(
             to=email,
@@ -1742,6 +1820,49 @@ def api_forum_toggle_upvote(thread_id):
 
 
 # ── Sitemap ───────────────────────────────────────────────────────────────────
+
+@app.route('/unsubscribe')
+def unsubscribe():
+    """Handle email unsubscribe requests via signed link."""
+    email = request.args.get('email', '').strip().lower()
+    token = request.args.get('token', '').strip()
+    if not email or not token:
+        return _unsubscribe_page('Invalid unsubscribe link.', success=False), 400
+    if not _verify_unsubscribe_token(email, token):
+        return _unsubscribe_page('Invalid or expired unsubscribe link.', success=False), 403
+    if _is_unsubscribed(email):
+        return _unsubscribe_page('You are already unsubscribed from notifications.', success=True)
+    _, err = _sb_service_request('POST', 'email_unsubscribes', {'email': email})
+    if err:
+        if 'duplicate' in str(err).lower() or '23505' in str(err):
+            return _unsubscribe_page('You are already unsubscribed from notifications.', success=True)
+        app.logger.error('Unsubscribe insert failed for %s: %s', email, err)
+        return _unsubscribe_page('Something went wrong. Please try again later.', success=False), 500
+    app.logger.info('User unsubscribed from notifications: %s', email)
+    return _unsubscribe_page('You have been unsubscribed from CheckMyVibeCode notifications.', success=True)
+
+
+def _unsubscribe_page(message, success=True):
+    icon = '\u2705' if success else '\u274c'
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unsubscribe — CheckMyVibeCode</title>
+<style>
+body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; background:#f8f8f6; color:#1a1a18; }}
+.card {{ text-align:center; background:#fff; border:1px solid #e5e5e3; border-radius:16px; padding:40px 32px; max-width:420px; box-shadow:0 2px 8px rgba(0,0,0,.06); }}
+.icon {{ font-size:48px; margin-bottom:16px; }}
+h1 {{ font-size:20px; margin:0 0 12px; }}
+p {{ font-size:14px; color:#666; line-height:1.5; margin:0 0 20px; }}
+a {{ color:#16a34a; text-decoration:none; font-weight:500; }}
+a:hover {{ text-decoration:underline; }}
+</style></head><body>
+<div class="card">
+<div class="icon">{icon}</div>
+<h1>{'Unsubscribed' if success else 'Error'}</h1>
+<p>{html_module.escape(message)}</p>
+<p><a href="/">← Back to CheckMyVibeCode</a></p>
+</div></body></html>"""
+
 
 @app.route('/sitemap.xml')
 def sitemap():
