@@ -1842,44 +1842,39 @@ async function postComment() {
   }
   if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
   if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  let token = currentUser.accessToken || '';
+  console.log('[comment] using token length:', token.length, 'project:', currentProject.id);
   try {
-    let token = await _getAccessToken();
-    console.log('[comment] token length:', token?.length, 'project:', currentProject.id);
-    async function _doPost(t) {
-      return fetch('/api/projects/' + currentProject.id + '/comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + t },
-        body: JSON.stringify({ body: text, author: currentUser.handle || '@anon' })
-      });
-    }
-    let resp = await _doPost(token);
-    console.log('[comment] first attempt status:', resp.status);
+    let resp = await fetch('/api/projects/' + currentProject.id + '/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ body: text, author: currentUser.handle || '@anon' })
+    });
+    console.log('[comment] status:', resp.status);
     if (resp.status === 401) {
-      console.log('[comment] 401, refreshing session...');
+      console.log('[comment] 401 — refreshing token...');
       try {
-        const { data: refreshed } = await sb.auth.refreshSession();
-        token = refreshed?.session?.access_token || '';
-        console.log('[comment] refreshed token length:', token?.length);
-        if (token) {
-          if (currentUser) currentUser.accessToken = token;
-          resp = await _doPost(token);
+        const { data } = await sb.auth.refreshSession();
+        const newToken = data?.session?.access_token;
+        if (newToken) {
+          token = newToken;
+          currentUser.accessToken = newToken;
+          resp = await fetch('/api/projects/' + currentProject.id + '/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ body: text, author: currentUser.handle || '@anon' })
+          });
           console.log('[comment] retry status:', resp.status);
         }
-      } catch(refreshErr) {
-        console.error('[comment] refresh failed:', refreshErr);
-      }
+      } catch(re) { console.error('[comment] refresh error:', re); }
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
     if (!resp.ok) {
       let errMsg = 'Could not post comment.';
-      try { const errData = await resp.json(); errMsg = errData.error || errMsg; } catch(e) {}
-      console.error('[comment] failed:', resp.status, errMsg);
-      if (resp.status === 401) {
-        showToast('Session expired — please sign in again.');
-        openAuth();
-      } else {
-        showToast(errMsg);
-      }
+      try { const d = await resp.json(); errMsg = d.error || errMsg; } catch(e) {}
+      console.error('[comment] error:', resp.status, errMsg);
+      showToast(resp.status === 401 ? 'Session expired — please sign in again.' : errMsg);
+      if (resp.status === 401) openAuth();
       return;
     }
     if (!currentProject.comments) currentProject.comments = [];
@@ -1889,11 +1884,11 @@ async function postComment() {
     if (countEl) countEl.textContent = `(${currentProject.comments.length})`;
     input.value = '';
     showToast('Comment posted!');
-    console.log('[comment] success');
+    console.log('[comment] success!');
   } catch(e) {
     console.error('[comment] exception:', e);
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
-    showToast('Could not post comment: ' + (e.message || 'Unknown error'));
+    showToast('Error: ' + (e.message || 'Unknown error'));
   }
 }
 
@@ -2047,15 +2042,14 @@ async function upvote(id) {
     updateStats();
   }
   try {
-    let token = await _getAccessToken();
+    let token = currentUser.accessToken || '';
     let resp = await _tryUpvote(token);
     if (resp.status === 401) {
-      const { data: refreshed } = await sb.auth.refreshSession();
-      token = refreshed?.session?.access_token || '';
-      if (token) {
-        if (currentUser) currentUser.accessToken = token;
-        resp = await _tryUpvote(token);
-      }
+      try {
+        const { data } = await sb.auth.refreshSession();
+        const newToken = data?.session?.access_token;
+        if (newToken) { token = newToken; currentUser.accessToken = newToken; resp = await _tryUpvote(token); }
+      } catch(re) {}
     }
     const data = resp.ok ? await resp.json() : null;
     if (!data || !data.ok) {
