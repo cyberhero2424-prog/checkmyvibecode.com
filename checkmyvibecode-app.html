@@ -995,8 +995,8 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 <div class="modal-overlay" id="submitModal" onclick="outsideClose(event,'submitModal')">
   <div class="modal">
     <div class="modal-head"><div class="modal-title">Submit your project</div><button class="close-btn" onclick="closeSubmit()">✕</button></div>
-    <div class="fgroup"><label class="flabel">Project name *</label><input class="finput" id="f_name" placeholder="My Vibe App"></div>
-    <div class="fgroup"><label class="flabel">Short description *</label><textarea class="ftextarea" id="f_desc" placeholder="What does it do?"></textarea></div>
+    <div class="fgroup"><label class="flabel">Project name <span style="color:#ef4444">*</span></label><input class="finput" id="f_name" placeholder="My Vibe App" required></div>
+    <div class="fgroup"><label class="flabel">Short description <span style="color:#ef4444">*</span></label><textarea class="ftextarea" id="f_desc" placeholder="What does it do?" required></textarea></div>
     <div class="fgroup"><label class="flabel">The idea behind it</label><textarea class="ftextarea" id="f_idea" placeholder="What problem does it solve?"></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="fgroup"><label class="flabel">Build time <span style="color:#ef4444">*</span></label><input class="finput" id="f_time" placeholder="e.g. 3 hours" required></div>
