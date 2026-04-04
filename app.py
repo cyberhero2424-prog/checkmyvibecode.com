@@ -162,12 +162,12 @@ def serve_app():
         if projects:
             ssr_parts = ['<h1>CheckMyVibeCode — AI-Built Projects</h1>',
                          '<p>The community for AI-built projects. Showcase your vibe-coded creations, collect upvotes and feedback.</p>']
-            for p in projects[:50]:
+            for p in projects:
                 p_url = base_url + '/p/' + urllib.parse.quote(str(p.get('id', '')), safe='')
                 ssr_parts.append(_ssr_project_block(p, p_url))
 
             item_list = []
-            for i, p in enumerate(projects[:50]):
+            for i, p in enumerate(projects):
                 p_url = base_url + '/p/' + urllib.parse.quote(str(p.get('id', '')), safe='')
                 item_list.append({
                     "@type": "ListItem",
@@ -331,11 +331,19 @@ def _ssr_project_block(project, project_url):
     cat = esc(project.get('cat', '') or '')
     emoji = esc(project.get('emoji', '') or '')
 
+    screenshot = project.get('screenshot_url', '') or ''
+
     tools_html = ' '.join(f'<span>{esc(t)}</span>' for t in tools)
-    demo_html = f'<p><a href="{esc(demo)}">View Project</a></p>' if demo else ''
+    demo_link = ''
+    if demo and demo.startswith(('http://', 'https://')):
+        demo_link = f'<p><a href="{esc(demo)}">View Project</a></p>'
+    screenshot_html = ''
+    if screenshot and screenshot.startswith(('http://', 'https://')):
+        screenshot_html = f'<img itemprop="image" src="{esc(screenshot)}" alt="{name}" loading="lazy" width="600" height="338">'
 
     return (
         f'<article itemscope itemtype="https://schema.org/SoftwareApplication">'
+        f'{screenshot_html}'
         f'<h2 itemprop="name">{emoji} {name}</h2>'
         f'<p itemprop="description">{desc}</p>'
         f'<p>By <span itemprop="author">{author}</span></p>'
@@ -343,15 +351,18 @@ def _ssr_project_block(project, project_url):
         f'{f"<p>Build time: {build_time}</p>" if build_time else ""}'
         f'{f"<p>Cost: {cost}</p>" if cost else ""}'
         f'<p>Tools: {tools_html}</p>'
-        f'{demo_html}'
+        f'{demo_link}'
         f'<a href="{esc(project_url)}">Details</a>'
         f'</article>'
     )
 
 
-def _inject_ssr_content(html, ssr_html, jsonld_script=''):
-    """Inject SSR HTML block (noscript) and JSON-LD into the page for crawlers."""
-    ssr_block = f'<noscript>{ssr_html}</noscript>'
+def _inject_ssr_content(html, ssr_html, jsonld_script='', use_noscript=False):
+    """Inject SSR HTML block and JSON-LD into the page for crawlers."""
+    if use_noscript:
+        ssr_block = f'<noscript>{ssr_html}</noscript>'
+    else:
+        ssr_block = f'<div id="ssr-content">{ssr_html}</div>'
     if jsonld_script:
         ssr_block = jsonld_script + '\n' + ssr_block
     html = html.replace('</body>', ssr_block + '\n</body>', 1)
@@ -371,7 +382,7 @@ def _fetch_approved_projects():
         'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at',
     ):
         try:
-            raw, err = _sb_get('projects', f'status=eq.approved&select={select}&order=upvotes.desc&limit=50')
+            raw, err = _sb_get('projects', f'status=eq.approved&select={select}&order=upvotes.desc')
             if raw and not err:
                 rows = json.loads(raw)
                 _cache_set('ssr_projects', json.dumps(rows).encode(), ttl=60)
