@@ -209,38 +209,46 @@ nav {
 .search-results-clear:hover { color:var(--text); }
 mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1px; }
 
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
-.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; cursor:pointer; transition:border-color .2s; animation:cardIn .35s var(--ease) both; box-shadow:var(--sh); contain:layout style paint; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; cursor:pointer; transition:border-color .2s, box-shadow .2s; animation:cardIn .35s var(--ease) both; box-shadow:var(--sh); contain:layout style paint; }
 .card:hover { box-shadow:var(--sh-md); transform:translateY(-2px); border-color:var(--border2); }
 @media (hover:none) { .card:hover { box-shadow:var(--sh); transform:none; } }
 .card.featured { border-color:rgba(234,179,8,0.85); border-width:2px; box-shadow:0 0 0 3px rgba(234,179,8,0.18), 0 4px 20px rgba(234,179,8,0.15), var(--sh-md); }
 .card.featured:hover { border-color:#eab308; box-shadow:0 0 0 4px rgba(234,179,8,0.25), 0 6px 28px rgba(234,179,8,0.2), var(--sh-md); transform:translateY(-2px); }
 .featured-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; background:#fefce8; border:1px solid rgba(234,179,8,0.3); border-radius:20px; font-size:10px; font-weight:700; color:#854d0e; letter-spacing:.3px; text-transform:uppercase; }
 @keyframes cardIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
-.card-thumb { width:100%; height:160px; display:flex; align-items:center; justify-content:center; font-size:48px; overflow:hidden; }
+.card-thumb { width:100%; height:170px; display:flex; align-items:center; justify-content:center; font-size:48px; overflow:hidden; position:relative; }
 .card-thumb img.card-screenshot { width:100%; height:100%; object-fit:cover; display:block; border-radius:0; }
-.card-body { padding:14px 16px 16px; }
-.card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:7px; }
+.card-body { padding:14px 16px 14px; display:flex; flex-direction:column; gap:0; }
+.card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px; }
 .card-title { font-size:15px; font-weight:600; letter-spacing:-.3px; line-height:1.3; }
 .score-pill { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; font-family:var(--mono); flex-shrink:0; }
 .sp-great { background:var(--green-bg); color:var(--green); border:1px solid var(--green-border); }
 .sp-ok    { background:var(--amber-bg); color:var(--amber); border:1px solid rgba(180,83,9,.15); }
 .sp-bad   { background:var(--red-bg);   color:var(--red);   border:1px solid rgba(220,38,38,.15); }
-.card-desc { font-size:13px; color:var(--muted2); line-height:1.5; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
-.card-meta-row { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:10px; }
+.card-desc { font-size:13px; color:var(--muted2); line-height:1.5; margin-bottom:10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+.card-meta-row { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:8px; }
 .card-meta-dot { color:var(--muted); opacity:.5; }
 .tag { padding:2px 7px; border-radius:4px; font-size:11px; font-weight:500; font-family:var(--mono); }
 .t-claude{background:var(--green-bg);color:var(--green)} .t-cursor{background:var(--blue-bg);color:var(--blue)} .t-gpt{background:#d1fae5;color:#065f46} .t-bolt{background:var(--amber-bg);color:var(--amber)} .t-v0{background:var(--surface3);color:var(--muted2)} .t-lovable{background:var(--purple-bg);color:var(--purple)} .t-replit{background:#fff0e6;color:#f26400} .t-gemini{background:#e8f0fe;color:#1a73e8} .t-windsurf{background:#eef2ff;color:#4f46e5} .t-copilot{background:#e0f4ff;color:#0369a1} .t-perplexity{background:#e0faf7;color:#0d9488} .t-canva{background:#fce7f3;color:#be185d} .t-grok{background:#f0fdf4;color:#15803d} .t-mistral{background:#fef3c7;color:#b45309} .t-cat{background:var(--surface2);color:var(--muted2);text-transform:capitalize}
-.card-footer { display:flex; align-items:center; gap:6px; padding-top:12px; border-top:1px solid var(--border); }
-.card-author { font-size:12px; color:var(--muted); flex:1; }
-.card-author strong { color:var(--muted2); }
+.card-author-row { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:10px; }
+.card-author-row strong { color:var(--muted2); }
+.card-author-row .card-timeago { margin-left:auto; font-size:11px; color:var(--muted); font-family:var(--mono); white-space:nowrap; }
+.card-footer { display:flex; align-items:center; gap:6px; padding-top:10px; border-top:1px solid var(--border); }
+.card-footer-left { display:flex; align-items:center; gap:5px; flex:1; min-width:0; }
+.card-footer-right { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+.card-stat-btn { display:inline-flex; align-items:center; gap:3px; padding:4px 8px; border-radius:var(--r-sm); font-size:11px; font-weight:500; border:none; background:transparent; color:var(--muted); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); }
+.card-stat-btn:hover { background:var(--surface2); color:var(--muted2); }
+.card-stat-btn svg { width:13px; height:13px; }
 .upvote-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:var(--r-sm); font-size:12px; font-weight:600; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); position:relative; overflow:visible; box-shadow:var(--sh); }
 .upvote-btn:hover { border-color:var(--green-border); color:var(--green); background:var(--green-bg); }
 .upvote-btn.voted { background:rgba(139,92,246,.15); border-color:rgba(139,92,246,.4); color:#8b5cf6; box-shadow:none; }
 .view-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:var(--r-sm); font-size:12px; background:var(--surface2); border:1px solid var(--border); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); font-weight:500; }
 .view-btn:hover { background:var(--surface3); color:var(--text); }
-.share-x-btn, .share-fb-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); flex-shrink:0; padding:0; }
+.share-x-btn, .share-fb-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); flex-shrink:0; padding:0; opacity:0; pointer-events:none; transition:opacity .15s; }
+.card:hover .share-x-btn, .card:hover .share-fb-btn { opacity:1; pointer-events:auto; }
+@media (hover:none) { .share-x-btn, .share-fb-btn { opacity:1; pointer-events:auto; } }
 .share-x-btn:hover { background:#000; color:#fff; border-color:#000; }
 .share-fb-btn:hover { background:#1877f2; color:#fff; border-color:#1877f2; }
 
@@ -477,13 +485,12 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .card-thumb { height:130px; font-size:40px; }
   .card-body { padding:12px 14px 14px; }
   .card-title { font-size:14px; }
-  .card-desc { font-size:12px; margin-bottom:10px; }
-  .card-footer { gap:4px; padding-top:10px; }
-  .card-author { font-size:11px; min-width:0; }
-  .card-comment-btn { display:none; }
+  .card-desc { font-size:12px; margin-bottom:8px; }
+  .card-author-row { font-size:11px; margin-bottom:8px; }
+  .card-footer { gap:4px; padding-top:8px; }
   .share-x-btn, .share-fb-btn { display:none; }
-  .view-btn { padding:5px 8px; font-size:11px; white-space:nowrap; }
   .upvote-btn { padding:5px 7px; font-size:11px; white-space:nowrap; }
+  .card-stat-btn { padding:3px 6px; font-size:10px; }
 
   /* Drawer — full screen on mobile */
   .drawer { width:100%; border-left:none; border-top:1px solid var(--border2); border-radius:20px 20px 0 0; top:auto; height:92vh; transform:translateY(100%); }
@@ -1655,7 +1662,7 @@ function renderProjects() {
 
   document.getElementById('grid').innerHTML = list.map((p,i) => `
     <div class="card${p.featured?' featured':''}" style="animation-delay:${i*.07}s" onclick="openDrawer('${p.id}')">
-      <div class="card-thumb" style="background:${stableColor(p.id)};position:relative">
+      <div class="card-thumb" style="background:${stableColor(p.id)}">
         ${p.featured ? `<div style="position:absolute;top:10px;left:10px;z-index:1"><span class="featured-badge">✦ Featured</span></div>` : ''}
         ${p.screenshot_url ? `<img class="card-screenshot" src="${escAttr(p.screenshot_url)}" alt="${escAttr(p.name)}" loading="lazy" onerror="this.style.display='none'">` : p.emoji}
       </div>
@@ -1670,14 +1677,20 @@ function renderProjects() {
           <span class="tag t-cat">${p.cat}</span>
         </div>
         ${(p.buildTime||p.build_time||p.cost)?`<div class="card-meta-row">${(p.buildTime||p.build_time)?`<span>⏱ ${esc(p.buildTime||p.build_time)}</span>`:''}${(p.buildTime||p.build_time)&&p.cost?`<span class="card-meta-dot">·</span>`:''}${p.cost?`<span>💸 ${esc(p.cost)}</span>`:''}</div>`:''}
+        <div class="card-author-row">
+          <span>by <button class="author-link" data-author="${escAttr(p.author)}"><strong>${highlight(p.author,q)}</strong></button></span>
+          <span class="card-timeago">${fmtCardDate(p.created_at)}</span>
+        </div>
         <div class="card-footer">
-          <div class="card-author">by <button class="author-link" data-author="${escAttr(p.author)}"><strong>${highlight(p.author,q)}</strong></button></div>
-          <button class="view-btn" onclick="event.stopPropagation();openDrawer('${p.id}')">View →</button>
-          <button class="view-btn card-comment-btn" onclick="event.stopPropagation();openDrawerToComment('${p.id}')" title="Comment">💬${(p.comment_count&&p.comment_count>0)?` <span style="font-size:11px">${p.comment_count}</span>`:''}</button>
-          <button class="share-x-btn" onclick="event.stopPropagation();shareX('${p.id}')" title="Share on X"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.264 5.633 5.9-5.633zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
-          <button class="share-fb-btn" onclick="event.stopPropagation();shareFb('${p.id}')" title="Share on Facebook"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></button>
-          <button class="bm-btn${p.bookmarked?' bm-active':''}" id="bm-${p.id}" onclick="event.stopPropagation();toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}">${p.bookmarked?BM_ICON_ON:BM_ICON_OFF}</button>
-          <button class="upvote-btn${p.voted?' voted':''}" id="ub-${p.id}" onclick="event.stopPropagation();upvote('${p.id}')">↑ <span id="uv-${p.id}">${p.upvotes}</span></button>
+          <div class="card-footer-left">
+            <button class="card-stat-btn" onclick="event.stopPropagation();openDrawerToComment('${p.id}')" title="Comments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>${(p.comment_count&&p.comment_count>0)?` ${p.comment_count}`:' 0'}</button>
+            <button class="share-x-btn" onclick="event.stopPropagation();shareX('${p.id}')" title="Share on X"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.264 5.633 5.9-5.633zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
+            <button class="share-fb-btn" onclick="event.stopPropagation();shareFb('${p.id}')" title="Share on Facebook"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></button>
+          </div>
+          <div class="card-footer-right">
+            <button class="bm-btn${p.bookmarked?' bm-active':''}" id="bm-${p.id}" onclick="event.stopPropagation();toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}">${p.bookmarked?BM_ICON_ON:BM_ICON_OFF}</button>
+            <button class="upvote-btn${p.voted?' voted':''}" id="ub-${p.id}" onclick="event.stopPropagation();upvote('${p.id}')">↑ <span id="uv-${p.id}">${p.upvotes}</span></button>
+          </div>
         </div>
       </div>
     </div>`).join('');
@@ -2166,6 +2179,16 @@ function fmtForumDate(iso) {
   if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
   if (diff < 604800) return Math.floor(diff/86400) + 'd ago';
   return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+function fmtCardDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 2592000) return Math.floor(diff/86400) + 'd ago';
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year: d.getFullYear()!==now.getFullYear()?'numeric':undefined });
 }
 
 function forumAvatar(handle) {
