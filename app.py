@@ -1408,7 +1408,8 @@ def api_projects():
     selects = [
         'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count',
         'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost,view_count,click_count',
-        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost,view_count,click_count',
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost',
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost',
         'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost',
     ]
     for select in selects:
