@@ -513,11 +513,44 @@ def _apply_unsubscribe_migration():
         app.logger.info('email_unsubscribes table not found — run migrations/email_unsubscribes.sql in Supabase Dashboard')
 
 
+def _ensure_stats_columns():
+    """Try to add view_count and click_count columns at startup."""
+    try:
+        migrations = [
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS view_count integer default 0;",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS click_count integer default 0;",
+        ]
+        ok, msg = _apply_screenshot_migration.__wrapped__(migrations) if hasattr(_apply_screenshot_migration, '__wrapped__') else _apply_column_migrations(migrations)
+        app.logger.info('stats columns: %s', msg)
+    except Exception as ex:
+        app.logger.warning('stats columns migration check raised: %s', ex)
+
+
+def _apply_column_migrations(migrations):
+    results = []
+    for sql in migrations:
+        col = sql.split('ADD COLUMN IF NOT EXISTS ')[1].split(' ')[0]
+        if _column_exists(col):
+            results.append(f'{col}: already exists')
+            continue
+        ok, err = _run_migration_via_psycopg2(sql)
+        if ok:
+            results.append(f'{col}: applied via psycopg2')
+            continue
+        ok2, err2 = _run_migration_via_mgmt_api(sql)
+        if ok2:
+            results.append(f'{col}: applied via mgmt API')
+            continue
+        results.append(f'{col}: needs manual migration')
+    return (all('FAILED' not in r and 'needs' not in r for r in results)), '; '.join(results)
+
+
 def _startup_init():
     """Run once at startup: ensure storage bucket exists and verify screenshot column."""
     _ensure_storage_bucket()
     _ensure_screenshot_column()
     _apply_unsubscribe_migration()
+    _ensure_stats_columns()
 
 
 # Run startup tasks in a background thread so gunicorn boot stays fast
@@ -1355,8 +1388,8 @@ def api_projects():
         resp.headers['Cache-Control'] = 'public, max-age=60'
         return resp
     base_qs = '&status=eq.approved&order=upvotes.desc'
-    select_with = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost'
-    select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost'
+    select_with = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count'
+    select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost,view_count,click_count'
     select_bare = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost'
     for select in (select_with, select_without, select_bare):
         endpoint = (SUPABASE_URL.rstrip('/') +
@@ -1507,6 +1540,52 @@ def get_project_upvote_count(project_id):
         return jsonify({'error': 'Could not fetch count'}), 502
     count = len(rows) if rows else 0
     return jsonify({'count': count})
+
+
+_view_seen = set()
+_click_seen = set()
+_stats_lock = threading.Lock()
+
+
+def _increment_stat(project_id, column, seen_set):
+    """Atomically-ish increment a stats column. Returns (ok, dedup)."""
+    if not _UUID_RE.match(project_id):
+        return False, False
+    key = f"{request.remote_addr}:{project_id}"
+    with _stats_lock:
+        if key in seen_set:
+            return True, True
+        seen_set.add(key)
+        if len(seen_set) > 50000:
+            seen_set.clear()
+    rows, err = _sb_service_request('GET', f'projects?select={column}&id=eq.{project_id}&limit=1')
+    if err or not rows:
+        return False, False
+    current = (rows[0].get(column) or 0)
+    result, err2 = _sb_service_request('PATCH', f'projects?id=eq.{project_id}', {column: current + 1})
+    if err2:
+        with _stats_lock:
+            seen_set.discard(key)
+        return False, False
+    return True, False
+
+
+@app.route('/api/projects/<project_id>/view', methods=['POST'])
+def track_project_view(project_id):
+    """Increment view_count for a project. Deduplicated per IP+project."""
+    ok, dedup = _increment_stat(project_id, 'view_count', _view_seen)
+    if not ok:
+        return jsonify({'ok': False}), 400 if not _UUID_RE.match(project_id) else 502
+    return jsonify({'ok': True, 'dedup': dedup})
+
+
+@app.route('/api/projects/<project_id>/click', methods=['POST'])
+def track_project_click(project_id):
+    """Increment click_count for a project. Deduplicated per IP+project."""
+    ok, dedup = _increment_stat(project_id, 'click_count', _click_seen)
+    if not ok:
+        return jsonify({'ok': False}), 400 if not _UUID_RE.match(project_id) else 502
+    return jsonify({'ok': True, 'dedup': dedup})
 
 
 @app.route('/api/projects/<project_id>/comments')

@@ -64,7 +64,14 @@ Run `migrations/forum.sql` in the Supabase Dashboard > SQL Editor to enable the 
 - All notification emails include an unsubscribe footer link via `_unsubscribe_footer(email)`
 - HMAC tokens are generated using `FLASK_SECRET_KEY`
 
+## Project Statistics
+- `view_count` — incremented when a user opens a project drawer (deduplicated per session + server-side per IP)
+- `click_count` — incremented when a user clicks "View Project" demo link (same deduplication)
+- Displayed on project cards (eye icon + count) and in the drawer info-grid (Views + Demo Clicks)
+- POST endpoints: `/api/projects/<id>/view` and `/api/projects/<id>/click`
+
 ## Migrations
 - `migrations/bookmarks.sql` — bookmarks table + RLS
 - `migrations/forum.sql` — forum tables + RLS (run in Supabase dashboard)
 - `migrations/email_unsubscribes.sql` — email unsubscribe list + RLS (run in Supabase dashboard)
+- `migrations/project_stats.sql` — view_count + click_count columns on projects (run in Supabase dashboard)
