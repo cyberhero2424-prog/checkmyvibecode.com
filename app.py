@@ -264,7 +264,30 @@ def _inject_project_og(html, project, project_url):
         html, count=1
     )
 
-    # Prepend OG/Twitter title+description overrides and canonical link
+    screenshot = project.get('screenshot_url', '') or ''
+    if screenshot and screenshot.startswith(('http://', 'https://')):
+        safe_img = html_module.escape(screenshot)
+        html = re.sub(
+            r'<meta property="og:image" content="[^"]*">',
+            f'<meta property="og:image" content="{safe_img}">',
+            html, count=1
+        )
+        html = re.sub(
+            r'<meta name="twitter:image" content="[^"]*">',
+            f'<meta name="twitter:image" content="{safe_img}">',
+            html, count=1
+        )
+        html = re.sub(
+            r'<meta property="og:image:alt" content="[^"]*">',
+            f'<meta property="og:image:alt" content="{safe_title}">',
+            html, count=1
+        )
+        html = re.sub(
+            r'<meta name="twitter:image:alt" content="[^"]*">',
+            f'<meta name="twitter:image:alt" content="{safe_title}">',
+            html, count=1
+        )
+
     og_tags = (
         f'<link rel="canonical" href="{safe_url}">\n'
         f'<meta property="og:title" content="{safe_title}">\n'
