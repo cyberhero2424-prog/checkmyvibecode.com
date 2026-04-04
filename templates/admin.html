@@ -244,13 +244,14 @@
           {% if p.idea %}
           <div class="tools"><b>Idea:</b> {{ p.idea }}</div>
           {% endif %}
-          {% if p.build_time or p.cost %}
-          <div class="tools">
-            {% if p.build_time %}<b>Build time:</b> {{ p.build_time }}{% endif %}
-            {% if p.build_time and p.cost %} &nbsp;·&nbsp; {% endif %}
-            {% if p.cost %}<b>Cost:</b> {{ p.cost }}{% endif %}
+          <div class="tools" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <b>⏱ Build time:</b>
+            <input type="text" value="{{ p.build_time or '' }}" placeholder="e.g. 3 hours" style="padding:3px 7px;border-radius:5px;border:1px solid #444;background:#1a1a1a;color:#eee;font-size:12px;width:110px" id="bt_{{ p.id }}">
+            <b>💸 Cost:</b>
+            <input type="text" value="{{ p.cost or '' }}" placeholder="e.g. $0.50" style="padding:3px 7px;border-radius:5px;border:1px solid #444;background:#1a1a1a;color:#eee;font-size:12px;width:100px" id="co_{{ p.id }}">
+            <button onclick="saveProjectDetails('{{ p.id }}')" style="padding:3px 10px;border-radius:5px;border:none;background:#22c55e;color:#fff;font-size:12px;cursor:pointer;font-weight:600">Save</button>
+            <span id="pd_msg_{{ p.id }}" style="font-size:11px;color:#22c55e;display:none">✓ Saved</span>
           </div>
-          {% endif %}
           {% if p.tools %}
           <div class="tools"><b>Tools:</b> {{ p.tools | join(', ') }}</div>
           {% endif %}
@@ -329,6 +330,28 @@ async function togglePin(btn, projectId, currentlyFeatured) {
     alert('Request failed: ' + e);
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function saveProjectDetails(projectId) {
+  const buildTime = document.getElementById('bt_' + projectId).value.trim();
+  const cost = document.getElementById('co_' + projectId).value.trim();
+  const msgEl = document.getElementById('pd_msg_' + projectId);
+  try {
+    const resp = await fetch('/admin/update-project-details', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: projectId, build_time: buildTime, cost: cost }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      msgEl.style.display = 'inline';
+      setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
+    } else {
+      alert('Could not save: ' + (data.error || 'unknown error'));
+    }
+  } catch(e) {
+    alert('Request failed: ' + e);
   }
 }
 </script>

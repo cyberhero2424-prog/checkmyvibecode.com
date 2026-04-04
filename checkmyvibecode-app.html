@@ -997,8 +997,8 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
     <div class="fgroup"><label class="flabel">Short description *</label><textarea class="ftextarea" id="f_desc" placeholder="What does it do?"></textarea></div>
     <div class="fgroup"><label class="flabel">The idea behind it</label><textarea class="ftextarea" id="f_idea" placeholder="What problem does it solve?"></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="fgroup"><label class="flabel">Build time</label><input class="finput" id="f_time" placeholder="e.g. 3 hours"></div>
-      <div class="fgroup"><label class="flabel">Approx. cost</label><input class="finput" id="f_cost" placeholder="e.g. $0.50 in API"></div>
+      <div class="fgroup"><label class="flabel">Build time <span style="color:#ef4444">*</span></label><input class="finput" id="f_time" placeholder="e.g. 3 hours" required></div>
+      <div class="fgroup"><label class="flabel">Approx. cost <span style="color:#ef4444">*</span></label><input class="finput" id="f_cost" placeholder="e.g. $0 (free) or $2.50 in API" required></div>
     </div>
     <div class="fgroup"><label class="flabel">Demo link</label><input class="finput" id="f_demo" placeholder="https://myapp.vercel.app"></div>
     <div class="fgroup"><label class="flabel">Category</label><select class="fselect" id="f_cat"><option value="app">App</option><option value="game">Game</option><option value="tool">Tool</option><option value="website">Website</option></select></div>
@@ -2512,7 +2512,10 @@ function toggleTool(btn,name) { btn.classList.toggle('on'); btn.classList.contai
 async function submitProject() {
   const name = document.getElementById('f_name').value.trim();
   const desc = document.getElementById('f_desc').value.trim();
+  const buildTime = document.getElementById('f_time').value.trim();
+  const cost = document.getElementById('f_cost').value.trim();
   if (!name || !desc) { alert('Please fill in name and description!'); return; }
+  if (!buildTime || !cost) { alert('Please fill in Build time and Approx. cost — these help other builders learn from your project!'); document.getElementById(!buildTime?'f_time':'f_cost').focus(); return; }
   if (!currentUser) { closeSubmit(); openAuth(); return; }
   const submitBtn = document.querySelector('#submitModal .btn-primary');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }

@@ -9,7 +9,7 @@ import time
 import urllib.parse
 import urllib.request
 from collections import defaultdict
-from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template
+from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template, jsonify
 from flask_compress import Compress
 from dotenv import load_dotenv
 from whitenoise import WhiteNoise
@@ -817,6 +817,30 @@ def admin_action():
         session['flash_type'] = 'ok'
 
     return redirect(url_for('admin', tab=tab))
+
+
+@app.route('/admin/update-project-details', methods=['POST'])
+def admin_update_project_details():
+    if not _admin_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    project_id = data.get('id', '').strip()
+    if not _valid_uuid(project_id):
+        return jsonify({'error': 'Invalid project id'}), 400
+    updates = {}
+    if 'build_time' in data:
+        val = (data['build_time'] or '').strip()[:200]
+        updates['build_time'] = val or None
+    if 'cost' in data:
+        val = (data['cost'] or '').strip()[:200]
+        updates['cost'] = val or None
+    if not updates:
+        return jsonify({'error': 'Nothing to update'}), 400
+    resp = _sb_service_request('PATCH', f'/rest/v1/projects?id=eq.{project_id}', json=updates)
+    if not resp or resp.status_code not in (200, 204):
+        return jsonify({'error': 'Update failed'}), 500
+    _cache_delete('projects')
+    return jsonify({'ok': True})
 
 
 # ── Email notification helper ─────────────────────────────────────────────────
