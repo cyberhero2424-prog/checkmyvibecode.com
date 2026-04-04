@@ -938,17 +938,21 @@ def _get_project_owner(project_id):
 _upvote_notify_timestamps: dict = {}
 _upvote_notify_lock = threading.Lock()
 
-def _check_upvote_throttle(project_id, throttle_secs=3600):
-    """Return True if enough time has passed since last upvote email for this project."""
+def _claim_upvote_throttle(project_id, throttle_secs=3600):
+    """Atomically check and claim throttle slot. Returns True if claimed.
+    Sets timestamp immediately to prevent concurrent threads from also claiming."""
     now = time.monotonic()
     with _upvote_notify_lock:
         last = _upvote_notify_timestamps.get(project_id, 0)
-        return now - last >= throttle_secs
+        if now - last < throttle_secs:
+            return False
+        _upvote_notify_timestamps[project_id] = now
+        return True
 
-def _record_upvote_email_sent(project_id):
-    """Record that an upvote email was successfully sent."""
+def _release_upvote_throttle(project_id):
+    """Release throttle slot if send failed, so next upvote can retry."""
     with _upvote_notify_lock:
-        _upvote_notify_timestamps[project_id] = time.monotonic()
+        _upvote_notify_timestamps.pop(project_id, None)
 
 
 def _notify_project_approved(project_id, project_name, author_handle):
@@ -1011,14 +1015,16 @@ def _notify_new_comment(project_id, commenter_handle, comment_body):
 
 def _notify_new_upvote(project_id, upvote_count):
     """Send 'new upvote' email to the project owner. Throttled. Run in background thread."""
-    if not _check_upvote_throttle(project_id):
+    if not _claim_upvote_throttle(project_id):
         return
     def _do():
         proj_name, owner_handle = _get_project_owner(project_id)
         if not proj_name or not owner_handle:
+            _release_upvote_throttle(project_id)
             return
         email = _resolve_handle_to_email(owner_handle)
         if not email:
+            _release_upvote_throttle(project_id)
             return
         site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
         project_url = f"{site_url}/p/{project_id}"
@@ -1034,9 +1040,8 @@ def _notify_new_upvote(project_id, upvote_count):
             subject=f'Your project "{proj_name}" got upvoted! ({upvote_count} total) — CheckMyVibeCode',
             text_body=body,
         )
-        if ok:
-            _record_upvote_email_sent(project_id)
-        else:
+        if not ok:
+            _release_upvote_throttle(project_id)
             app.logger.warning('Upvote notification email failed for %s: %s', owner_handle, err)
     threading.Thread(target=_do, daemon=True).start()
 
