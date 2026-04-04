@@ -520,7 +520,7 @@ def _ensure_stats_columns():
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS view_count integer default 0;",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS click_count integer default 0;",
         ]
-        ok, msg = _apply_screenshot_migration.__wrapped__(migrations) if hasattr(_apply_screenshot_migration, '__wrapped__') else _apply_column_migrations(migrations)
+        ok, msg = _apply_column_migrations(migrations)
         app.logger.info('stats columns: %s', msg)
     except Exception as ex:
         app.logger.warning('stats columns migration check raised: %s', ex)
@@ -1388,10 +1388,13 @@ def api_projects():
         resp.headers['Cache-Control'] = 'public, max-age=60'
         return resp
     base_qs = '&status=eq.approved&order=upvotes.desc'
-    select_with = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count'
-    select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost,view_count,click_count'
-    select_bare = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost'
-    for select in (select_with, select_without, select_bare):
+    selects = [
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count',
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost,view_count,click_count',
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost,view_count,click_count',
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost',
+    ]
+    for select in selects:
         endpoint = (SUPABASE_URL.rstrip('/') +
                     f'/rest/v1/projects?select={select}{base_qs}')
         req = urllib.request.Request(endpoint, headers={
@@ -1548,7 +1551,7 @@ _stats_lock = threading.Lock()
 
 
 def _increment_stat(project_id, column, seen_set):
-    """Atomically-ish increment a stats column. Returns (ok, dedup)."""
+    """Atomically increment a stats column via RPC. Returns (ok, dedup)."""
     if not _UUID_RE.match(project_id):
         return False, False
     key = f"{request.remote_addr}:{project_id}"
@@ -1558,12 +1561,9 @@ def _increment_stat(project_id, column, seen_set):
         seen_set.add(key)
         if len(seen_set) > 50000:
             seen_set.clear()
-    rows, err = _sb_service_request('GET', f'projects?select={column}&id=eq.{project_id}&limit=1')
-    if err or not rows:
-        return False, False
-    current = (rows[0].get(column) or 0)
-    result, err2 = _sb_service_request('PATCH', f'projects?id=eq.{project_id}', {column: current + 1})
-    if err2:
+    rpc_name = f'increment_{column}'
+    result, err = _sb_service_request('POST', f'rpc/{rpc_name}', {'p_id': project_id})
+    if err:
         with _stats_lock:
             seen_set.discard(key)
         return False, False
