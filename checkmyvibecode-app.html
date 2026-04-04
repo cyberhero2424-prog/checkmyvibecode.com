@@ -1482,6 +1482,8 @@ const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 const _preloaderStart = Date.now();
 const _preloaderMinMs = 1500;
 function hidePreloader() {
+  var ssrEl = document.getElementById('ssr-content');
+  if (ssrEl) ssrEl.remove();
   const el = document.getElementById('preloader');
   if (!el || el.classList.contains('hidden')) return;
   const wait = Math.max(0, _preloaderMinMs - (Date.now() - _preloaderStart));

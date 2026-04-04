@@ -362,11 +362,7 @@ def _inject_ssr_content(html, ssr_html, jsonld_script='', use_noscript=False):
     if use_noscript:
         ssr_block = f'<noscript>{ssr_html}</noscript>'
     else:
-        ssr_block = (
-            f'<style>#ssr-content{{display:none}}</style>'
-            f'<noscript><style>#ssr-content{{display:block}}</style></noscript>'
-            f'<div id="ssr-content">{ssr_html}</div>'
-        )
+        ssr_block = f'<div id="ssr-content">{ssr_html}</div>'
     if jsonld_script:
         ssr_block = jsonld_script + '\n' + ssr_block
     html = html.replace('</body>', ssr_block + '\n</body>', 1)
