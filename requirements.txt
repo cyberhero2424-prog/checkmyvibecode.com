@@ -5,3 +5,4 @@ gunicorn>=21.2.0
 Pillow
 whitenoise[brotli]
 psycopg2-binary>=2.9
+requests>=2.31

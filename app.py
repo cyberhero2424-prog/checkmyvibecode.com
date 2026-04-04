@@ -10,6 +10,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+import requests as _requests_lib
 from collections import defaultdict
 from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template, jsonify
 from flask_compress import Compress
@@ -884,26 +885,23 @@ def _send_resend_email(to, subject, text_body):
     """Send a plain-text email via Resend API. Returns (ok, error_msg)."""
     if not RESEND_API_KEY:
         return False, 'RESEND_API_KEY not configured'
-    payload = json.dumps({
-        'from': 'CheckMyVibeCode <noreply@checkmyvibecode.com>',
-        'to': [to],
-        'subject': subject,
-        'text': text_body,
-    }).encode()
-    req = urllib.request.Request(
-        'https://api.resend.com/emails',
-        data=payload,
-        headers={
-            'Authorization': f'Bearer {RESEND_API_KEY}',
-            'Content-Type': 'application/json',
-        },
-        method='POST',
-    )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status < 300, None
-    except urllib.error.HTTPError as e:
-        return False, f'HTTP {e.code}: {e.read().decode()[:200]}'
+        resp = _requests_lib.post(
+            'https://api.resend.com/emails',
+            json={
+                'from': 'CheckMyVibeCode <contact@checkmyvibecode.com>',
+                'to': [to],
+                'subject': subject,
+                'text': text_body,
+            },
+            headers={
+                'Authorization': f'Bearer {RESEND_API_KEY}',
+            },
+            timeout=15,
+        )
+        if resp.status_code < 300:
+            return True, None
+        return False, f'HTTP {resp.status_code}: {resp.text[:200]}'
     except Exception as ex:
         return False, str(ex)
 
