@@ -156,6 +156,38 @@ def serve_app():
         html = f.read()
     base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
     html = html.replace('__BASE_URL__', base_url)
+
+    try:
+        projects = _fetch_approved_projects()
+        if projects:
+            ssr_parts = ['<h1>CheckMyVibeCode — AI-Built Projects</h1>',
+                         '<p>The community for AI-built projects. Showcase your vibe-coded creations, collect upvotes and feedback.</p>']
+            for p in projects[:50]:
+                p_url = base_url + '/p/' + urllib.parse.quote(str(p.get('id', '')), safe='')
+                ssr_parts.append(_ssr_project_block(p, p_url))
+
+            item_list = []
+            for i, p in enumerate(projects[:50]):
+                p_url = base_url + '/p/' + urllib.parse.quote(str(p.get('id', '')), safe='')
+                item_list.append({
+                    "@type": "ListItem",
+                    "position": i + 1,
+                    "url": p_url,
+                    "name": p.get('name', '')
+                })
+            home_ld = json.dumps({
+                "@context": "https://schema.org",
+                "@type": "ItemList",
+                "name": "AI-Built Projects on CheckMyVibeCode",
+                "description": "Community-curated list of projects built with AI tools like Claude, Cursor, GPT, Bolt, and more.",
+                "numberOfItems": len(item_list),
+                "itemListElement": item_list
+            }, ensure_ascii=False).replace('</', '<\\/')
+            jsonld = f'<script type="application/ld+json">{home_ld}</script>'
+            html = _inject_ssr_content(html, '\n'.join(ssr_parts), jsonld)
+    except Exception:
+        pass
+
     html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
@@ -163,14 +195,16 @@ def serve_app():
     return resp
 
 def _fetch_project(project_id):
-    """Fetch a single project from Supabase REST API (for OG tag injection)."""
+    """Fetch a single project from Supabase REST API (for OG/SSR injection)."""
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         return None
     try:
         safe_id = urllib.parse.quote(str(project_id), safe='')
         for select in (
+            'id,name,description,emoji,author,cat,screenshot_url,demo,tools,upvotes,build_time,cost,created_at,score',
+            'id,name,description,emoji,author,cat,demo,tools,upvotes,build_time,cost,created_at,score',
             'id,name,description,emoji,author,cat,screenshot_url',
-            'id,name,description,emoji,author,cat',  # fallback if column missing
+            'id,name,description,emoji,author,cat',
         ):
             api_url = (
                 f"{SUPABASE_URL}/rest/v1/projects"
@@ -240,6 +274,129 @@ def _inject_project_og(html, project, project_url):
     )
     html = html.replace('<head>', '<head>\n' + og_tags, 1)
     return html
+
+
+def _project_jsonld(project, project_url):
+    """Generate JSON-LD structured data for a project (Schema.org SoftwareApplication)."""
+    esc = html_module.escape
+    name = project.get('name', '') or ''
+    desc = project.get('description', '') or ''
+    author = project.get('author', '') or ''
+    demo = project.get('demo', '') or ''
+    tools = project.get('tools') or []
+    upvotes = project.get('upvotes', 0) or 0
+    created = project.get('created_at', '') or ''
+    screenshot = project.get('screenshot_url', '') or ''
+
+    ld = {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": name,
+        "description": desc,
+        "url": project_url,
+        "applicationCategory": "WebApplication",
+        "author": {
+            "@type": "Person",
+            "name": author.lstrip('@')
+        },
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": str(min(5, max(1, round(upvotes * 0.5 + 1, 1)))),
+            "ratingCount": str(max(1, upvotes)),
+            "bestRating": "5"
+        }
+    }
+    if demo:
+        ld["installUrl"] = demo
+    if screenshot:
+        ld["image"] = screenshot
+    if created and len(created) >= 10:
+        ld["datePublished"] = created[:10]
+    if tools:
+        ld["keywords"] = ', '.join(tools) + ', AI, vibe coding'
+    return json.dumps(ld, ensure_ascii=False).replace('</', '<\\/')
+
+
+def _ssr_project_block(project, project_url):
+    """Render an SSR HTML block for a single project (visible to crawlers)."""
+    esc = html_module.escape
+    name = esc(project.get('name', '') or '')
+    desc = esc(project.get('description', '') or '')
+    author = esc(project.get('author', '') or '')
+    tools = project.get('tools') or []
+    upvotes = project.get('upvotes', 0) or 0
+    demo = project.get('demo', '') or ''
+    build_time = esc(project.get('build_time', '') or '')
+    cost = esc(project.get('cost', '') or '')
+    cat = esc(project.get('cat', '') or '')
+    emoji = esc(project.get('emoji', '') or '')
+
+    tools_html = ' '.join(f'<span>{esc(t)}</span>' for t in tools)
+    demo_html = f'<p><a href="{esc(demo)}">View Project</a></p>' if demo else ''
+
+    return (
+        f'<article itemscope itemtype="https://schema.org/SoftwareApplication">'
+        f'<h2 itemprop="name">{emoji} {name}</h2>'
+        f'<p itemprop="description">{desc}</p>'
+        f'<p>By <span itemprop="author">{author}</span></p>'
+        f'<p>Category: {cat} | Upvotes: {upvotes}</p>'
+        f'{f"<p>Build time: {build_time}</p>" if build_time else ""}'
+        f'{f"<p>Cost: {cost}</p>" if cost else ""}'
+        f'<p>Tools: {tools_html}</p>'
+        f'{demo_html}'
+        f'<a href="{esc(project_url)}">Details</a>'
+        f'</article>'
+    )
+
+
+def _inject_ssr_content(html, ssr_html, jsonld_script=''):
+    """Inject SSR HTML block (noscript) and JSON-LD into the page for crawlers."""
+    ssr_block = f'<noscript>{ssr_html}</noscript>'
+    if jsonld_script:
+        ssr_block = jsonld_script + '\n' + ssr_block
+    html = html.replace('</body>', ssr_block + '\n</body>', 1)
+    return html
+
+
+def _fetch_approved_projects():
+    """Fetch all approved projects for SSR/sitemap (cached via _cache_get)."""
+    cached, hit = _cache_get('ssr_projects')
+    if hit:
+        return json.loads(cached)
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return []
+    for select in (
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,screenshot_url,build_time,cost,score',
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,build_time,cost,score',
+        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at',
+    ):
+        try:
+            raw, err = _sb_get('projects', f'status=eq.approved&select={select}&order=upvotes.desc&limit=50')
+            if raw and not err:
+                rows = json.loads(raw)
+                _cache_set('ssr_projects', json.dumps(rows).encode(), ttl=60)
+                return rows
+        except Exception:
+            continue
+    return []
+
+
+def _fetch_profile_projects(handle):
+    """Fetch approved projects for a user handle."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return []
+    try:
+        safe_h = urllib.parse.quote(str(handle), safe='')
+        for select in (
+            'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,screenshot_url,build_time,cost',
+            'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at',
+        ):
+            raw, err = _sb_get('projects', f'author=eq.{safe_h}&status=eq.approved&select={select}&order=upvotes.desc')
+            if raw and not err:
+                return json.loads(raw)
+    except Exception:
+        pass
+    return []
 
 
 # ── Supabase admin helpers (use service key — bypasses RLS) ───────────────────
@@ -620,6 +777,7 @@ def user_profile(handle):
     base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
     html = html.replace('__BASE_URL__', base_url)
     stats = _fetch_profile_stats(db_handle)
+    profile_url = base_url + '/u/' + urllib.parse.quote(bare_handle, safe='')
     title = f"{db_handle} — CheckMyVibeCode"
     if stats is not None:
         desc = f"{stats['builds']} build{'s' if stats['builds'] != 1 else ''} · {stats['upvotes']} upvotes on CheckMyVibeCode"
@@ -631,10 +789,33 @@ def user_profile(handle):
     og_tags = (
         f'<meta property="og:title" content="{safe_t}">\n'
         f'<meta property="og:description" content="{safe_d}">\n'
+        f'<meta name="description" content="{safe_d}">\n'
+        f'<link rel="canonical" href="{html_module.escape(profile_url)}">\n'
         f'<meta name="twitter:title" content="{safe_t}">\n'
         f'<meta name="twitter:description" content="{safe_d}">\n'
     )
     html = html.replace('<head>', '<head>\n' + og_tags, 1)
+
+    projects = _fetch_profile_projects(db_handle)
+    if projects:
+        ssr_parts = [f'<h1>{html_module.escape(db_handle)} on CheckMyVibeCode</h1>']
+        for p in projects:
+            p_url = base_url + '/p/' + urllib.parse.quote(str(p.get('id', '')), safe='')
+            ssr_parts.append(_ssr_project_block(p, p_url))
+        profile_ld = json.dumps({
+            "@context": "https://schema.org",
+            "@type": "ProfilePage",
+            "name": title,
+            "url": profile_url,
+            "mainEntity": {
+                "@type": "Person",
+                "name": bare_handle,
+                "url": profile_url
+            }
+        }, ensure_ascii=False).replace('</', '<\\/')
+        jsonld = f'<script type="application/ld+json">{profile_ld}</script>'
+        html = _inject_ssr_content(html, '\n'.join(ssr_parts), jsonld)
+
     html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
@@ -652,6 +833,9 @@ def project_detail(project_id):
     if project:
         project_url = base_url + '/p/' + urllib.parse.quote(str(project_id), safe='')
         html = _inject_project_og(html, project, project_url)
+        ssr_html = _ssr_project_block(project, project_url)
+        jsonld = f'<script type="application/ld+json">{_project_jsonld(project, project_url)}</script>'
+        html = _inject_ssr_content(html, ssr_html, jsonld)
     html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
@@ -1997,25 +2181,43 @@ def sitemap():
     # Homepage (highest priority)
     urls.append({'loc': base_url + '/', 'changefreq': 'daily', 'priority': '1.0'})
 
-    # All approved projects
+    # All approved projects + collect unique authors for profile pages
+    authors = {}
     try:
-        raw, err = _sb_get('projects', 'status=eq.approved&select=id,updated_at')
-        if raw and not err:
-            rows = json.loads(raw)
+        rows = None
+        for sel in ('id,created_at,author', 'id,author'):
+            raw, err = _sb_get('projects', f'status=eq.approved&select={sel}')
+            if raw and not err:
+                rows = json.loads(raw)
+                break
+        if rows:
             for row in rows:
                 pid = str(row.get('id', ''))
                 if not pid:
                     continue
                 loc = base_url + '/p/' + urllib.parse.quote(pid, safe='')
-                # updated_at may be "2024-01-15T10:30:00+00:00" — take date part only
-                raw_ts = row.get('updated_at') or ''
+                raw_ts = row.get('created_at') or ''
                 lastmod = raw_ts[:10] if len(raw_ts) >= 10 else ''
                 entry = {'loc': loc, 'changefreq': 'weekly', 'priority': '0.7'}
                 if lastmod:
                     entry['lastmod'] = lastmod
                 urls.append(entry)
+                author = row.get('author', '') or ''
+                if author:
+                    if author not in authors or (lastmod and lastmod > authors[author]):
+                        authors[author] = lastmod
     except Exception:
-        pass  # if Supabase is unavailable, serve homepage-only sitemap
+        pass
+
+    for author, lastmod in authors.items():
+        bare = author.lstrip('@')
+        if not bare:
+            continue
+        loc = base_url + '/u/' + urllib.parse.quote(bare, safe='')
+        entry = {'loc': loc, 'changefreq': 'weekly', 'priority': '0.5'}
+        if lastmod:
+            entry['lastmod'] = lastmod
+        urls.append(entry)
 
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']

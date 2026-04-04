@@ -70,6 +70,13 @@ Run `migrations/forum.sql` in the Supabase Dashboard > SQL Editor to enable the 
 - Displayed on project cards (eye icon + count) and in the drawer info-grid (Views + Demo Clicks)
 - POST endpoints: `/api/projects/<id>/view` and `/api/projects/<id>/click`
 
+## SEO & Structured Data
+- **JSON-LD**: SoftwareApplication schema on project pages, ItemList on homepage, ProfilePage on profile pages
+- **SSR**: Noscript blocks with project data injected server-side for search engine crawlers
+- **Sitemap**: Dynamic XML sitemap includes homepage, all approved project pages (`/p/<id>`), and all author profile pages (`/u/<handle>`) with lastmod dates
+- **Meta tags**: OG/Twitter tags on project + profile pages; canonical URL + description meta on profile pages
+- **XSS protection**: All JSON-LD output escaped with `</ → <\/` to prevent script injection
+
 ## Migrations
 - `migrations/bookmarks.sql` — bookmarks table + RLS
 - `migrations/forum.sql` — forum tables + RLS (run in Supabase dashboard)
