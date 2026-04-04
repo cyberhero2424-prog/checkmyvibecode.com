@@ -1106,9 +1106,9 @@ def api_projects():
         resp.headers['Cache-Control'] = 'public, max-age=60'
         return resp
     base_qs = '&status=eq.approved&order=upvotes.desc'
-    select_with = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured'
-    select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url'
-    select_bare = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score'
+    select_with = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost'
+    select_without = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost'
+    select_bare = 'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost'
     for select in (select_with, select_without, select_bare):
         endpoint = (SUPABASE_URL.rstrip('/') +
                     f'/rest/v1/projects?select={select}{base_qs}')
