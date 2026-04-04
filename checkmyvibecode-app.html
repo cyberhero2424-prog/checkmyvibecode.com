@@ -226,7 +226,9 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .sp-ok    { background:var(--amber-bg); color:var(--amber); border:1px solid rgba(180,83,9,.15); }
 .sp-bad   { background:var(--red-bg);   color:var(--red);   border:1px solid rgba(220,38,38,.15); }
 .card-desc { font-size:13px; color:var(--muted2); line-height:1.5; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:14px; }
+.card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+.card-meta-row { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:10px; }
+.card-meta-dot { color:var(--muted); opacity:.5; }
 .tag { padding:2px 7px; border-radius:4px; font-size:11px; font-weight:500; font-family:var(--mono); }
 .t-claude{background:var(--green-bg);color:var(--green)} .t-cursor{background:var(--blue-bg);color:var(--blue)} .t-gpt{background:#d1fae5;color:#065f46} .t-bolt{background:var(--amber-bg);color:var(--amber)} .t-v0{background:var(--surface3);color:var(--muted2)} .t-lovable{background:var(--purple-bg);color:var(--purple)} .t-replit{background:#fff0e6;color:#f26400} .t-gemini{background:#e8f0fe;color:#1a73e8} .t-windsurf{background:#eef2ff;color:#4f46e5} .t-copilot{background:#e0f4ff;color:#0369a1} .t-perplexity{background:#e0faf7;color:#0d9488} .t-canva{background:#fce7f3;color:#be185d} .t-grok{background:#f0fdf4;color:#15803d} .t-mistral{background:#fef3c7;color:#b45309} .t-cat{background:var(--surface2);color:var(--muted2);text-transform:capitalize}
 .card-footer { display:flex; align-items:center; gap:6px; padding-top:12px; border-top:1px solid var(--border); }
@@ -1649,6 +1651,7 @@ function renderProjects() {
           ${(p.tools||[]).map(t=>`<span class="tag ${tagClass(t)}">${highlight(t,q)}</span>`).join('')}
           <span class="tag t-cat">${p.cat}</span>
         </div>
+        ${(p.buildTime||p.build_time||p.cost)?`<div class="card-meta-row">${(p.buildTime||p.build_time)?`<span>⏱ ${esc(p.buildTime||p.build_time)}</span>`:''}${(p.buildTime||p.build_time)&&p.cost?`<span class="card-meta-dot">·</span>`:''}${p.cost?`<span>💸 ${esc(p.cost)}</span>`:''}</div>`:''}
         <div class="card-footer">
           <div class="card-author">by <button class="author-link" data-author="${escAttr(p.author)}"><strong>${highlight(p.author,q)}</strong></button></div>
           <button class="view-btn" onclick="event.stopPropagation();openDrawer('${p.id}')">View →</button>
