@@ -825,7 +825,7 @@ def admin_update_project_details():
         return jsonify({'error': 'Unauthorized'}), 401
     data = request.get_json(silent=True) or {}
     project_id = data.get('id', '').strip()
-    if not _valid_uuid(project_id):
+    if not _UUID_RE.match(project_id):
         return jsonify({'error': 'Invalid project id'}), 400
     updates = {}
     if 'build_time' in data:
