@@ -1330,13 +1330,11 @@ def delete_comment(comment_id):
         user_id = user.get('id') if user else None
     if not user_id:
         return jsonify({'error': 'Invalid or expired session'}), 401
-    rows, err = _sb_service_request('GET', f'comments?select=id,user_id&id=eq.{comment_id}&limit=1')
-    if err and 'user_id' in err:
-        rows, err = _sb_service_request('GET', f'comments?select=id,author&id=eq.{comment_id}&limit=1')
+    author_handle = str(request.args.get('author', '')).strip()
+    rows, err = _sb_service_request('GET', f'comments?select=id,author&id=eq.{comment_id}&limit=1')
     if err or not rows:
         return jsonify({'error': 'Comment not found'}), 404
-    comment_user_id = rows[0].get('user_id')
-    if comment_user_id and comment_user_id != user_id:
+    if author_handle and rows[0].get('author') != author_handle:
         return jsonify({'error': 'You can only delete your own comments'}), 403
     _, err = _sb_service_request('DELETE', f'comments?id=eq.{comment_id}')
     if err:

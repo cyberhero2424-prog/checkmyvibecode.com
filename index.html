@@ -1815,9 +1815,9 @@ async function loadComments(projectId) {
 
 function renderComments(p) {
   if (!p.comments || !p.comments.length) return '<div style="color:var(--muted);font-size:13px;padding:8px 0">No comments yet — be the first!</div>';
-  const myId = currentUser?.id || '';
+  const myHandle = currentUser?.handle || '';
   return p.comments.map(c => {
-    const canDelete = myId && c.user_id && c.user_id === myId;
+    const canDelete = myHandle && c.author && c.author === myHandle;
     const deleteBtn = canDelete ? `<button onclick="deleteComment('${c.id}')" title="Delete" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px;margin-left:auto;opacity:.6;transition:opacity .15s" onmouseover="this.style.opacity='1';this.style.color='var(--red)'" onmouseout="this.style.opacity='.6';this.style.color='var(--muted)'" >✕</button>` : '';
     return `<div class="comment-item"><div class="c-avatar">${(c.author||'@?').slice(1,3).toUpperCase()}</div><div style="flex:1"><div class="c-meta" style="display:flex;align-items:center"><span><strong>${esc(c.author)}</strong> · ${c.time}</span>${deleteBtn}</div><div class="c-text">${esc(c.text)}</div></div></div>`;
   }).join('');
@@ -1828,7 +1828,7 @@ async function deleteComment(commentId) {
   if (!currentUser) return;
   const token = currentUser.accessToken || '';
   try {
-    const resp = await fetch('/api/comments/' + commentId, {
+    const resp = await fetch('/api/comments/' + commentId + '?author=' + encodeURIComponent(currentUser.handle || ''), {
       method: 'DELETE',
       headers: { 'Authorization': 'Bearer ' + token }
     });
