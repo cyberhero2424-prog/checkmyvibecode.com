@@ -126,6 +126,15 @@ def security_headers(resp):
     resp.headers['X-Frame-Options']         = 'DENY'
     resp.headers['Referrer-Policy']         = 'strict-origin-when-cross-origin'
     resp.headers['X-XSS-Protection']        = '1; mode=block'
+    resp.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: https: blob:; "
+        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://www.googletagmanager.com; "
+        "frame-src 'self'"
+    )
     return resp
 
 # ── URL validator ─────────────────────────────────────────────────────────────
