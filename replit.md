@@ -48,6 +48,15 @@ Run `migrations/forum.sql` in the Supabase Dashboard > SQL Editor to enable the 
 - `static/og-image.png` — 1200×630 OG image
 - `static/favicon-logo.png` — favicon + apple-touch-icon (the grid/checkmark logo)
 
+## Email Notifications (via Resend)
+- **Submission confirmation** — sent when user submits a project
+- **Approval notification** — sent when admin approves a project ("Your project is live!")
+- **Comment notification** — sent to project owner when someone comments (skips self-comments)
+- **Upvote notification** — sent to project owner on upvote (throttled: max 1/project/hour)
+- All emails are plain-text, sent from `noreply@checkmyvibecode.com` via Resend API
+- Helper `_resolve_handle_to_email()` maps author handles to emails via Supabase Auth admin API (cached 10min)
+- Helper `_get_project_owner()` looks up project name + author for a project_id
+
 ## Migrations
 - `migrations/bookmarks.sql` — bookmarks table + RLS
 - `migrations/forum.sql` — forum tables + RLS (run in Supabase dashboard)

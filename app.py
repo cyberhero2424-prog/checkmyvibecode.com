@@ -815,6 +815,10 @@ def admin_action():
         verb = 'approved' if new_status == 'approved' else 'rejected'
         session['flash_msg']  = f'Project {verb} successfully.'
         session['flash_type'] = 'ok'
+        if new_status == 'approved':
+            proj_name, author_handle = _get_project_owner(project_id)
+            if proj_name and author_handle:
+                _notify_project_approved(project_id, proj_name, author_handle)
 
     return redirect(url_for('admin', tab=tab))
 
@@ -871,6 +875,170 @@ def _send_resend_email(to, subject, text_body):
         return False, f'HTTP {e.code}: {e.read().decode()[:200]}'
     except Exception as ex:
         return False, str(ex)
+
+
+_email_cache: dict = {}
+_email_cache_lock = threading.Lock()
+
+def _resolve_handle_to_email(handle):
+    """Look up a user's email by their author handle (e.g. '@username').
+    Uses Supabase Auth admin API. Cached for 10 minutes."""
+    if not handle or not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return None
+    clean = handle.lstrip('@').lower()
+    if not clean:
+        return None
+    with _email_cache_lock:
+        entry = _email_cache.get(clean)
+        if entry and time.monotonic() < entry['exp']:
+            return entry['val']
+    try:
+        req = urllib.request.Request(
+            f"{SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000",
+            headers={
+                'apikey': SUPABASE_SERVICE_KEY,
+                'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        users = data.get('users', [])
+        for u in users:
+            email = u.get('email', '')
+            meta = u.get('user_metadata') or {}
+            app_meta = u.get('app_metadata') or {}
+            provider = app_meta.get('provider', '')
+            if provider == 'github' and meta.get('user_name'):
+                u_handle = str(meta['user_name']).lower()
+            elif email:
+                u_handle = email.split('@')[0].lower()
+            else:
+                u_handle = 'user_' + str(u.get('id', ''))[:8]
+            if u_handle == clean and email:
+                with _email_cache_lock:
+                    _email_cache[clean] = {'val': email, 'exp': time.monotonic() + 600}
+                return email
+        with _email_cache_lock:
+            _email_cache[clean] = {'val': None, 'exp': time.monotonic() + 300}
+        return None
+    except Exception as ex:
+        app.logger.warning('_resolve_handle_to_email error: %s', ex)
+        return None
+
+
+def _get_project_owner(project_id):
+    """Return (project_name, author_handle) for a project, or (None, None)."""
+    safe_id = urllib.parse.quote(str(project_id), safe='')
+    rows, err = _sb_service_request('GET', f'projects?select=name,author&id=eq.{safe_id}&limit=1')
+    if err or not rows:
+        return None, None
+    return rows[0].get('name'), rows[0].get('author')
+
+
+_upvote_notify_timestamps: dict = {}
+_upvote_notify_lock = threading.Lock()
+
+def _check_upvote_throttle(project_id, throttle_secs=3600):
+    """Return True if enough time has passed since last upvote email for this project."""
+    now = time.monotonic()
+    with _upvote_notify_lock:
+        last = _upvote_notify_timestamps.get(project_id, 0)
+        return now - last >= throttle_secs
+
+def _record_upvote_email_sent(project_id):
+    """Record that an upvote email was successfully sent."""
+    with _upvote_notify_lock:
+        _upvote_notify_timestamps[project_id] = time.monotonic()
+
+
+def _notify_project_approved(project_id, project_name, author_handle):
+    """Send 'your project is live' email to the project owner. Run in background thread."""
+    def _do():
+        email = _resolve_handle_to_email(author_handle)
+        if not email:
+            return
+        site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
+        project_url = f"{site_url}/p/{project_id}"
+        body = (
+            f"Hey {author_handle},\n\n"
+            f"Great news! Your project \"{project_name}\" has been approved "
+            f"and is now live on CheckMyVibeCode! \U0001f389\n\n"
+            f"Check it out: {project_url}\n\n"
+            f"Share it with the community to get upvotes and feedback.\n\n"
+            f"Questions? Reply to this email or reach us at contact@checkmyvibecode.com\n\n"
+            f"\u2014 The CheckMyVibeCode team\n"
+        )
+        ok, err = _send_resend_email(
+            to=email,
+            subject=f'Your project "{project_name}" is now live! — CheckMyVibeCode',
+            text_body=body,
+        )
+        if not ok:
+            app.logger.warning('Approval notification email failed for %s: %s', author_handle, err)
+    threading.Thread(target=_do, daemon=True).start()
+
+
+def _notify_new_comment(project_id, commenter_handle, comment_body):
+    """Send 'new comment' email to the project owner. Run in background thread."""
+    def _do():
+        proj_name, owner_handle = _get_project_owner(project_id)
+        if not proj_name or not owner_handle:
+            return
+        if owner_handle.lower() == commenter_handle.lower():
+            return
+        email = _resolve_handle_to_email(owner_handle)
+        if not email:
+            return
+        site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
+        project_url = f"{site_url}/p/{project_id}"
+        preview = comment_body[:200] + ('...' if len(comment_body) > 200 else '')
+        body = (
+            f"Hey {owner_handle},\n\n"
+            f"{commenter_handle} commented on your project \"{proj_name}\":\n\n"
+            f"\"{preview}\"\n\n"
+            f"See it here: {project_url}\n\n"
+            f"\u2014 The CheckMyVibeCode team\n"
+        )
+        ok, err = _send_resend_email(
+            to=email,
+            subject=f'{commenter_handle} commented on "{proj_name}" — CheckMyVibeCode',
+            text_body=body,
+        )
+        if not ok:
+            app.logger.warning('Comment notification email failed for %s: %s', owner_handle, err)
+    threading.Thread(target=_do, daemon=True).start()
+
+
+def _notify_new_upvote(project_id, upvote_count):
+    """Send 'new upvote' email to the project owner. Throttled. Run in background thread."""
+    if not _check_upvote_throttle(project_id):
+        return
+    def _do():
+        proj_name, owner_handle = _get_project_owner(project_id)
+        if not proj_name or not owner_handle:
+            return
+        email = _resolve_handle_to_email(owner_handle)
+        if not email:
+            return
+        site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
+        project_url = f"{site_url}/p/{project_id}"
+        body = (
+            f"Hey {owner_handle},\n\n"
+            f"Your project \"{proj_name}\" just got upvoted! \U0001f44d\n"
+            f"It now has {upvote_count} upvote{'s' if upvote_count != 1 else ''}.\n\n"
+            f"See it here: {project_url}\n\n"
+            f"\u2014 The CheckMyVibeCode team\n"
+        )
+        ok, err = _send_resend_email(
+            to=email,
+            subject=f'Your project "{proj_name}" got upvoted! ({upvote_count} total) — CheckMyVibeCode',
+            text_body=body,
+        )
+        if ok:
+            _record_upvote_email_sent(project_id)
+        else:
+            app.logger.warning('Upvote notification email failed for %s: %s', owner_handle, err)
+    threading.Thread(target=_do, daemon=True).start()
 
 
 def _verify_supabase_token(token):
@@ -1226,6 +1394,9 @@ def toggle_project_upvote(project_id):
         _sb_service_request('PATCH', f'projects?id=eq.{project_id}', {'upvotes': count})
     _cache_delete('projects')
 
+    if voted and count is not None:
+        _notify_new_upvote(project_id, count)
+
     return {'ok': True, 'voted': voted, 'count': count}
 
 
@@ -1283,9 +1454,10 @@ def post_project_comment(project_id):
     auth_header = request.headers.get('Authorization', '')
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
     user_id = _decode_jwt_user_id(token)
+    verified_user = None
     if not user_id:
-        user = _verify_supabase_token(token)
-        user_id = user.get('id') if user else None
+        verified_user = _verify_supabase_token(token)
+        user_id = verified_user.get('id') if verified_user else None
     if not user_id:
         app.logger.warning('post_comment auth failed for project %s, token len=%s', project_id, len(token) if token else 0)
         return {'error': 'Invalid or expired session'}, 401
@@ -1304,7 +1476,6 @@ def post_project_comment(project_id):
         'user_id': user_id,
     })
     if err:
-        # user_id column may not exist on older schemas — retry without it
         if 'user_id' in err or ('column' in err.lower() and 'does not exist' in err.lower()):
             result, err = _sb_service_request('POST', 'comments', {
                 'project_id': project_id,
@@ -1314,6 +1485,14 @@ def post_project_comment(project_id):
     if err:
         app.logger.error('post_project_comment error: %s', err)
         return {'error': 'Could not save comment'}, 502
+    jwt_handle = None
+    if verified_user:
+        jwt_handle = _derive_author_handle(verified_user)
+    else:
+        verified_user = _verify_supabase_token(token)
+        if verified_user:
+            jwt_handle = _derive_author_handle(verified_user)
+    _notify_new_comment(project_id, jwt_handle or author, body_text)
     return json.dumps(result), 200, {'Content-Type': 'application/json'}
 
 
