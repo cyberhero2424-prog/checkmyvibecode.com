@@ -1251,7 +1251,7 @@ def get_project_comments(project_id):
     if not re.match(r'^[0-9a-f-]{36}$', project_id):
         return {'error': 'Invalid project id'}, 400
     rows, err = _sb_service_request(
-        'GET', f'comments?select=author,body,created_at&project_id=eq.{project_id}&order=created_at.desc'
+        'GET', f'comments?select=id,author,body,user_id,created_at&project_id=eq.{project_id}&order=created_at.desc'
     )
     if err:
         app.logger.error('get_project_comments error: %s', err)
@@ -1299,6 +1299,31 @@ def post_project_comment(project_id):
         app.logger.error('post_project_comment error: %s', err)
         return {'error': 'Could not save comment'}, 502
     return json.dumps(result), 200, {'Content-Type': 'application/json'}
+
+
+@app.route('/api/comments/<comment_id>', methods=['DELETE'])
+def delete_comment(comment_id):
+    """Delete a comment. Only the comment author can delete their own comment."""
+    if not _UUID_RE.match(comment_id):
+        return jsonify({'error': 'Invalid comment id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        user = _verify_supabase_token(token)
+        user_id = user.get('id') if user else None
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+    rows, err = _sb_service_request('GET', f'comments?select=id,user_id&id=eq.{comment_id}&limit=1')
+    if err or not rows:
+        return jsonify({'error': 'Comment not found'}), 404
+    if rows[0].get('user_id') != user_id:
+        return jsonify({'error': 'You can only delete your own comments'}), 403
+    _, err = _sb_service_request('DELETE', f'comments?id=eq.{comment_id}')
+    if err:
+        app.logger.error('delete_comment error: %s', err)
+        return jsonify({'error': 'Could not delete comment'}), 502
+    return jsonify({'ok': True})
 
 
 # ── Forum proxy endpoints (server-side reads — avoids browser cross-origin blocking) ──
