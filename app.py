@@ -1189,6 +1189,9 @@ def toggle_project_upvote(project_id):
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
     user_id = _decode_jwt_user_id(token)
     if not user_id:
+        user = _verify_supabase_token(token)
+        user_id = user.get('id') if user else None
+    if not user_id:
         return {'error': 'Invalid or expired session'}, 401
 
     # Check if user already voted
@@ -1265,6 +1268,10 @@ def post_project_comment(project_id):
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
     user_id = _decode_jwt_user_id(token)
     if not user_id:
+        user = _verify_supabase_token(token)
+        user_id = user.get('id') if user else None
+    if not user_id:
+        app.logger.warning('post_comment auth failed for project %s, token len=%s', project_id, len(token) if token else 0)
         return {'error': 'Invalid or expired session'}, 401
     try:
         payload = request.get_json(force=True) or {}
