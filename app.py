@@ -1620,6 +1620,20 @@ def track_project_click(project_id):
     return jsonify({'ok': True, 'dedup': dedup})
 
 
+@app.route('/api/projects/comment-counts')
+def api_comment_counts():
+    """Return comment counts for all projects as {project_id: count}."""
+    rows, err = _sb_service_request('GET', 'comments?select=project_id')
+    if err:
+        return jsonify({}), 200
+    counts = {}
+    for r in (rows or []):
+        pid = r.get('project_id')
+        if pid:
+            counts[pid] = counts.get(pid, 0) + 1
+    return jsonify(counts)
+
+
 @app.route('/api/projects/<project_id>/comments')
 def get_project_comments(project_id):
     """Return comments for a project, newest first. Public — no auth required."""

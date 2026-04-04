@@ -1576,6 +1576,21 @@ async function loadProjects() {
   renderProjects(); renderSidebar(); updateStats();
   hidePreloader();
   subscribeToProjectUpdates();
+  loadCommentCounts();
+}
+
+async function loadCommentCounts() {
+  try {
+    const resp = await fetch('/api/projects/comment-counts');
+    if (!resp.ok) return;
+    const counts = await resp.json();
+    let changed = false;
+    projects.forEach(p => {
+      const c = counts[p.id] || 0;
+      if (c !== (p.comment_count || 0)) { p.comment_count = c; changed = true; }
+    });
+    if (changed) renderProjects();
+  } catch(e) {}
 }
 
 async function loadUserVotes(userId) {
