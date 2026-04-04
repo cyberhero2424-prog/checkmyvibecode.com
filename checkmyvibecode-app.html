@@ -1981,24 +1981,36 @@ async function upvote(id) {
   if (p.voted) fireVoteEffects(id);
   updateStats();
 
-  try {
-    const token = await _getAccessToken();
-    const resp = await fetch('/api/projects/' + id + '/toggle-upvote', {
+  async function _tryUpvote(token) {
+    return fetch('/api/projects/' + id + '/toggle-upvote', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + token }
     });
+  }
+  function _revertUpvote() {
+    p.voted = wasVoted;
+    p.upvotes += p.voted ? 1 : -1;
+    if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
+    updateVoteUI(id, p.voted, p.upvotes);
+    updateStats();
+  }
+  try {
+    let token = await _getAccessToken();
+    let resp = await _tryUpvote(token);
+    if (resp.status === 401) {
+      const { data: refreshed } = await sb.auth.refreshSession();
+      token = refreshed?.session?.access_token || '';
+      if (token) {
+        if (currentUser) currentUser.accessToken = token;
+        resp = await _tryUpvote(token);
+      }
+    }
     const data = resp.ok ? await resp.json() : null;
     if (!data || !data.ok) {
-      // Revert optimistic update on failure
-      p.voted = wasVoted;
-      p.upvotes += p.voted ? 1 : -1;
-      if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
-      updateVoteUI(id, p.voted, p.upvotes);
-      updateStats();
-      console.warn('Upvote error:', data?.error || resp.status);
+      _revertUpvote();
+      if (resp.status === 401) { showToast('Session expired — please sign in again.'); openAuth(); }
       return;
     }
-    // Use authoritative count from server
     if (data.count !== null && data.count !== undefined) {
       p.upvotes = data.count;
       p.voted = data.voted;
@@ -2007,13 +2019,7 @@ async function upvote(id) {
       updateStats();
     }
   } catch(e) {
-    // Revert on network error
-    p.voted = wasVoted;
-    p.upvotes += p.voted ? 1 : -1;
-    if (p.voted) votedProjectIds.add(id); else votedProjectIds.delete(id);
-    updateVoteUI(id, p.voted, p.upvotes);
-    updateStats();
-    console.warn('Upvote network error:', e.message);
+    _revertUpvote();
   }
 }
 
