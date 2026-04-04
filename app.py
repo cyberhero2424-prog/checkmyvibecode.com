@@ -836,9 +836,9 @@ def admin_update_project_details():
         updates['cost'] = val or None
     if not updates:
         return jsonify({'error': 'Nothing to update'}), 400
-    resp = _sb_service_request('PATCH', f'/rest/v1/projects?id=eq.{project_id}', json=updates)
-    if not resp or resp.status_code not in (200, 204):
-        return jsonify({'error': 'Update failed'}), 500
+    result, err = _sb_service_request('PATCH', f'projects?id=eq.{project_id}', body=updates)
+    if err:
+        return jsonify({'error': f'Update failed: {err}'}), 500
     _cache_delete('projects')
     return jsonify({'ok': True})
 
