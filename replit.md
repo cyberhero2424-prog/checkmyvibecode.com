@@ -77,6 +77,13 @@ Run `migrations/forum.sql` in the Supabase Dashboard > SQL Editor to enable the 
 - **Meta tags**: OG/Twitter tags on project + profile pages; canonical URL + description meta on profile pages
 - **XSS protection**: All JSON-LD output escaped with `</ → <\/` to prevent script injection
 
+## User Profile Features
+- **Profile picture**: Users set a URL-based avatar in Account Settings (stored in Supabase `user_metadata.avatar_url`)
+- **Bio**: Short text bio (max 150 chars) in Account Settings (stored in `user_metadata.bio`)
+- **Profile panel**: Shows avatar image + bio on user profiles; falls back to emoji/initial if no avatar
+- **Nav avatar**: Shows profile picture in navbar when set; falls back to initial letter
+- **API**: `/api/profile-meta/<handle>` returns `{avatar_url, bio}` for any user (cached 2min, paginated up to 5000 users)
+
 ## Migrations
 - `migrations/bookmarks.sql` — bookmarks table + RLS
 - `migrations/forum.sql` — forum tables + RLS (run in Supabase dashboard)

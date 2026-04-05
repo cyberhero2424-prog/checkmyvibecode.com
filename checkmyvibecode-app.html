@@ -356,7 +356,10 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 }
 
 /* Profile panel */
-.profile-avatar { width:68px; height:68px; border-radius:50%; background:var(--surface2); border:2px solid var(--border2); display:flex; align-items:center; justify-content:center; font-size:30px; margin:24px auto 12px; }
+.profile-avatar { width:68px; height:68px; border-radius:50%; background:var(--surface2); border:2px solid var(--border2); display:flex; align-items:center; justify-content:center; font-size:30px; margin:24px auto 12px; overflow:hidden; }
+.profile-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+.profile-bio { text-align:center; font-size:13px; color:var(--muted2); margin-bottom:8px; max-width:320px; margin-left:auto; margin-right:auto; line-height:1.4; }
+.nav-avatar-img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
 .profile-handle { text-align:center; font-size:19px; font-weight:700; letter-spacing:-.3px; margin-bottom:4px; }
 .profile-stats { text-align:center; font-size:13px; color:var(--muted2); margin-bottom:3px; }
 .profile-since { text-align:center; font-size:12px; color:var(--muted); margin-bottom:20px; }
@@ -1128,6 +1131,15 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
       <input class="finput" id="settingsHandle" placeholder="@yourhandle">
       <div style="font-size:11px;color:var(--muted);margin-top:4px">Changing your handle will update all your existing projects.</div>
     </div>
+    <div class="fgroup" style="margin-bottom:16px">
+      <label class="flabel">Profile picture URL</label>
+      <input class="finput" id="settingsAvatarUrl" placeholder="https://example.com/your-photo.jpg">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Paste a link to your profile picture (JPG, PNG, WebP).</div>
+    </div>
+    <div class="fgroup" style="margin-bottom:16px">
+      <label class="flabel">Bio <span id="bioCharCount" style="font-weight:400;color:var(--muted)">0/150</span></label>
+      <textarea class="finput" id="settingsBio" placeholder="Tell us about yourself…" maxlength="150" rows="2" style="resize:vertical;min-height:48px" oninput="document.getElementById('bioCharCount').textContent=this.value.length+'/150'"></textarea>
+    </div>
     <button class="auth-btn" onclick="saveAccountSettings()" id="saveSettingsBtn">Save changes</button>
 
     <div style="border-top:1px solid var(--border);margin-top:24px;padding-top:20px">
@@ -1393,6 +1405,10 @@ function openAccountSettings() {
   if (!currentUser) { openAuth(); return; }
   document.getElementById('settingsName').value = currentUser.name || '';
   document.getElementById('settingsHandle').value = currentUser.handle || '';
+  document.getElementById('settingsAvatarUrl').value = currentUser.avatarUrl || '';
+  document.getElementById('settingsBio').value = currentUser.bio || '';
+  const bioLen = (currentUser.bio || '').length;
+  document.getElementById('bioCharCount').textContent = bioLen + '/150';
   document.getElementById('accountSettingsModal').classList.add('open');
 }
 
@@ -1404,9 +1420,12 @@ async function saveAccountSettings() {
   if (!currentUser) return;
   const newName = document.getElementById('settingsName').value.trim();
   const rawHandle = document.getElementById('settingsHandle').value.trim();
+  const newAvatarUrl = document.getElementById('settingsAvatarUrl').value.trim();
+  const newBio = document.getElementById('settingsBio').value.trim().slice(0, 150);
   if (!newName) { showToast('Name cannot be empty.'); return; }
   const newHandle = rawHandle.startsWith('@') ? rawHandle : '@' + rawHandle;
   if (newHandle.length < 2) { showToast('Handle cannot be empty.'); return; }
+  if (newAvatarUrl && !/^https?:\/\/.+/i.test(newAvatarUrl)) { showToast('Please enter a valid image URL.'); return; }
 
   const btn = document.getElementById('saveSettingsBtn');
   btn.disabled = true;
@@ -1418,7 +1437,7 @@ async function saveAccountSettings() {
 
     try {
       const updatePromise = sb.auth.updateUser({
-        data: { name: newName, handle: newHandle, user_name: newHandle.replace('@', '') }
+        data: { name: newName, handle: newHandle, user_name: newHandle.replace('@', ''), avatar_url: newAvatarUrl, bio: newBio }
       });
       const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000));
       const { error } = await Promise.race([updatePromise, timeout]);
@@ -1443,6 +1462,8 @@ async function saveAccountSettings() {
     currentUser.name = newName;
     currentUser.handle = newHandle;
     currentUser.avatar = newName[0].toUpperCase();
+    currentUser.avatarUrl = newAvatarUrl;
+    currentUser.bio = newBio;
     updateNavForUser();
     closeAccountSettings();
     showToast('✓ Account updated!');
@@ -1505,7 +1526,18 @@ function updateNavForUser() {
     document.getElementById('navLoginBtn').style.display = 'none';
     const avatar = document.getElementById('navAvatar');
     avatar.style.display = 'flex';
-    avatar.textContent = currentUser.avatar || (currentUser.name || 'U')[0].toUpperCase();
+    if (currentUser.avatarUrl) {
+      avatar.textContent = '';
+      const img = document.createElement('img');
+      img.className = 'nav-avatar-img';
+      img.src = currentUser.avatarUrl;
+      img.alt = 'avatar';
+      img.onerror = function() { this.remove(); avatar.textContent = currentUser.avatar || (currentUser.name || 'U')[0].toUpperCase(); };
+      avatar.appendChild(img);
+    } else {
+      avatar.innerHTML = '';
+      avatar.textContent = currentUser.avatar || (currentUser.name || 'U')[0].toUpperCase();
+    }
     document.getElementById('navSubmitBtn').style.display = 'flex';
     document.getElementById('dropdownName').textContent = currentUser.name;
     document.getElementById('dropdownEmail').textContent = currentUser.email;
@@ -1566,7 +1598,7 @@ function requireAuth(callback) {
       const meta = user.user_metadata || {};
       let name = meta.full_name || meta.user_name || meta.name || (user.email ? user.email.split('@')[0] : 'User');
       const handle = meta.user_name ? ('@' + meta.user_name) : ('@' + (user.email ? user.email.split('@')[0] : name.toLowerCase().replace(/\s+/g, '')));
-      loginUser({ id: user.id, name, handle, email: user.email || '', avatar: name[0].toUpperCase(), accessToken: session.access_token });
+      loginUser({ id: user.id, name, handle, email: user.email || '', avatar: name[0].toUpperCase(), accessToken: session.access_token, avatarUrl: meta.avatar_url || '', bio: meta.bio || '' });
       console.log('[auth] restored user:', handle);
       await loadUserVotes(user.id);
       await loadUserBookmarks(user.id);
@@ -1599,7 +1631,9 @@ sb.auth.onAuthStateChange(async (event, session) => {
       handle,
       email: user.email || '',
       avatar: name[0].toUpperCase(),
-      accessToken: session.access_token
+      accessToken: session.access_token,
+      avatarUrl: meta.avatar_url || '',
+      bio: meta.bio || ''
     });
 
     if (event === 'PASSWORD_RECOVERY') {
@@ -2260,11 +2294,38 @@ async function openProfile(handle) {
 
   const avatarEmoji = esc(userProjects[0]?.emoji || h.slice(1, 2).toUpperCase() || '?');
 
+  let profileAvatarUrl = '';
+  let profileBio = '';
+  if (currentUser && currentUser.handle === h) {
+    profileAvatarUrl = currentUser.avatarUrl || '';
+    profileBio = currentUser.bio || '';
+  } else {
+    try {
+      const metaResp = await fetch('/api/profile-meta/' + encodeURIComponent(h.replace(/^@/, '')));
+      if (metaResp.ok) {
+        const metaData = await metaResp.json();
+        profileAvatarUrl = metaData.avatar_url || '';
+        profileBio = metaData.bio || '';
+      }
+    } catch(e) {}
+  }
+
   document.getElementById('profileHeader').innerHTML = `
-    <div class="profile-avatar">${avatarEmoji}</div>
+    <div class="profile-avatar" id="profileAvatarContainer">${avatarEmoji}</div>
     <div class="profile-handle">${esc(h)}</div>
+    ${profileBio ? '<div class="profile-bio">' + esc(profileBio) + '</div>' : ''}
     <div class="profile-stats">${buildCount} ${buildCount === 1 ? 'build' : 'builds'} · ${totalUpvotes} upvotes${currentUser && currentUser.handle === h ? ` · ${bookmarkedIds.size} saved` : ''}</div>
     ${memberSince ? `<div class="profile-since">Member since ${memberSince}</div>` : ''}`;
+
+  if (profileAvatarUrl) {
+    const container = document.getElementById('profileAvatarContainer');
+    const img = document.createElement('img');
+    img.src = profileAvatarUrl;
+    img.alt = h;
+    img.onerror = function() { this.remove(); container.textContent = avatarEmoji; };
+    container.textContent = '';
+    container.appendChild(img);
+  }
 
   if (!userProjects.length) {
     document.getElementById('profileBody').innerHTML =

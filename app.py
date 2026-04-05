@@ -1698,6 +1698,65 @@ def api_profile(handle):
     return {'error': 'Could not fetch profile'}, 502
 
 
+# ── Profile metadata (avatar_url, bio) ──────────────────────────────────────────
+
+_profile_meta_cache = {}
+_profile_meta_lock = threading.Lock()
+
+@app.route('/api/profile-meta/<path:handle>')
+def api_profile_meta(handle):
+    """Return avatar_url and bio for a user by handle."""
+    import re
+    clean = handle.lstrip('@').lower()
+    if not clean or not re.match(r'^[A-Za-z0-9_.-]{1,40}$', clean):
+        return {'error': 'Invalid handle'}, 404
+    with _profile_meta_lock:
+        entry = _profile_meta_cache.get(clean)
+        if entry and time.monotonic() < entry['exp']:
+            return entry['val']
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return {'avatar_url': '', 'bio': ''}
+    try:
+        for page in range(1, 6):
+            req = urllib.request.Request(
+                f"{SUPABASE_URL}/auth/v1/admin/users?page={page}&per_page=1000",
+                headers={
+                    'apikey': SUPABASE_SERVICE_KEY,
+                    'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+            users = data.get('users', [])
+            for u in users:
+                email = u.get('email', '')
+                meta = u.get('user_metadata') or {}
+                app_meta = u.get('app_metadata') or {}
+                provider = app_meta.get('provider', '')
+                if provider == 'github' and meta.get('user_name'):
+                    u_handle = str(meta['user_name']).lower()
+                elif meta.get('handle'):
+                    u_handle = str(meta['handle']).lstrip('@').lower()
+                elif email:
+                    u_handle = email.split('@')[0].lower()
+                else:
+                    continue
+                if u_handle == clean:
+                    result = {'avatar_url': meta.get('avatar_url', ''), 'bio': meta.get('bio', '')}
+                    with _profile_meta_lock:
+                        _profile_meta_cache[clean] = {'val': result, 'exp': time.monotonic() + 120}
+                    return result
+            if len(users) < 1000:
+                break
+        result = {'avatar_url': '', 'bio': ''}
+        with _profile_meta_lock:
+            _profile_meta_cache[clean] = {'val': result, 'exp': time.monotonic() + 60}
+        return result
+    except Exception as ex:
+        app.logger.warning('api_profile_meta error: %s', ex)
+        return {'avatar_url': '', 'bio': ''}
+
+
 # ── Project upvote toggle (service-key, bypasses RLS) ──────────────────────────
 
 @app.route('/api/projects/<project_id>/toggle-upvote', methods=['POST'])
@@ -2237,7 +2296,7 @@ def api_forum_toggle_upvote(thread_id):
     safe_tid = urllib.parse.quote(thread_id, safe='')
     safe_uid = urllib.parse.quote(user_id, safe='')
     existing, err = _sb_service_request('GET',
-        f'forum_thread_upvotes?thread_id=eq.{safe_tid}&user_id=eq.{safe_uid}&select=id')
+        f'forum_thread_upvotes?thread_id=eq.{safe_tid}&user_id=eq.{safe_uid}&select=thread_id')
     if err:
         app.logger.error('api_forum_toggle_upvote check error: %s', err)
         return {'error': 'Could not check vote status'}, 502
