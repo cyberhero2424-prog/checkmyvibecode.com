@@ -25,9 +25,11 @@ Flask serves `index.html` (replaces `__BASE_URL__` and injects Supabase config).
 - `forum_threads` — forum posts (title, body, author_handle, author_id, upvotes, reply_count)
 - `forum_replies` — replies to threads (thread_id, body, author_handle, author_id)
 - `forum_thread_upvotes` — (thread_id, user_id) unique — forum upvote deduplication
+- `notifications` — in-app notifications (user_id, type, project_id, actor_handle, message, read)
 
 ## Pending SQL Migrations
 Run `migrations/forum.sql` in the Supabase Dashboard > SQL Editor to enable the Forum feature.
+The notifications table is auto-created at startup via `_apply_notifications_migration()`, or run `migrations/notifications.sql` manually.
 
 ## Pages (SPA via switchPage())
 - `projects` — main feed with project cards

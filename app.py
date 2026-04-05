@@ -753,12 +753,118 @@ def _apply_column_migrations(migrations):
     return (all('FAILED' not in r and 'needs' not in r for r in results)), '; '.join(results)
 
 
+def _apply_notifications_migration():
+    """Create notifications table if it doesn't exist."""
+    sql = (
+        "CREATE TABLE IF NOT EXISTS notifications ("
+        "  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,"
+        "  user_id UUID NOT NULL,"
+        "  type TEXT NOT NULL,"
+        "  project_id UUID,"
+        "  actor_handle TEXT,"
+        "  message TEXT,"
+        "  read BOOLEAN DEFAULT false,"
+        "  created_at TIMESTAMPTZ DEFAULT now()"
+        ");"
+        "CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);"
+        "CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id, read) WHERE read = false;"
+        "ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;"
+        "DO $$ BEGIN "
+        "  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='notifications' AND policyname='Users can read own notifications') THEN "
+        "    CREATE POLICY \"Users can read own notifications\" ON notifications FOR SELECT USING (auth.uid() = user_id); "
+        "  END IF; "
+        "END $$;"
+        "DO $$ BEGIN "
+        "  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='notifications' AND policyname='Users can update own notifications') THEN "
+        "    CREATE POLICY \"Users can update own notifications\" ON notifications FOR UPDATE USING (auth.uid() = user_id); "
+        "  END IF; "
+        "END $$;"
+    )
+    ok, err = _run_migration_via_psycopg2(sql)
+    if ok:
+        app.logger.info('notifications table created via psycopg2')
+        return
+    ok2, err2 = _run_migration_via_mgmt_api(sql)
+    if ok2:
+        app.logger.info('notifications table created via mgmt API')
+    else:
+        app.logger.info('notifications table not found — run the migration SQL in Supabase Dashboard')
+
+
+_user_id_cache: dict = {}
+_user_id_cache_lock = threading.Lock()
+
+
+def _resolve_handle_to_user_id(handle):
+    """Look up a user's UUID by their author handle (e.g. '@username').
+    Uses Supabase Auth admin API. Cached for 10 minutes."""
+    if not handle or not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return None
+    clean = handle.lstrip('@').lower()
+    if not clean:
+        return None
+    with _user_id_cache_lock:
+        entry = _user_id_cache.get(clean)
+        if entry and time.monotonic() < entry['exp']:
+            return entry['val']
+    try:
+        req = urllib.request.Request(
+            f"{SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000",
+            headers={
+                'apikey': SUPABASE_SERVICE_KEY,
+                'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        users = data.get('users', [])
+        for u in users:
+            email = u.get('email', '')
+            meta = u.get('user_metadata') or {}
+            app_meta = u.get('app_metadata') or {}
+            provider = app_meta.get('provider', '')
+            if provider == 'github' and meta.get('user_name'):
+                u_handle = str(meta['user_name']).lower()
+            elif email:
+                u_handle = email.split('@')[0].lower()
+            else:
+                u_handle = 'user_' + str(u.get('id', ''))[:8]
+            if u_handle == clean:
+                uid = u.get('id')
+                with _user_id_cache_lock:
+                    _user_id_cache[clean] = {'val': uid, 'exp': time.monotonic() + 600}
+                return uid
+        with _user_id_cache_lock:
+            _user_id_cache[clean] = {'val': None, 'exp': time.monotonic() + 300}
+        return None
+    except Exception as ex:
+        app.logger.warning('_resolve_handle_to_user_id error: %s', ex)
+        return None
+
+
+def _insert_notification(user_id, notif_type, project_id, actor_handle, message):
+    """Insert a notification record via service key. Fire-and-forget."""
+    if not user_id:
+        return
+    body = {
+        'user_id': user_id,
+        'type': notif_type,
+        'project_id': project_id,
+        'actor_handle': actor_handle,
+        'message': message,
+    }
+    _, err = _sb_service_request('POST', 'notifications', body)
+    if err:
+        app.logger.warning('_insert_notification error: %s', err)
+
+
 def _startup_init():
     """Run once at startup: ensure storage bucket exists and verify screenshot column."""
     _ensure_storage_bucket()
     _ensure_screenshot_column()
     _apply_unsubscribe_migration()
     _ensure_stats_columns()
+    _apply_notifications_migration()
 
 
 # Run startup tasks in a background thread so gunicorn boot stays fast
@@ -1292,6 +1398,12 @@ def _release_upvote_throttle(project_id):
 def _notify_project_approved(project_id, project_name, author_handle):
     """Send 'your project is live' email to the project owner. Run in background thread."""
     def _do():
+        owner_user_id = _resolve_handle_to_user_id(author_handle)
+        if owner_user_id:
+            _insert_notification(
+                owner_user_id, 'approved', project_id, None,
+                f'Your project "{project_name}" has been approved and is now live!'
+            )
         email = _resolve_handle_to_email(author_handle)
         if not email:
             return
@@ -1327,6 +1439,12 @@ def _notify_new_comment(project_id, commenter_handle, comment_body):
             return
         if owner_handle.lower() == commenter_handle.lower():
             return
+        owner_user_id = _resolve_handle_to_user_id(owner_handle)
+        if owner_user_id:
+            _insert_notification(
+                owner_user_id, 'comment', project_id, commenter_handle,
+                f'{commenter_handle} commented on your project "{proj_name}"'
+            )
         email = _resolve_handle_to_email(owner_handle)
         if not email:
             return
@@ -1353,8 +1471,24 @@ def _notify_new_comment(project_id, commenter_handle, comment_body):
     threading.Thread(target=_do, daemon=True).start()
 
 
-def _notify_new_upvote(project_id, upvote_count):
-    """Send 'new upvote' email to the project owner. Throttled. Run in background thread."""
+def _notify_new_upvote(project_id, upvote_count, actor_handle=None):
+    """Send 'new upvote' email to the project owner. Throttled. Run in background thread.
+    Also inserts an in-app notification (not throttled)."""
+    def _do_in_app():
+        proj_name, owner_handle = _get_project_owner(project_id)
+        if not proj_name or not owner_handle:
+            return
+        if actor_handle and owner_handle.lower() == actor_handle.lower():
+            return
+        owner_user_id = _resolve_handle_to_user_id(owner_handle)
+        if owner_user_id:
+            who = actor_handle or 'Someone'
+            _insert_notification(
+                owner_user_id, 'upvote', project_id, actor_handle,
+                f'{who} upvoted your project "{proj_name}"'
+            )
+    threading.Thread(target=_do_in_app, daemon=True).start()
+
     if not _claim_upvote_throttle(project_id):
         return
     def _do():
@@ -1767,10 +1901,11 @@ def toggle_project_upvote(project_id):
         return {'error': 'Invalid project id'}, 400
     auth_header = request.headers.get('Authorization', '')
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    verified_user = None
     user_id = _decode_jwt_user_id(token)
     if not user_id:
-        user = _verify_supabase_token(token)
-        user_id = user.get('id') if user else None
+        verified_user = _verify_supabase_token(token)
+        user_id = verified_user.get('id') if verified_user else None
     if not user_id:
         return {'error': 'Invalid or expired session'}, 401
 
@@ -1807,7 +1942,10 @@ def toggle_project_upvote(project_id):
     _cache_delete('projects')
 
     if voted and count is not None:
-        _notify_new_upvote(project_id, count)
+        if not verified_user:
+            verified_user = _verify_supabase_token(token)
+        voter_handle = _derive_author_handle(verified_user) if verified_user else None
+        _notify_new_upvote(project_id, count, actor_handle=voter_handle)
 
     return {'ok': True, 'voted': voted, 'count': count}
 
@@ -1838,6 +1976,78 @@ def get_project_upvote_count(project_id):
         return jsonify({'error': 'Could not fetch count'}), 502
     count = len(rows) if rows else 0
     return jsonify({'count': count})
+
+
+# ── In-app notifications ─────────────────────────────────────────────────────
+
+@app.route('/api/notifications')
+def api_notifications():
+    """Return the last 30 notifications for the authenticated user."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user = _verify_supabase_token(token)
+    user_id = user.get('id') if user else None
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    rows, err = _sb_service_request(
+        'GET',
+        f'notifications?user_id=eq.{user_id}&select=id,type,project_id,actor_handle,message,read,created_at&order=created_at.desc&limit=30'
+    )
+    if err:
+        app.logger.error('api_notifications error: %s', err)
+        return jsonify({'error': 'Could not fetch notifications'}), 502
+    return json.dumps(rows or []), 200, {'Content-Type': 'application/json'}
+
+
+@app.route('/api/notifications/unread-count')
+def api_notifications_unread_count():
+    """Return the count of unread notifications for the authenticated user."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user = _verify_supabase_token(token)
+    user_id = user.get('id') if user else None
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    rows, err = _sb_service_request(
+        'GET',
+        f'notifications?user_id=eq.{user_id}&read=eq.false&select=id'
+    )
+    if err:
+        return jsonify({'count': 0})
+    return jsonify({'count': len(rows) if rows else 0})
+
+
+@app.route('/api/notifications/mark-read', methods=['POST'])
+def api_notifications_mark_read():
+    """Mark notifications as read. Body: {id: uuid} for single, {all: true} for all."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user = _verify_supabase_token(token)
+    user_id = user.get('id') if user else None
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    if data.get('all'):
+        _, err = _sb_service_request(
+            'PATCH',
+            f'notifications?user_id=eq.{user_id}&read=eq.false',
+            {'read': True}
+        )
+    elif data.get('id'):
+        notif_id = str(data['id'])
+        if not re.match(r'^[0-9a-f-]{36}$', notif_id):
+            return jsonify({'error': 'Invalid notification id'}), 400
+        _, err = _sb_service_request(
+            'PATCH',
+            f'notifications?id=eq.{notif_id}&user_id=eq.{user_id}',
+            {'read': True}
+        )
+    else:
+        return jsonify({'error': 'Provide id or all:true'}), 400
+    if err:
+        app.logger.error('api_notifications_mark_read error: %s', err)
+        return jsonify({'error': 'Could not update'}), 502
+    return jsonify({'ok': True})
 
 
 # ── Account management ───────────────────────────────────────────────────────
