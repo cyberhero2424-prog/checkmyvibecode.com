@@ -152,6 +152,14 @@ nav {
 .btn-primary:hover { background:#2a2a28; }
 .btn-ghost { background:var(--surface); color:var(--muted2); border:1px solid var(--border2); box-shadow:var(--sh); }
 .btn-ghost:hover { color:var(--text); border-color:rgba(0,0,0,.2); }
+.nav-social { display:flex; align-items:center; gap:4px; }
+.nav-social-btn { width:30px; height:30px; border-radius:7px; background:var(--surface2); border:1px solid var(--border2); color:var(--muted2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s var(--ease); flex-shrink:0; padding:0; }
+.nav-social-btn svg { width:14px; height:14px; }
+.nav-social-btn:hover { background:var(--surface3); color:var(--text); }
+.nav-social-btn.nav-x:hover { color:#000; }
+.nav-social-btn.nav-fb:hover { color:#1877f2; }
+.nav-social-btn.nav-li:hover { color:#0a66c2; }
+[data-theme="dark"] .nav-social-btn.nav-x:hover { color:#fff; }
 .theme-toggle { width:32px; height:32px; border-radius:8px; background:var(--surface2); border:1px solid var(--border2); color:var(--muted2); font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s var(--ease); flex-shrink:0; }
 .theme-toggle:hover { background:var(--surface3); color:var(--text); }
 .mobile-search-btn { display:none; width:32px; height:32px; border-radius:8px; background:var(--surface2); border:1px solid var(--border2); color:var(--muted2); font-size:16px; cursor:pointer; align-items:center; justify-content:center; transition:all .15s var(--ease); flex-shrink:0; }
@@ -241,6 +249,9 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .card-stat-btn { display:inline-flex; align-items:center; gap:3px; padding:4px 8px; border-radius:var(--r-sm); font-size:11px; font-weight:500; border:none; background:transparent; color:var(--muted); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); }
 .card-stat-btn:hover { background:var(--surface2); color:var(--muted2); }
 .card-stat-btn svg { width:13px; height:13px; }
+.card-stat-btn.view-stat,
+.info-card.view-stat,
+.view-btn.view-stat { display:none; }
 .upvote-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:var(--r-sm); font-size:12px; font-weight:600; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); position:relative; overflow:visible; box-shadow:var(--sh); }
 .upvote-btn:hover { border-color:var(--green-border); color:var(--green); background:var(--green-bg); }
 .upvote-btn.voted { background:rgba(139,92,246,.15); border-color:rgba(139,92,246,.4); color:#8b5cf6; box-shadow:none; }
@@ -337,6 +348,10 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .footer-link:hover { color:var(--text); background:var(--surface2); }
 .footer-sep { width:1px; height:12px; background:var(--border2); }
 .footer-copy { font-size:11px; color:var(--muted); white-space:nowrap; }
+.footer-contact { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.footer-contact-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+.footer-contact-link { font-size:12px; color:var(--text); text-decoration:none; font-weight:500; }
+.footer-contact-link:hover { text-decoration:underline; }
 @media (max-width:600px) {
   .site-footer-inner { flex-direction:column; align-items:center; text-align:center; gap:12px; padding-bottom:80px; }
   .footer-links { justify-content:center; }
@@ -457,6 +472,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .logo-muted { display:none; }
   .nav-sep { display:none; }
   .nav-search { display:none; }
+  .nav-social { display:none; }
   .mobile-search-btn { display:flex; flex-shrink:0; }
   .nav-right { margin-left:auto; gap:3px; flex-shrink:0; }
   .nav-tab { padding:5px 7px; font-size:12px; flex-shrink:1; }
@@ -836,6 +852,11 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   <button class="mobile-search-btn" onclick="openMobileSearch()" title="Search">⌕</button>
 
   <div class="nav-right">
+    <div class="nav-social">
+      <button class="nav-social-btn nav-x" onclick="shareNavX()" title="Share on X"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
+      <button class="nav-social-btn nav-fb" onclick="shareNavFb()" title="Share on Facebook"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></button>
+      <button class="nav-social-btn nav-li" onclick="shareNavLi()" title="Share on LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></button>
+    </div>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
     <button class="btn btn-ghost" id="navLoginBtn" onclick="openAuth()" style="display:flex">Sign in</button>
     <button class="user-avatar" id="navAvatar" onclick="toggleDropdown()" style="display:none">?</button>
@@ -1722,7 +1743,7 @@ function renderProjects() {
         <div class="card-footer">
           <div class="card-footer-left">
             <button class="card-stat-btn" onclick="event.stopPropagation();openDrawerToComment('${p.id}')" title="Comments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>${(p.comment_count&&p.comment_count>0)?` ${p.comment_count}`:' 0'}</button>
-            <span class="card-stat-btn" title="Views" style="cursor:default"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ${p.view_count||0}</span>
+            <span class="card-stat-btn view-stat" title="Views" style="cursor:default"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ${p.view_count||0}</span>
             <button class="share-x-btn" onclick="event.stopPropagation();shareX('${p.id}')" title="Share on X"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.264 5.633 5.9-5.633zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
             <button class="share-fb-btn" onclick="event.stopPropagation();shareFb('${p.id}')" title="Share on Facebook"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></button>
             <button class="share-li-btn" onclick="event.stopPropagation();shareLi('${p.id}')" title="Share on LinkedIn"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></button>
@@ -1826,7 +1847,7 @@ function openDrawer(id) {
       <div class="info-card"><div class="info-label">💸 Approx. cost</div><div class="info-value mono">${esc(p.cost||'—')}</div></div>
       <div class="info-card"><div class="info-label">🛠 Built with</div><div class="info-value">${(p.tools||[]).join(', ')}</div></div>
       <div class="info-card"><div class="info-label">👤 Builder</div><div class="info-value mono"><button class="author-link" data-author="${escAttr(p.author)}">${esc(p.author)}</button></div></div>
-      <div class="info-card"><div class="info-label">👁 Views</div><div class="info-value mono" id="drawer-views">${p.view_count||0}</div></div>
+      <div class="info-card view-stat"><div class="info-label">👁 Views</div><div class="info-value mono" id="drawer-views">${p.view_count||0}</div></div>
       <div class="info-card"><div class="info-label">🔗 Demo Clicks</div><div class="info-value mono" id="drawer-clicks">${p.click_count||0}</div></div>
     </div>
     ${p.idea?`<div class="section-title">💡 The Idea</div><div class="idea-box">"${esc(p.idea)}"</div>`:''}
@@ -2562,6 +2583,17 @@ function shareFb(id) {
 function shareLi(id) {
   const url = _shareBase + '/p/' + id;
   window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, '_blank', 'noopener');
+}
+
+function shareNavX() {
+  const text = 'CheckMyVibeCode — Discover amazing AI-built projects 🚀\n\n#vibecoding #builtwithAI';
+  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent('https://checkmyvibecode.com')}`, '_blank', 'noopener');
+}
+function shareNavFb() {
+  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://checkmyvibecode.com')}`, '_blank', 'noopener');
+}
+function shareNavLi() {
+  window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent('https://checkmyvibecode.com')}`, '_blank', 'noopener');
 }
 
 // Deep link: open project from /p/<id> or legacy ?project=ID
@@ -3517,6 +3549,10 @@ loadProjects().then(() => checkDeepLink());
       <img src="/static/logo2.png" class="footer-brand-img" alt="CheckMyVibeCode">
       <span class="footer-brand-name">checkmyvibecode<span>.com</span></span>
     </button>
+    <div class="footer-contact">
+      <span class="footer-contact-label">Contact</span>
+      <a class="footer-contact-link" href="mailto:contact@checkmyvibecode.com">contact@checkmyvibecode.com</a>
+    </div>
     <div class="footer-links">
       <button class="footer-link" onclick="requireAuth(openSubmit)">+ Submit project</button>
       <div class="footer-sep"></div>
