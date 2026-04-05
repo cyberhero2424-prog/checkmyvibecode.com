@@ -340,6 +340,10 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .footer-link:hover { color:var(--text); background:var(--surface2); }
 .footer-sep { width:1px; height:12px; background:var(--border2); }
 .footer-copy { font-size:11px; color:var(--muted); white-space:nowrap; }
+.footer-contact { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.footer-contact-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+.footer-contact-link { font-size:12px; color:var(--text); text-decoration:none; font-weight:500; }
+.footer-contact-link:hover { text-decoration:underline; }
 @media (max-width:600px) {
   .site-footer-inner { flex-direction:column; align-items:center; text-align:center; gap:12px; padding-bottom:80px; }
   .footer-links { justify-content:center; }
@@ -3520,6 +3524,10 @@ loadProjects().then(() => checkDeepLink());
       <img src="/static/logo2.png" class="footer-brand-img" alt="CheckMyVibeCode">
       <span class="footer-brand-name">checkmyvibecode<span>.com</span></span>
     </button>
+    <div class="footer-contact">
+      <span class="footer-contact-label">Contact</span>
+      <a class="footer-contact-link" href="mailto:contact@checkmyvibecode.com">contact@checkmyvibecode.com</a>
+    </div>
     <div class="footer-links">
       <button class="footer-link" onclick="requireAuth(openSubmit)">+ Submit project</button>
       <div class="footer-sep"></div>
