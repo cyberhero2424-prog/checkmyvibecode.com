@@ -1528,8 +1528,8 @@ function updateNavForUser() {
     document.getElementById('navLoginBtn').style.display = 'none';
     const avatar = document.getElementById('navAvatar');
     avatar.style.display = 'flex';
+    avatar.innerHTML = '';
     if (currentUser.avatarUrl) {
-      avatar.textContent = '';
       const img = document.createElement('img');
       img.className = 'nav-avatar-img';
       img.src = currentUser.avatarUrl;
@@ -1537,7 +1537,6 @@ function updateNavForUser() {
       img.onerror = function() { this.remove(); avatar.textContent = currentUser.avatar || (currentUser.name || 'U')[0].toUpperCase(); };
       avatar.appendChild(img);
     } else {
-      avatar.innerHTML = '';
       avatar.textContent = currentUser.avatar || (currentUser.name || 'U')[0].toUpperCase();
     }
     document.getElementById('navSubmitBtn').style.display = 'flex';
@@ -1662,7 +1661,7 @@ sb.auth.onAuthStateChange(async (event, session) => {
 document.addEventListener('click', e => {
   const dropdown = document.getElementById('userDropdown');
   const avatar   = document.getElementById('navAvatar');
-  if (dropdown && !dropdown.contains(e.target) && e.target !== avatar) {
+  if (dropdown && !dropdown.contains(e.target) && e.target !== avatar && !avatar.contains(e.target)) {
     closeDropdown();
   }
 });
