@@ -1781,6 +1781,110 @@ def get_project_upvote_count(project_id):
     return jsonify({'count': count})
 
 
+# ── Account management ───────────────────────────────────────────────────────
+
+@app.route('/api/account/update-handle', methods=['POST'])
+def api_update_handle():
+    """Update the author handle on all projects belonging to the authenticated user."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        user_id = _verify_supabase_token(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json(silent=True) or {}
+    old_handle = data.get('old_handle', '').strip()
+    new_handle = data.get('new_handle', '').strip()
+    if not old_handle or not new_handle:
+        return jsonify({'error': 'Missing handles'}), 400
+    if not re.match(r'^@[A-Za-z0-9_.-]{1,40}$', new_handle):
+        return jsonify({'error': 'Invalid handle format'}), 400
+
+    _, err = _sb_service_request(
+        'PATCH',
+        f'projects?author=eq.{urllib.parse.quote(old_handle, safe="")}',
+        {'author': new_handle}
+    )
+    if err:
+        return jsonify({'error': 'Failed to update projects'}), 502
+
+    _, err2 = _sb_service_request(
+        'PATCH',
+        f'comments?author=eq.{urllib.parse.quote(old_handle, safe="")}',
+        {'author': new_handle}
+    )
+
+    _, err3 = _sb_service_request(
+        'PATCH',
+        f'forum_threads?author=eq.{urllib.parse.quote(old_handle, safe="")}',
+        {'author': new_handle}
+    )
+
+    _, err4 = _sb_service_request(
+        'PATCH',
+        f'forum_replies?author=eq.{urllib.parse.quote(old_handle, safe="")}',
+        {'author': new_handle}
+    )
+
+    _cache_delete('projects', 'ssr_projects')
+
+    return jsonify({'ok': True})
+
+
+@app.route('/api/account/delete', methods=['POST'])
+def api_delete_account():
+    """Delete the authenticated user's account and all associated data."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        user_id = _verify_supabase_token(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    jwt_handle = None
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(token.split('.')[1] + '=='))
+        meta = payload.get('user_metadata', {})
+        app_meta = payload.get('app_metadata', {})
+        provider = app_meta.get('provider', '')
+        if provider == 'github' and meta.get('user_name'):
+            jwt_handle = '@' + str(meta['user_name'])
+        else:
+            email = payload.get('email', '')
+            if email:
+                jwt_handle = '@' + email.split('@')[0]
+    except Exception:
+        pass
+
+    if jwt_handle:
+        safe_handle = urllib.parse.quote(jwt_handle, safe='')
+        _sb_service_request('DELETE', f'projects?author=eq.{safe_handle}')
+        _sb_service_request('DELETE', f'comments?author=eq.{safe_handle}')
+        _sb_service_request('DELETE', f'forum_threads?author=eq.{safe_handle}')
+        _sb_service_request('DELETE', f'forum_replies?author=eq.{safe_handle}')
+
+    safe_uid = urllib.parse.quote(str(user_id), safe='')
+    _sb_service_request('DELETE', f'upvotes?user_id=eq.{safe_uid}')
+    _sb_service_request('DELETE', f'bookmarks?user_id=eq.{safe_uid}')
+
+    try:
+        admin_url = SUPABASE_URL.rstrip('/') + f'/auth/v1/admin/users/{user_id}'
+        req = urllib.request.Request(admin_url, method='DELETE', headers={
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+        })
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        app.logger.error(f'Failed to delete auth user {user_id}: {e}')
+
+    _cache_delete('projects', 'ssr_projects')
+
+    return jsonify({'ok': True})
+
+
 _stats_rate = {}
 _stats_lock = threading.Lock()
 _STATS_RATE_TTL = 300

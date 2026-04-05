@@ -873,6 +873,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   <button class="dropdown-item" id="myProfileDropBtn" onclick="if(currentUser)openProfile(currentUser.handle);closeDropdown()">👤 My profile</button>
   <button class="dropdown-item" onclick="switchPage('forum');closeDropdown()">◎ Forum</button>
   <button class="dropdown-item" onclick="switchPage('checker');closeDropdown()">⚡ Code Checker <span class="nav-soon" style="margin-left:4px">Soon</span></button>
+  <button class="dropdown-item" onclick="openAccountSettings();closeDropdown()">⚙ Account settings</button>
   <button class="dropdown-item danger" onclick="signOut()">→ Sign out</button>
 </div>
 
@@ -1088,7 +1089,14 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
         <div class="fgroup"><label class="flabel">Email</label><input class="finput" id="authEmail" type="email" placeholder="you@example.com"></div>
         <div class="fgroup"><label class="flabel">Password</label><input class="finput" id="authPassword" type="password" placeholder="••••••••"></div>
         <button class="auth-btn" onclick="emailAuth()">Sign in →</button>
-        <div class="auth-footer">No account? <a onclick="setAuthTab('signup')">Sign up free</a></div>
+        <div class="auth-footer" style="display:flex;justify-content:space-between;align-items:center"><span>No account? <a onclick="setAuthTab('signup')">Sign up free</a></span><a onclick="showForgotPassword()" style="color:var(--muted2);font-size:11px;cursor:pointer">Forgot password?</a></div>
+      </div>
+
+      <div id="forgotForm" style="display:none">
+        <p style="font-size:13px;color:var(--muted2);margin-bottom:14px;line-height:1.5">Enter your email and we'll send you a link to reset your password.</p>
+        <div class="fgroup"><label class="flabel">Email</label><input class="finput" id="forgotEmail" type="email" placeholder="you@example.com"></div>
+        <button class="auth-btn" onclick="sendPasswordReset()">Send reset link →</button>
+        <div class="auth-footer"><a onclick="hideForgotPassword()">← Back to sign in</a></div>
       </div>
 
       <div id="signupForm" style="display:none">
@@ -1099,6 +1107,33 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
         <button class="auth-btn" onclick="emailSignUp()">Create account →</button>
         <div class="auth-footer">Already have an account? <a onclick="setAuthTab('login')">Sign in</a></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Account settings modal -->
+<div class="modal-overlay" id="accountSettingsModal" onclick="outsideClose(event,'accountSettingsModal')">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-head">
+      <div class="modal-title">⚙ Account settings</div>
+      <button class="close-btn" onclick="closeAccountSettings()">✕</button>
+    </div>
+
+    <div class="fgroup" style="margin-bottom:16px">
+      <label class="flabel">Display name</label>
+      <input class="finput" id="settingsName" placeholder="Your name">
+    </div>
+    <div class="fgroup" style="margin-bottom:16px">
+      <label class="flabel">Handle</label>
+      <input class="finput" id="settingsHandle" placeholder="@yourhandle">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Changing your handle will update all your existing projects.</div>
+    </div>
+    <button class="auth-btn" onclick="saveAccountSettings()" id="saveSettingsBtn">Save changes</button>
+
+    <div style="border-top:1px solid var(--border);margin-top:24px;padding-top:20px">
+      <p style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:8px">Danger zone</p>
+      <p style="font-size:12px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Permanently delete your account and all associated data. This action cannot be undone.</p>
+      <button class="auth-btn" style="background:var(--red);border-color:var(--red)" onclick="confirmDeleteAccount()" id="deleteAccountBtn">Delete my account</button>
     </div>
   </div>
 </div>
@@ -1244,6 +1279,7 @@ function setAuthTab(tab) {
   document.getElementById('atab-' + tab).classList.add('active');
   document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
   document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('forgotForm').style.display = 'none';
   clearAuthError();
 }
 
@@ -1329,6 +1365,124 @@ function showAuthError(msg) {
 function clearAuthError() {
   const err = document.getElementById('authError');
   if (err) err.textContent = '';
+}
+
+function showForgotPassword() {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('signupForm').style.display = 'none';
+  document.getElementById('forgotForm').style.display = 'block';
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  clearAuthError();
+}
+
+function hideForgotPassword() {
+  document.getElementById('forgotForm').style.display = 'none';
+  setAuthTab('login');
+}
+
+async function sendPasswordReset() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  if (!email) { showAuthError('Please enter your email.'); return; }
+  const redirectUrl = window.location.origin;
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: redirectUrl });
+  if (error) { showAuthError(error.message); return; }
+  showAuthError('✓ Reset link sent! Check your inbox (and spam folder).');
+}
+
+function openAccountSettings() {
+  if (!currentUser) { openAuth(); return; }
+  document.getElementById('settingsName').value = currentUser.name || '';
+  document.getElementById('settingsHandle').value = currentUser.handle || '';
+  document.getElementById('accountSettingsModal').classList.add('open');
+}
+
+function closeAccountSettings() {
+  document.getElementById('accountSettingsModal').classList.remove('open');
+}
+
+async function saveAccountSettings() {
+  if (!currentUser) return;
+  const newName = document.getElementById('settingsName').value.trim();
+  const rawHandle = document.getElementById('settingsHandle').value.trim();
+  if (!newName) { showToast('Name cannot be empty.'); return; }
+  const newHandle = rawHandle.startsWith('@') ? rawHandle : '@' + rawHandle;
+  if (newHandle.length < 2) { showToast('Handle cannot be empty.'); return; }
+
+  const btn = document.getElementById('saveSettingsBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const token = currentUser.accessToken || '';
+    const oldHandle = currentUser.handle;
+
+    const { error } = await sb.auth.updateUser({
+      data: { name: newName, handle: newHandle, user_name: newHandle.replace('@', '') }
+    });
+    if (error) { showToast('Error: ' + error.message); return; }
+
+    if (oldHandle !== newHandle) {
+      const resp = await fetch('/api/account/update-handle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ old_handle: oldHandle, new_handle: newHandle })
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        showToast('Error updating handle: ' + (data.error || 'Unknown error'));
+        return;
+      }
+    }
+
+    currentUser.name = newName;
+    currentUser.handle = newHandle;
+    currentUser.avatar = newName[0].toUpperCase();
+    updateNavForUser();
+    closeAccountSettings();
+    showToast('✓ Account updated!');
+    _cache_ts = 0;
+    renderProjects();
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save changes';
+  }
+}
+
+async function confirmDeleteAccount() {
+  if (!currentUser) return;
+  const confirmed = confirm('Are you sure you want to permanently delete your account? All your projects, comments, and data will be removed. This cannot be undone.');
+  if (!confirmed) return;
+  const doubleConfirm = prompt('Type DELETE to confirm:');
+  if (doubleConfirm !== 'DELETE') { showToast('Account deletion cancelled.'); return; }
+
+  const btn = document.getElementById('deleteAccountBtn');
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+
+  try {
+    const token = currentUser.accessToken || '';
+    const resp = await fetch('/api/account/delete', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      showToast('Error: ' + (data.error || 'Could not delete account.'));
+      return;
+    }
+    closeAccountSettings();
+    await sb.auth.signOut();
+    currentUser = null;
+    updateNavForUser();
+    showToast('Your account has been deleted.');
+  } catch(e) {
+    showToast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Delete my account';
+  }
 }
 
 function loginUser(user) {
@@ -1442,7 +1596,16 @@ sb.auth.onAuthStateChange(async (event, session) => {
       accessToken: session.access_token
     });
 
-    if (event === 'SIGNED_IN') showToast('✓ Welcome back, ' + name + '!');
+    if (event === 'PASSWORD_RECOVERY') {
+      const newPass = prompt('Enter your new password (min. 8 characters):');
+      if (newPass && newPass.length >= 8) {
+        const { error: upErr } = await sb.auth.updateUser({ password: newPass });
+        if (upErr) showToast('Error: ' + upErr.message);
+        else showToast('✓ Password updated successfully!');
+      } else if (newPass) {
+        showToast('Password must be at least 8 characters.');
+      }
+    } else if (event === 'SIGNED_IN') showToast('✓ Welcome back, ' + name + '!');
     else if (event === 'SIGNED_UP') showToast('🎉 Welcome, ' + name + '! Account created.');
 
     await loadUserVotes(user.id);
