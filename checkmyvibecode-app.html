@@ -257,9 +257,7 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .upvote-btn.voted { background:rgba(139,92,246,.15); border-color:rgba(139,92,246,.4); color:#8b5cf6; box-shadow:none; }
 .view-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:var(--r-sm); font-size:12px; background:var(--surface2); border:1px solid var(--border); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); font-weight:500; }
 .view-btn:hover { background:var(--surface3); color:var(--text); }
-.share-x-btn, .share-fb-btn, .share-li-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); flex-shrink:0; padding:0; opacity:0; pointer-events:none; transition:opacity .15s; }
-.card:hover .share-x-btn, .card:hover .share-fb-btn, .card:hover .share-li-btn { opacity:1; pointer-events:auto; }
-@media (hover:none) { .share-x-btn, .share-fb-btn, .share-li-btn { opacity:1; pointer-events:auto; } }
+.share-x-btn, .share-fb-btn, .share-li-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); flex-shrink:0; padding:0; }
 .share-x-btn:hover { background:#000; color:#fff; border-color:#000; }
 .share-fb-btn:hover { background:#1877f2; color:#fff; border-color:#1877f2; }
 .share-li-btn:hover { background:#0a66c2; color:#fff; border-color:#0a66c2; }
@@ -505,7 +503,6 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
   .card-desc { font-size:12px; margin-bottom:8px; }
   .card-author-row { font-size:11px; margin-bottom:8px; }
   .card-footer { gap:4px; padding-top:8px; }
-  .share-x-btn, .share-fb-btn, .share-li-btn { display:none; }
   .upvote-btn { padding:5px 7px; font-size:11px; white-space:nowrap; }
   .card-stat-btn { padding:3px 6px; font-size:10px; }
 
