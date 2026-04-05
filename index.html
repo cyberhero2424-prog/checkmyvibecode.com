@@ -316,7 +316,8 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .comment-list { margin-bottom:16px; }
 .comment-item { display:flex; gap:10px; padding:12px 0; border-bottom:1px solid var(--border); }
 .comment-item:last-child { border:none; }
-.c-avatar { width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--muted2); flex-shrink:0; }
+.c-avatar { width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--muted2); flex-shrink:0; overflow:hidden; }
+.c-avatar img { width:100%; height:100%; object-fit:cover; border-radius:7px; }
 .c-meta { font-size:11px; color:var(--muted); margin-bottom:4px; }
 .c-meta strong { color:var(--muted2); font-weight:600; }
 .c-text { font-size:13px; color:var(--muted2); line-height:1.5; }
@@ -750,7 +751,8 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .forum-replies-title { font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.5px; text-transform:uppercase; margin-bottom:14px; }
 .forum-reply-item { display:flex; gap:10px; padding:14px 0; border-bottom:1px solid var(--border); }
 .forum-reply-item:last-child { border:none; }
-.forum-reply-avatar { width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--muted2); flex-shrink:0; }
+.forum-reply-avatar { width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--muted2); flex-shrink:0; overflow:hidden; }
+.forum-reply-avatar img { width:100%; height:100%; object-fit:cover; border-radius:7px; }
 .forum-reply-meta { font-size:11px; color:var(--muted); margin-bottom:5px; }
 .forum-reply-meta strong { color:var(--muted2); font-weight:600; }
 .forum-reply-body { font-size:13px; color:var(--muted2); line-height:1.6; white-space:pre-wrap; }
@@ -2130,14 +2132,65 @@ async function loadComments(projectId) {
   }
 }
 
+const _avatarUrlCache = {};
+function _getCachedAvatarUrl(handle) {
+  if (!handle) return '';
+  if (currentUser && currentUser.handle === handle) return currentUser.avatarUrl || '';
+  const bare = handle.replace(/^@/, '');
+  return _avatarUrlCache[bare] || '';
+}
+async function _fetchAndCacheAvatarUrl(handle) {
+  if (!handle) return '';
+  const bare = handle.replace(/^@/, '');
+  if (bare in _avatarUrlCache) return _avatarUrlCache[bare];
+  try {
+    const r = await fetch('/api/profile-meta/' + encodeURIComponent(bare));
+    if (r.ok) { const d = await r.json(); _avatarUrlCache[bare] = d.avatar_url || ''; return _avatarUrlCache[bare]; }
+  } catch(e) {}
+  _avatarUrlCache[bare] = '';
+  return '';
+}
+function _upgradeAvatarsInContainer(container) {
+  const els = container.querySelectorAll('[data-avatar-handle]');
+  const handles = new Set();
+  els.forEach(el => handles.add(el.dataset.avatarHandle));
+  handles.forEach(async h => {
+    const url = await _fetchAndCacheAvatarUrl(h);
+    if (!url) return;
+    container.querySelectorAll(`[data-avatar-handle="${CSS.escape(h)}"]`).forEach(el => {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = h;
+      img.onerror = function() { this.remove(); };
+      el.textContent = '';
+      el.appendChild(img);
+    });
+  });
+}
+
 function renderComments(p) {
   if (!p.comments || !p.comments.length) return '<div style="color:var(--muted);font-size:13px;padding:8px 0">No comments yet — be the first!</div>';
   const myHandle = currentUser?.handle || '';
-  return p.comments.map(c => {
+  const html = p.comments.map(c => {
     const canDelete = myHandle && c.author && c.author === myHandle;
     const deleteBtn = canDelete ? `<button onclick="deleteComment('${c.id}')" title="Delete" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px;margin-left:auto;opacity:.6;transition:opacity .15s" onmouseover="this.style.opacity='1';this.style.color='var(--red)'" onmouseout="this.style.opacity='.6';this.style.color='var(--muted)'" >✕</button>` : '';
-    return `<div class="comment-item"><div class="c-avatar">${(c.author||'@?').slice(1,3).toUpperCase()}</div><div style="flex:1"><div class="c-meta" style="display:flex;align-items:center"><span><strong>${esc(c.author)}</strong> · ${c.time}</span>${deleteBtn}</div><div class="c-text">${esc(c.text)}</div></div></div>`;
+    const cachedUrl = _getCachedAvatarUrl(c.author);
+    const initials = (c.author||'@?').slice(1,3).toUpperCase();
+    const avatarContent = cachedUrl ? '' : initials;
+    const dataAttr = c.author ? ` data-avatar-handle="${escAttr(c.author)}"` : '';
+    return `<div class="comment-item"><div class="c-avatar"${dataAttr}>${avatarContent}</div><div style="flex:1"><div class="c-meta" style="display:flex;align-items:center"><span><strong>${esc(c.author)}</strong> · ${c.time}</span>${deleteBtn}</div><div class="c-text">${esc(c.text)}</div></div></div>`;
   }).join('');
+  setTimeout(() => {
+    const container = document.getElementById('drawerComments');
+    if (container) {
+      container.querySelectorAll('[data-avatar-handle]').forEach(el => {
+        const url = _getCachedAvatarUrl(el.dataset.avatarHandle);
+        if (url) { const img = document.createElement('img'); img.src = url; img.alt = ''; img.onerror = function(){this.remove()}; el.textContent = ''; el.appendChild(img); }
+      });
+      _upgradeAvatarsInContainer(container);
+    }
+  }, 0);
+  return html;
 }
 
 async function deleteComment(commentId) {
@@ -2588,7 +2641,7 @@ function renderForumThreadList() {
         <div class="forum-thread-title">${escHtml(t.title)}</div>
         <div class="forum-thread-preview">${escHtml(t.body)}</div>
         <div class="forum-thread-meta">
-          <span class="forum-reply-avatar" style="width:24px;height:24px;font-size:9px;border-radius:6px;flex-shrink:0">${forumAvatar(t.author_handle)}</span>
+          <span class="forum-reply-avatar" style="width:24px;height:24px;font-size:9px;border-radius:6px;flex-shrink:0;overflow:hidden" data-avatar-handle="${escAttr(t.author_handle||'')}">${forumAvatar(t.author_handle)}</span>
           <span class="t-author">${escHtml(t.author_handle)}</span>
           <span class="t-sep"></span>
           <span class="t-time">${fmtForumDate(t.created_at)}</span>
@@ -2597,6 +2650,7 @@ function renderForumThreadList() {
       </div>
     </div>`;
   }).join('');
+  setTimeout(() => _upgradeAvatarsInContainer(el), 0);
 }
 
 async function openForumThread(id) {
@@ -2626,7 +2680,8 @@ async function loadForumReplies(threadId) {
   } catch(e) { console.error('loadForumReplies error:', e); } finally { clearTimeout(t); }
   if (titleEl) titleEl.textContent = `Replies (${replies.length})`;
   if (!replies.length) { el.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:12px 0">No replies yet — be the first to respond.</div>`; return; }
-  el.innerHTML = `<div class="comment-list">${replies.map(r=>`<div class="forum-reply-item"><div class="forum-reply-avatar">${forumAvatar(r.author_handle)}</div><div><div class="forum-reply-meta"><strong>${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div></div>`).join('')}</div>`;
+  el.innerHTML = `<div class="comment-list">${replies.map(r=>`<div class="forum-reply-item"><div class="forum-reply-avatar" style="overflow:hidden" data-avatar-handle="${escAttr(r.author_handle||'')}">${forumAvatar(r.author_handle)}</div><div><div class="forum-reply-meta"><strong>${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div></div>`).join('')}</div>`;
+  setTimeout(() => _upgradeAvatarsInContainer(el), 0);
 }
 
 function backToForumList() {
