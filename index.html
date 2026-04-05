@@ -2548,8 +2548,9 @@ function shareX(id) {
   if (!p) return;
   const url = _shareBase + '/p/' + id;
   const tools = (p.tools||[]).slice(0,2).map(t=>'#'+t.replace(/[\s.]+/g,'')).join(' ');
+  const cat = (p.cat||'').replace(/\s+/g,'');
   const score = p.score ? ` — Vibe Score: ${p.score}/100 ✦` : '';
-  const text = `"${p.name}"${score}\n\nBuilt with AI${tools?' using '+tools:''} 🚀\n\n#vibecoding #builtwithAI`;
+  const text = `"${p.name}"${score}\n\nBuilt with AI${tools?' using '+tools:''} 🚀\n\n#vibecoding #builtwithAI${cat?' #'+cat:''}`;
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank', 'noopener');
 }
 
