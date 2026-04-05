@@ -1416,10 +1416,16 @@ async function saveAccountSettings() {
     const token = currentUser.accessToken || '';
     const oldHandle = currentUser.handle;
 
-    const { error } = await sb.auth.updateUser({
-      data: { name: newName, handle: newHandle, user_name: newHandle.replace('@', '') }
-    });
-    if (error) { showToast('Error: ' + error.message); return; }
+    try {
+      const updatePromise = sb.auth.updateUser({
+        data: { name: newName, handle: newHandle, user_name: newHandle.replace('@', '') }
+      });
+      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000));
+      const { error } = await Promise.race([updatePromise, timeout]);
+      if (error) console.warn('updateUser warning:', error.message);
+    } catch(ue) {
+      console.warn('updateUser skipped:', ue.message);
+    }
 
     if (oldHandle !== newHandle) {
       const resp = await fetch('/api/account/update-handle', {
