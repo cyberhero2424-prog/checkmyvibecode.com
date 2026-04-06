@@ -2059,10 +2059,8 @@ def api_update_handle():
     """Update the author handle on all projects belonging to the authenticated user."""
     auth_header = request.headers.get('Authorization', '')
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
-    user_id = _decode_jwt_user_id(token)
-    if not user_id:
-        user_obj = _verify_supabase_token(token)
-        user_id = user_obj.get('id') if isinstance(user_obj, dict) else None
+    user_obj = _verify_supabase_token(token)
+    user_id = user_obj.get('id') if isinstance(user_obj, dict) else None
     if not user_id:
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -2319,34 +2317,17 @@ def post_project_comment(project_id):
 
 @app.route('/api/comments/<comment_id>', methods=['DELETE'])
 def delete_comment(comment_id):
-    """Delete a comment. Only the comment author can delete their own comment."""
+    """Delete a comment. Only the comment author can delete their own comment.
+    Ownership is verified server-side via JWT — never trusts client-supplied handles."""
     if not _UUID_RE.match(comment_id):
         return jsonify({'error': 'Invalid comment id'}), 400
     auth_header = request.headers.get('Authorization', '')
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
-    user_id = None
-    jwt_handle = None
-    uid = _decode_jwt_user_id(token)
-    if uid:
-        user_id = uid
-        try:
-            parts = token.split('.')
-            padding = 4 - len(parts[1]) % 4
-            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=' * (padding % 4)).decode())
-            meta = payload.get('user_metadata') or {}
-            if meta.get('handle'):
-                jwt_handle = str(meta['handle'])
-            elif meta.get('user_name'):
-                jwt_handle = '@' + str(meta['user_name'])
-        except Exception:
-            pass
-    else:
-        user_obj = _verify_supabase_token(token)
-        if isinstance(user_obj, dict):
-            user_id = user_obj.get('id')
-            jwt_handle = _derive_author_handle(user_obj)
-    if not user_id:
+    user_obj = _verify_supabase_token(token)
+    if not isinstance(user_obj, dict) or not user_obj.get('id'):
         return jsonify({'error': 'Invalid or expired session'}), 401
+    user_id = user_obj['id']
+    jwt_handle = _derive_author_handle(user_obj)
     rows, err = _sb_service_request('GET', f'comments?select=id,author,user_id&id=eq.{comment_id}&limit=1')
     if err or not rows:
         return jsonify({'error': 'Comment not found'}), 404
