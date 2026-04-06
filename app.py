@@ -2064,14 +2064,16 @@ def api_update_handle():
     if not user_id:
         return jsonify({'error': 'Unauthorized'}), 401
 
+    jwt_handle = _derive_author_handle(user_obj)
+
     data = request.get_json(silent=True) or {}
-    old_handle = data.get('old_handle', '').strip()
     new_handle = data.get('new_handle', '').strip()
-    if not old_handle or not new_handle:
-        return jsonify({'error': 'Missing handles'}), 400
+    if not new_handle:
+        return jsonify({'error': 'Missing new handle'}), 400
     if not re.match(r'^@[A-Za-z0-9_.-]{1,40}$', new_handle):
         return jsonify({'error': 'Invalid handle format'}), 400
 
+    old_handle = jwt_handle
     new_user_name = new_handle.lstrip('@')
 
     _, err = _sb_service_request(
@@ -2101,13 +2103,11 @@ def api_update_handle():
     )
 
     try:
+        existing_meta = (user_obj.get('user_metadata') or {}).copy()
+        existing_meta['user_name'] = new_user_name
+        existing_meta['handle'] = new_handle
         admin_url = f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}"
-        payload = json.dumps({
-            'user_metadata': {
-                'user_name': new_user_name,
-                'handle': new_handle,
-            }
-        }).encode()
+        payload = json.dumps({'user_metadata': existing_meta}).encode()
         req = urllib.request.Request(admin_url, data=payload, headers={
             'apikey': SUPABASE_SERVICE_KEY,
             'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
