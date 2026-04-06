@@ -1758,11 +1758,11 @@ def api_projects():
         return resp
     base_qs = '&status=eq.approved&order=upvotes.desc'
     selects = [
-        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count',
-        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost,view_count,click_count',
-        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost',
-        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost',
-        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost,view_count,click_count',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,build_time,cost',
     ]
     for select in selects:
         endpoint = (SUPABASE_URL.rstrip('/') +
@@ -1805,8 +1805,8 @@ def api_profile(handle):
     safe_handle = urllib.parse.quote('@' + clean, safe='')
     base_qs = f'&status=eq.approved&author=eq.{safe_handle}&order=upvotes.desc'
     for select in (
-        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at,screenshot_url',
-        'id,name,description,emoji,author,cat,upvotes,demo,tools,created_at',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,screenshot_url',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at',
     ):
         endpoint = (SUPABASE_URL.rstrip('/') +
                     f'/rest/v1/projects?select={select}{base_qs}')
