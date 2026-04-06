@@ -2117,7 +2117,6 @@ function renderProjects() {
           ${p.score?`<div class="score-pill ${scoreClass(p.score)}">✦ ${p.score}</div>`:''}
         </div>
         <div class="card-desc">${highlight(p.desc||'',q)}</div>
-        ${p.idea&&p.idea.trim()?`<div class="card-idea">💡 ${highlight(p.idea,q)}</div>`:''}
         <div class="card-tags">
           ${(p.tools||[]).map(t=>`<span class="tag ${tagClass(t)}">${highlight(t,q)}</span>`).join('')}
           <span class="tag t-cat">${p.cat}</span>
