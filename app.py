@@ -1263,7 +1263,7 @@ def _send_resend_email(to, subject, text_body):
         resp = _requests_lib.post(
             'https://api.resend.com/emails',
             json={
-                'from': 'CheckMyVibeCode <contact@checkmyvibecode.com>',
+                'from': 'CheckMyVibeCode <support@checkmyvibecode.com>',
                 'to': [to],
                 'subject': subject,
                 'text': text_body,
@@ -1417,7 +1417,7 @@ def _notify_project_approved(project_id, project_name, author_handle):
             f"and is now live on CheckMyVibeCode! \U0001f389\n\n"
             f"Check it out: {project_url}\n\n"
             f"Share it with the community to get upvotes and feedback.\n\n"
-            f"Questions? Reply to this email or reach us at contact@checkmyvibecode.com\n\n"
+            f"Questions? Reply to this email or reach us at support@checkmyvibecode.com\n\n"
             f"\u2014 The CheckMyVibeCode team"
             f"{_unsubscribe_footer(email)}"
         )
@@ -1673,13 +1673,13 @@ def submit_project():
         f"can start upvoting and commenting.\n\n"
         f"In the meantime, feel free to browse other builds:\n"
         f"{site_url}\n\n"
-        f"Questions? Reply to this email or reach us at contact@checkmyvibecode.com\n\n"
+        f"Questions? Reply to this email or reach us at support@checkmyvibecode.com\n\n"
         f"\u2014 The CheckMyVibeCode team\n"
     )
 
     def _notify():
         ok, email_err = _send_resend_email(
-            to='contact@checkmyvibecode.com',
+            to='support@checkmyvibecode.com',
             subject=f'[CheckMyVibeCode] New submission: {name}',
             text_body=admin_body,
         )

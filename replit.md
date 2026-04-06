@@ -42,7 +42,7 @@ The notifications table is auto-created at startup via `_apply_notifications_mig
 - Supabase project ref: `cltqungsctxkzonqigcf`
 - GA4 ID: `G-946DB9M5F4`
 - Cookie consent key: `cookie_consent` in localStorage (`'granted'` or `'denied'`)
-- Contact: contact@checkmyvibecode.com
+- Contact: support@checkmyvibecode.com
 
 ## Static Files
 - `static/logo2.png` — nav logo
