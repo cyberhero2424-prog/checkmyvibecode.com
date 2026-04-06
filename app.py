@@ -2324,18 +2324,34 @@ def delete_comment(comment_id):
         return jsonify({'error': 'Invalid comment id'}), 400
     auth_header = request.headers.get('Authorization', '')
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
-    user_id = _decode_jwt_user_id(token)
-    if not user_id:
-        user = _verify_supabase_token(token)
-        user_id = user.get('id') if user else None
+    user_id = None
+    jwt_handle = None
+    uid = _decode_jwt_user_id(token)
+    if uid:
+        user_id = uid
+        try:
+            parts = token.split('.')
+            padding = 4 - len(parts[1]) % 4
+            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=' * (padding % 4)).decode())
+            meta = payload.get('user_metadata') or {}
+            if meta.get('handle'):
+                jwt_handle = str(meta['handle'])
+            elif meta.get('user_name'):
+                jwt_handle = '@' + str(meta['user_name'])
+        except Exception:
+            pass
+    else:
+        user_obj = _verify_supabase_token(token)
+        if isinstance(user_obj, dict):
+            user_id = user_obj.get('id')
+            jwt_handle = _derive_author_handle(user_obj)
     if not user_id:
         return jsonify({'error': 'Invalid or expired session'}), 401
-    author_handle = str(request.args.get('author', '')).strip()
     rows, err = _sb_service_request('GET', f'comments?select=id,author,user_id&id=eq.{comment_id}&limit=1')
     if err or not rows:
         return jsonify({'error': 'Comment not found'}), 404
     comment = rows[0]
-    owner_by_handle = author_handle and comment.get('author') == author_handle
+    owner_by_handle = jwt_handle and comment.get('author') == jwt_handle
     owner_by_uid = comment.get('user_id') and comment['user_id'] == user_id
     if not owner_by_handle and not owner_by_uid:
         return jsonify({'error': 'You can only delete your own comments'}), 403
