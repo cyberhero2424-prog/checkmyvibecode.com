@@ -84,6 +84,8 @@ def _derive_author_handle(user):
     in projects.author. Because this comes from the verified JWT, it cannot be
     spoofed by client-supplied payload data."""
     meta = user.get('user_metadata') or {}
+    if meta.get('handle'):
+        return str(meta['handle'])
     app_meta = user.get('app_metadata') or {}
     provider = app_meta.get('provider', '')
     if provider == 'github' and meta.get('user_name'):
@@ -2059,7 +2061,8 @@ def api_update_handle():
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
     user_id = _decode_jwt_user_id(token)
     if not user_id:
-        user_id = _verify_supabase_token(token)
+        user_obj = _verify_supabase_token(token)
+        user_id = user_obj.get('id') if isinstance(user_obj, dict) else None
     if not user_id:
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -2070,6 +2073,8 @@ def api_update_handle():
         return jsonify({'error': 'Missing handles'}), 400
     if not re.match(r'^@[A-Za-z0-9_.-]{1,40}$', new_handle):
         return jsonify({'error': 'Invalid handle format'}), 400
+
+    new_user_name = new_handle.lstrip('@')
 
     _, err = _sb_service_request(
         'PATCH',
@@ -2096,6 +2101,25 @@ def api_update_handle():
         f'forum_replies?author=eq.{urllib.parse.quote(old_handle, safe="")}',
         {'author': new_handle}
     )
+
+    try:
+        admin_url = f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}"
+        payload = json.dumps({
+            'user_metadata': {
+                'user_name': new_user_name,
+                'handle': new_handle,
+            }
+        }).encode()
+        req = urllib.request.Request(admin_url, data=payload, headers={
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+            'Content-Type': 'application/json',
+        }, method='PUT')
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read()
+        app.logger.info('Updated user_metadata for %s: user_name=%s', user_id, new_user_name)
+    except Exception as e:
+        app.logger.warning('Failed to update user_metadata via Admin API: %s', e)
 
     _cache_delete('projects', 'ssr_projects')
 
@@ -2307,10 +2331,13 @@ def delete_comment(comment_id):
     if not user_id:
         return jsonify({'error': 'Invalid or expired session'}), 401
     author_handle = str(request.args.get('author', '')).strip()
-    rows, err = _sb_service_request('GET', f'comments?select=id,author&id=eq.{comment_id}&limit=1')
+    rows, err = _sb_service_request('GET', f'comments?select=id,author,user_id&id=eq.{comment_id}&limit=1')
     if err or not rows:
         return jsonify({'error': 'Comment not found'}), 404
-    if author_handle and rows[0].get('author') != author_handle:
+    comment = rows[0]
+    owner_by_handle = author_handle and comment.get('author') == author_handle
+    owner_by_uid = comment.get('user_id') and comment['user_id'] == user_id
+    if not owner_by_handle and not owner_by_uid:
         return jsonify({'error': 'You can only delete your own comments'}), 403
     _, err = _sb_service_request('DELETE', f'comments?id=eq.{comment_id}')
     if err:
