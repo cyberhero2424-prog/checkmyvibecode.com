@@ -12,3 +12,9 @@ id = "gpp5uIu95uyRttH5CcMzp"
 uri = "file://static/checkmyvibecode.zip"
 type = "unspecified"
 title = "checkmyvibecode.zip — Code Download"
+
+[[outputs]]
+id = "Dc-gEnMCmeJEQTDK_mgLZ"
+uri = "file://screenshots/checkmyvibecode-homepage.jpg"
+type = "image"
+title = "CheckMyVibeCode Homepage Screenshot"

@@ -1890,7 +1890,7 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 const _preloaderStart = Date.now();
-const _preloaderMinMs = 1500;
+const _preloaderMinMs = new URLSearchParams(location.search).has('nopreloader') ? 0 : 1500;
 function hidePreloader() {
   var ssrEl = document.getElementById('ssr-content');
   if (ssrEl) ssrEl.remove();
