@@ -2154,8 +2154,8 @@ def api_delete_account():
         safe_handle = urllib.parse.quote(jwt_handle, safe='')
         _sb_service_request('DELETE', f'projects?author=eq.{safe_handle}')
         _sb_service_request('DELETE', f'comments?author=eq.{safe_handle}')
-        _sb_service_request('DELETE', f'forum_threads?author=eq.{safe_handle}')
-        _sb_service_request('DELETE', f'forum_replies?author=eq.{safe_handle}')
+        _sb_service_request('DELETE', f'forum_threads?author_handle=eq.{safe_handle}')
+        _sb_service_request('DELETE', f'forum_replies?author_handle=eq.{safe_handle}')
 
     safe_uid = urllib.parse.quote(str(user_id), safe='')
     _sb_service_request('DELETE', f'upvotes?user_id=eq.{safe_uid}')
@@ -2522,6 +2522,13 @@ def api_forum_delete_reply(reply_id):
     thread_id = reply.get('thread_id')
     if thread_id:
         _cache_delete(f'forum_replies:{thread_id}')
+        try:
+            count_rows, _ = _sb_service_request('GET', f'forum_replies?thread_id=eq.{thread_id}&select=id')
+            new_count = len(count_rows) if count_rows else 0
+            _sb_service_request('PATCH', f'forum_threads?id=eq.{thread_id}', {'reply_count': new_count})
+            _cache_delete('forum_threads')
+        except Exception:
+            pass
     return jsonify({'ok': True})
 
 
