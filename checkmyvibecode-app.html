@@ -2867,7 +2867,9 @@ async function loadForumReplies(threadId) {
   } catch(e) { console.error('loadForumReplies error:', e); } finally { clearTimeout(t); }
   if (titleEl) titleEl.textContent = `Replies (${replies.length})`;
   if (!replies.length) { el.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:12px 0">No replies yet — be the first to respond.</div>`; return; }
-  el.innerHTML = `<div class="comment-list">${replies.map(r=>`<div class="forum-reply-item"><div class="forum-reply-avatar" style="overflow:hidden" data-avatar-handle="${escAttr(r.author_handle||'')}">${forumAvatar(r.author_handle)}</div><div><div class="forum-reply-meta"><strong>${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div></div>`).join('')}</div>`;
+  const myHandle = currentUser?.handle || '';
+  const myUid = currentUser?.id || '';
+  el.innerHTML = `<div class="comment-list">${replies.map(r=>{const canDel=(myHandle && r.author_handle && r.author_handle===myHandle)||(myUid && r.author_id && r.author_id===myUid);const delBtn=canDel?`<button onclick="event.stopPropagation();deleteForumReply('${r.id}','${currentForumThreadId}')" title="Delete reply" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:#dc2626;cursor:pointer;font-size:11px;padding:3px 8px;margin-left:auto;border-radius:4px;font-weight:600;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='rgba(220,38,38,.15)';this.style.borderColor='rgba(220,38,38,.4)'" onmouseout="this.style.background='rgba(220,38,38,.08)';this.style.borderColor='rgba(220,38,38,.2)'">🗑 Delete</button>`:'';return `<div class="forum-reply-item"><div class="forum-reply-avatar" style="overflow:hidden" data-avatar-handle="${escAttr(r.author_handle||'')}">${forumAvatar(r.author_handle)}</div><div style="flex:1"><div class="forum-reply-meta" style="display:flex;align-items:center;gap:6px"><strong>${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}${delBtn}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div></div>`;}).join('')}</div>`;
   setTimeout(() => _upgradeAvatarsInContainer(el), 0);
 }
 
@@ -2961,6 +2963,26 @@ async function postForumReply() {
   } finally {
     clearTimeout(t);
     if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+}
+
+async function deleteForumReply(replyId, threadId) {
+  if (!currentUser) return;
+  if (!confirm('Delete this reply?')) return;
+  try {
+    const resp = await fetch('/api/forum/replies/' + replyId, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + (currentUser?.accessToken || '') }
+    });
+    const d = await resp.json().catch(() => ({}));
+    if (resp.ok && d.ok) {
+      showToast('Reply deleted');
+      if (threadId) loadForumReplies(threadId);
+    } else {
+      showToast(d.error || 'Could not delete reply');
+    }
+  } catch(e) {
+    showToast('Error deleting reply');
   }
 }
 

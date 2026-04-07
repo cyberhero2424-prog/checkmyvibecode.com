@@ -2092,14 +2092,14 @@ def api_update_handle():
 
     _, err3 = _sb_service_request(
         'PATCH',
-        f'forum_threads?author=eq.{urllib.parse.quote(old_handle, safe="")}',
-        {'author': new_handle}
+        f'forum_threads?author_handle=eq.{urllib.parse.quote(old_handle, safe="")}',
+        {'author_handle': new_handle}
     )
 
     _, err4 = _sb_service_request(
         'PATCH',
-        f'forum_replies?author=eq.{urllib.parse.quote(old_handle, safe="")}',
-        {'author': new_handle}
+        f'forum_replies?author_handle=eq.{urllib.parse.quote(old_handle, safe="")}',
+        {'author_handle': new_handle}
     )
 
     try:
@@ -2379,7 +2379,7 @@ def _sb_post(path, payload, user_jwt, params=''):
 
 
 _FORUM_THREAD_COLS = 'id,title,body,author_handle,created_at,upvotes'
-_FORUM_REPLY_COLS  = 'id,thread_id,body,author_handle,created_at'
+_FORUM_REPLY_COLS  = 'id,thread_id,body,author_handle,author_id,created_at'
 
 
 @app.route('/api/forum/threads')
@@ -2493,6 +2493,36 @@ def api_forum_create_reply(thread_id):
         return {'error': 'Could not post reply'}, 502
     _cache_delete(f'forum_replies:{thread_id}')
     return Response(json.dumps(result), mimetype='application/json')
+
+
+@app.route('/api/forum/replies/<reply_id>', methods=['DELETE'])
+def api_forum_delete_reply(reply_id):
+    """Delete a forum reply. Ownership verified server-side via JWT."""
+    if not _UUID_RE.match(reply_id):
+        return jsonify({'error': 'Invalid reply id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_obj = _verify_supabase_token(token)
+    if not isinstance(user_obj, dict) or not user_obj.get('id'):
+        return jsonify({'error': 'Invalid or expired session'}), 401
+    user_id = user_obj['id']
+    jwt_handle = _derive_author_handle(user_obj)
+    rows, err = _sb_service_request('GET', f'forum_replies?select=id,author_handle,author_id,thread_id&id=eq.{reply_id}&limit=1')
+    if err or not rows:
+        return jsonify({'error': 'Reply not found'}), 404
+    reply = rows[0]
+    owner_by_handle = jwt_handle and reply.get('author_handle') == jwt_handle
+    owner_by_uid = reply.get('author_id') and reply['author_id'] == user_id
+    if not owner_by_handle and not owner_by_uid:
+        return jsonify({'error': 'You can only delete your own replies'}), 403
+    _, err = _sb_service_request('DELETE', f'forum_replies?id=eq.{reply_id}')
+    if err:
+        app.logger.error('delete_forum_reply error: %s', err)
+        return jsonify({'error': 'Could not delete reply'}), 502
+    thread_id = reply.get('thread_id')
+    if thread_id:
+        _cache_delete(f'forum_replies:{thread_id}')
+    return jsonify({'ok': True})
 
 
 @app.route('/api/forum/user-votes')
