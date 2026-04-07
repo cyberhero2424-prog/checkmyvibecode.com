@@ -2977,6 +2977,8 @@ async function deleteForumReply(replyId, threadId) {
     const d = await resp.json().catch(() => ({}));
     if (resp.ok && d.ok) {
       showToast('Reply deleted');
+      const thread = forumThreads.find(t => t.id === threadId);
+      if (thread && thread.reply_count > 0) thread.reply_count--;
       if (threadId) loadForumReplies(threadId);
     } else {
       showToast(d.error || 'Could not delete reply');
