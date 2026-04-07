@@ -2502,22 +2502,46 @@ def api_forum_delete_reply(reply_id):
         return jsonify({'error': 'Invalid reply id'}), 400
     auth_header = request.headers.get('Authorization', '')
     token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
-    user_obj = _verify_supabase_token(token)
-    if not isinstance(user_obj, dict) or not user_obj.get('id'):
+    user_id = _decode_jwt_user_id(token)
+    jwt_handle = None
+    if user_id:
+        try:
+            parts = token.split('.')
+            padding = 4 - len(parts[1]) % 4
+            payload = json.loads(base64.urlsafe_b64decode(parts[1] + '=' * (padding % 4)).decode())
+            meta = payload.get('user_metadata') or {}
+            if meta.get('handle'):
+                jwt_handle = str(meta['handle'])
+            elif meta.get('user_name'):
+                jwt_handle = '@' + str(meta['user_name'])
+            elif payload.get('email'):
+                jwt_handle = '@' + str(payload['email']).split('@')[0]
+        except Exception:
+            pass
+    if not user_id:
+        user_obj = _verify_supabase_token(token)
+        if isinstance(user_obj, dict) and user_obj.get('id'):
+            user_id = user_obj['id']
+            jwt_handle = _derive_author_handle(user_obj)
+    if not user_id:
         return jsonify({'error': 'Invalid or expired session'}), 401
-    user_id = user_obj['id']
-    jwt_handle = _derive_author_handle(user_obj)
     rows, err = _sb_service_request('GET', f'forum_replies?select=id,author_handle,author_id,thread_id&id=eq.{reply_id}&limit=1')
+    if err:
+        app.logger.error('forum_reply lookup error for %s: %s', reply_id, err)
+        rows, err = _sb_service_request('GET', f'forum_replies?select=id,author_handle,thread_id&id=eq.{reply_id}&limit=1')
     if err or not rows:
+        app.logger.error('forum_reply not found for %s, err=%s', reply_id, err)
         return jsonify({'error': 'Reply not found'}), 404
     reply = rows[0]
     owner_by_handle = jwt_handle and reply.get('author_handle') == jwt_handle
     owner_by_uid = reply.get('author_id') and reply['author_id'] == user_id
     if not owner_by_handle and not owner_by_uid:
+        app.logger.warning('forum_reply delete denied: jwt_handle=%s reply_handle=%s uid=%s reply_uid=%s',
+                           jwt_handle, reply.get('author_handle'), user_id, reply.get('author_id'))
         return jsonify({'error': 'You can only delete your own replies'}), 403
-    _, err = _sb_service_request('DELETE', f'forum_replies?id=eq.{reply_id}')
-    if err:
-        app.logger.error('delete_forum_reply error: %s', err)
+    _, del_err = _sb_service_request('DELETE', f'forum_replies?id=eq.{reply_id}')
+    if del_err:
+        app.logger.error('delete_forum_reply error: %s', del_err)
         return jsonify({'error': 'Could not delete reply'}), 502
     thread_id = reply.get('thread_id')
     if thread_id:
