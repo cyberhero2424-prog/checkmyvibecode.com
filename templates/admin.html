@@ -324,10 +324,11 @@ async function togglePin(btn, projectId, currentlyFeatured) {
       btn.classList.toggle('pinned', newFeatured);
       btn.onclick = () => togglePin(btn, projectId, newFeatured);
     } else {
-      alert('Could not update: ' + (data.error || 'unknown error'));
+      console.error('Could not update:', data.error || 'unknown error');
+      btn.textContent = '⚠️ Error — retry';
     }
   } catch(e) {
-    alert('Request failed: ' + e);
+    console.error('Request failed:', e);
   } finally {
     btn.disabled = false;
   }
@@ -348,10 +349,13 @@ async function saveProjectDetails(projectId) {
       msgEl.style.display = 'inline';
       setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
     } else {
-      alert('Could not save: ' + (data.error || 'unknown error'));
+      msgEl.textContent = '⚠️ Could not save: ' + (data.error || 'unknown error');
+      msgEl.style.color = 'var(--red, #ef4444)';
+      msgEl.style.display = 'inline';
+      setTimeout(() => { msgEl.style.display = 'none'; msgEl.style.color = ''; msgEl.textContent = '✓ Saved'; }, 3000);
     }
   } catch(e) {
-    alert('Request failed: ' + e);
+    console.error('Request failed:', e);
   }
 }
 </script>
