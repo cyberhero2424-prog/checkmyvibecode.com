@@ -1667,8 +1667,13 @@ function _notifIcon(type) {
   return '<div class="notif-item-icon">•</div>';
 }
 
-async function fetchNotifUnreadCount() {
+let _notifCacheTs = 0;
+const _notifCacheTtl = 60000;
+async function fetchNotifUnreadCount(force) {
   if (!currentUser || !currentUser.accessToken) return;
+  const now = Date.now();
+  if (!force && (now - _notifCacheTs) < _notifCacheTtl) return;
+  _notifCacheTs = now;
   try {
     const res = await fetch('/api/notifications/unread-count', {
       headers: { 'Authorization': 'Bearer ' + currentUser.accessToken }
@@ -1974,7 +1979,13 @@ function mapProject(p) {
   return { ...p, tools, desc: p.description, buildTime: p.build_time, voted: votedProjectIds.has(p.id), bookmarked: bookmarkedIds.has(p.id), comments: [], timeline: [] };
 }
 
-async function loadProjects() {
+let _projectsCacheTs = 0;
+const _projectsCacheTtl = 60000;
+async function loadProjects(force) {
+  const now = Date.now();
+  if (!force && projects.length && (now - _projectsCacheTs) < _projectsCacheTtl) {
+    renderProjects(); renderSidebar(); updateStats(); hidePreloader(); return;
+  }
   const grid = document.getElementById('grid');
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)"><div style="width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px">Loading projects...</div></div>';
   const ctrl = new AbortController();
@@ -1989,10 +2000,11 @@ async function loadProjects() {
   }
   clearTimeout(fetchTimeout);
   if (error) {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><div class="empty-text">Could not load projects. Try refreshing.</div><button class="btn btn-ghost" style="margin-top:12px" onclick="loadProjects()">Retry</button></div>`;
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚠️</div><div class="empty-text">Could not load projects. Try refreshing.</div><button class="btn btn-ghost" style="margin-top:12px" onclick="loadProjects(true)">Retry</button></div>`;
     console.error(error); hidePreloader(); return;
   }
   projects = (data || []).map(mapProject);
+  _projectsCacheTs = Date.now();
   renderProjects(); renderSidebar(); updateStats();
   hidePreloader();
   subscribeToProjectUpdates();
@@ -3035,7 +3047,8 @@ function escHtml(s) {
 
 function filterCat(btn,cat) { document.querySelectorAll('.chip').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); activeFilter=cat; renderProjects(); }
 function sortBy(v) { if(v==='hot')projects.sort((a,b)=>b.upvotes-a.upvotes); else if(v==='new')projects.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)); else if(v==='score')projects.sort((a,b)=>(b.score||0)-(a.score||0)); renderProjects(); }
-function onSearch(val) { searchQuery=val; document.getElementById('searchClear').classList.toggle('visible',val.length>0); document.getElementById('searchKbd').style.display=val.length>0?'none':''; renderProjects(); }
+let _searchTimeout = null;
+function onSearch(val) { searchQuery=val; document.getElementById('searchClear').classList.toggle('visible',val.length>0); document.getElementById('searchKbd').style.display=val.length>0?'none':''; clearTimeout(_searchTimeout); _searchTimeout = setTimeout(renderProjects, 300); }
 function clearSearch() { searchQuery=''; document.getElementById('mainSearch').value=''; document.getElementById('searchClear').classList.remove('visible'); document.getElementById('searchKbd').style.display=''; renderProjects(); }
 
 function shareProject(id, btn) {
