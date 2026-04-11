@@ -2110,7 +2110,6 @@ function renderProjects() {
   document.getElementById('grid').innerHTML = list.map((p,i) => `
     <div class="card${p.featured?' featured':''}" style="animation-delay:${i*.07}s" onclick="openDrawer('${p.id}')">
       <div class="card-thumb" style="background:${stableColor(p.id)}">
-        ${p.featured ? `<div style="position:absolute;top:10px;left:10px;z-index:1"><span class="featured-badge">✦ Featured</span></div>` : ''}
         ${p.screenshot_url ? `<img class="card-screenshot" src="${escAttr(p.screenshot_url)}" alt="${escAttr(p.name)}" loading="lazy" onerror="this.style.display='none'">` : p.emoji}
       </div>
       <div class="card-body">
@@ -2122,6 +2121,7 @@ function renderProjects() {
         <div class="card-tags">
           ${(p.tools||[]).map(t=>`<span class="tag ${tagClass(t)}">${highlight(t,q)}</span>`).join('')}
           <span class="tag t-cat">${p.cat}</span>
+          ${p.featured ? `<span class="featured-badge">✦ Featured</span>` : ''}
         </div>
         ${(p.buildTime||p.build_time||p.cost)?`<div class="card-meta-row">${(p.buildTime||p.build_time)?`<span>⏱ ${esc(p.buildTime||p.build_time)}</span>`:''}${(p.buildTime||p.build_time)&&p.cost?`<span class="card-meta-dot">·</span>`:''}${p.cost?`<span>💸 ${esc(p.cost)}</span>`:''}</div>`:''}
         <div class="card-author-row">
