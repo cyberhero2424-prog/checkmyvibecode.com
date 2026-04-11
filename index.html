@@ -110,7 +110,7 @@
 [data-theme="dark"] .cta-card { background: var(--surface3); }
 [data-theme="dark"] .cta-title { color: var(--text); }
 [data-theme="dark"] .cta-sub { color: var(--muted2); }
-[data-theme="dark"] .featured-badge { background: rgba(124,58,237,0.15); color:#c4b5fd; }
+[data-theme="dark"] .featured-badge { background: rgba(234,179,8,0.15); color:#fde68a; }
 [data-theme="dark"] .auth-overlay { background: rgba(0,0,0,0.65); }
 [data-theme="dark"] .cta-btn { background: rgba(255,255,255,0.15); color: #fff; }
 [data-theme="dark"] .cta-btn:hover { background: rgba(255,255,255,0.22); }
@@ -247,9 +247,9 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .card { background:var(--surface); border:1.5px solid rgba(192,192,192,.45); border-radius:var(--r-lg); overflow:hidden; cursor:pointer; transition:border-color .2s, box-shadow .2s; animation:cardIn .35s var(--ease) both; box-shadow:var(--sh); contain:layout style paint; }
 .card:hover { box-shadow:var(--sh-md), 0 0 0 2px rgba(192,192,192,.2); transform:translateY(-2px); border-color:rgba(192,192,192,.7); }
 @media (hover:none) { .card:hover { box-shadow:var(--sh); transform:none; } }
-.card.featured { border-color:rgba(124,58,237,0.85); border-width:2px; box-shadow:0 0 0 3px rgba(124,58,237,0.18), 0 4px 20px rgba(124,58,237,0.15), var(--sh-md); }
-.card.featured:hover { border-color:#7c3aed; box-shadow:0 0 0 4px rgba(124,58,237,0.25), 0 6px 28px rgba(124,58,237,0.2), var(--sh-md); transform:translateY(-2px); }
-.featured-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; background:#f5f3ff; border:1px solid rgba(124,58,237,0.3); border-radius:20px; font-size:10px; font-weight:700; color:#5b21b6; letter-spacing:.3px; text-transform:uppercase; }
+.card.featured { border-color:rgba(234,179,8,0.85); border-width:2px; box-shadow:0 0 0 3px rgba(234,179,8,0.18), 0 4px 20px rgba(234,179,8,0.15), var(--sh-md); }
+.card.featured:hover { border-color:#eab308; box-shadow:0 0 0 4px rgba(234,179,8,0.25), 0 6px 28px rgba(234,179,8,0.2), var(--sh-md); transform:translateY(-2px); }
+.featured-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; background:#fefce8; border:1px solid rgba(234,179,8,0.3); border-radius:20px; font-size:10px; font-weight:700; color:#854d0e; letter-spacing:.3px; text-transform:uppercase; }
 @keyframes cardIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 .card-thumb { width:100%; height:170px; display:flex; align-items:center; justify-content:center; font-size:48px; overflow:hidden; position:relative; }
 .card-thumb img.card-screenshot { width:100%; height:100%; object-fit:cover; display:block; border-radius:0; }
@@ -572,13 +572,12 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
     display:flex;
     position:fixed;
     bottom:0; left:0; right:0;
-    height:calc(56px + env(safe-area-inset-bottom));
+    height:56px;
     background:rgba(248,248,246,0.96);
     backdrop-filter:blur(20px);
     border-top:1px solid var(--border2);
     z-index:150;
     padding:0 8px;
-    padding-bottom:env(safe-area-inset-bottom);
   }
   .mobile-nav-btn {
     flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -1512,7 +1511,6 @@ async function saveAccountSettings() {
     closeAccountSettings();
     showToast('✓ Account updated!');
     _cache_ts = 0;
-    _projectsCacheTs = 0; // force fresh load
     renderProjects();
   } catch(e) {
     showToast('Error: ' + e.message);
@@ -1663,9 +1661,6 @@ function _notifIcon(type) {
 
 async function fetchNotifUnreadCount() {
   if (!currentUser || !currentUser.accessToken) return;
-  // Throttle — max once per 60 seconds
-  if ((Date.now() - _notifCacheTs) < _notifCacheTtl) return;
-  _notifCacheTs = Date.now();
   try {
     const res = await fetch('/api/notifications/unread-count', {
       headers: { 'Authorization': 'Bearer ' + currentUser.accessToken }
@@ -1783,14 +1778,14 @@ document.addEventListener('click', function(e) {
 (async function initSession() {
   try {
     const { data: { session } } = await sb.auth.getSession();
-    //console.log('[auth] init session:', session ? 'found' : 'none');
+    console.log('[auth] init session:', session ? 'found' : 'none');
     if (session?.user && !currentUser) {
       const user = session.user;
       const meta = user.user_metadata || {};
       let name = meta.full_name || meta.user_name || meta.name || (user.email ? user.email.split('@')[0] : 'User');
       const handle = meta.handle ? meta.handle : meta.user_name ? ('@' + meta.user_name) : ('@' + (user.email ? user.email.split('@')[0] : name.toLowerCase().replace(/\s+/g, '')));
       loginUser({ id: user.id, name, handle, email: user.email || '', avatar: name[0].toUpperCase(), accessToken: session.access_token, avatarUrl: meta.avatar_url || '', bio: meta.bio || '' });
-      //console.log('[auth] restored user:', handle);
+      console.log('[auth] restored user:', handle);
       await loadUserVotes(user.id);
       await loadUserBookmarks(user.id);
     }
@@ -1891,13 +1886,6 @@ let projects = [];
 let activeFilter = 'all', searchQuery = '', currentProject = null, myBuildsMode = false, savedMode = false, currentProfile = null;
 const selectedTools = new Set();
 
-// ── API Cache ─────────────────────────────────────────────────────
-let _projectsCacheTs = 0;
-let _projectsCacheTtl = 60000; // 60 seconds
-let _notifCacheTs = 0;
-let _notifCacheTtl = 60000; // check notifications every 60s max
-// ─────────────────────────────────────────────────────────────────
-
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -1978,12 +1966,7 @@ function mapProject(p) {
   return { ...p, tools, desc: p.description, buildTime: p.build_time, voted: votedProjectIds.has(p.id), bookmarked: bookmarkedIds.has(p.id), comments: [], timeline: [] };
 }
 
-async function loadProjects(forceRefresh = false) {
-  // Use cached data if still fresh and not forced
-  if (!forceRefresh && projects.length > 0 && (Date.now() - _projectsCacheTs) < _projectsCacheTtl) {
-    renderProjects(); renderSidebar(); updateStats();
-    return;
-  }
+async function loadProjects() {
   const grid = document.getElementById('grid');
   grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)"><div style="width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px"></div><div style="font-size:13px">Loading projects...</div></div>';
   const ctrl = new AbortController();
@@ -2002,7 +1985,6 @@ async function loadProjects(forceRefresh = false) {
     console.error(error); hidePreloader(); return;
   }
   projects = (data || []).map(mapProject);
-  _projectsCacheTs = Date.now();
   renderProjects(); renderSidebar(); updateStats();
   hidePreloader();
   subscribeToProjectUpdates();
@@ -2423,7 +2405,7 @@ async function deleteComment(commentId) {
 }
 
 async function postComment() {
-  //console.log('[comment] postComment called, currentUser:', !!currentUser, 'currentProject:', !!currentProject);
+  console.log('[comment] postComment called, currentUser:', !!currentUser, 'currentProject:', !!currentProject);
   const input = document.getElementById('commentInput');
   const btn = document.querySelector('.comment-post');
   const text = input.value.trim();
@@ -2432,16 +2414,16 @@ async function postComment() {
   if (!currentUser) { openAuth(); showToast('Please sign in to comment!'); return; }
   if (btn) { btn.disabled = true; btn.textContent = '...'; }
   let token = currentUser.accessToken || '';
-  //console.log('[comment] using token length:', token.length, 'project:', currentProject.id);
+  console.log('[comment] using token length:', token.length, 'project:', currentProject.id);
   try {
     let resp = await fetch('/api/projects/' + currentProject.id + '/comments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({ body: text, author: currentUser.handle || '@anon' })
     });
-    //console.log('[comment] status:', resp.status);
+    console.log('[comment] status:', resp.status);
     if (resp.status === 401) {
-      //console.log('[comment] 401 — refreshing token...');
+      console.log('[comment] 401 — refreshing token...');
       try {
         const { data } = await sb.auth.refreshSession();
         const newToken = data?.session?.access_token;
@@ -2453,7 +2435,7 @@ async function postComment() {
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
             body: JSON.stringify({ body: text, author: currentUser.handle || '@anon' })
           });
-          //console.log('[comment] retry status:', resp.status);
+          console.log('[comment] retry status:', resp.status);
         }
       } catch(re) { console.error('[comment] refresh error:', re); }
     }
@@ -2475,7 +2457,7 @@ async function postComment() {
     if (countEl) countEl.textContent = `(${currentProject.comments.length})`;
     input.value = '';
     showToast('Comment posted!');
-    //console.log('[comment] success!');
+    console.log('[comment] success!');
   } catch(e) {
     console.error('[comment] exception:', e);
     if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
@@ -3045,14 +3027,7 @@ function escHtml(s) {
 
 function filterCat(btn,cat) { document.querySelectorAll('.chip').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); activeFilter=cat; renderProjects(); }
 function sortBy(v) { if(v==='hot')projects.sort((a,b)=>b.upvotes-a.upvotes); else if(v==='new')projects.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)); else if(v==='score')projects.sort((a,b)=>(b.score||0)-(a.score||0)); renderProjects(); }
-let _searchTimeout;
-function onSearch(val) {
-  searchQuery=val;
-  document.getElementById('searchClear').classList.toggle('visible',val.length>0);
-  document.getElementById('searchKbd').style.display=val.length>0?'none':'';
-  clearTimeout(_searchTimeout);
-  _searchTimeout = setTimeout(()=>renderProjects(), 300);
-}
+function onSearch(val) { searchQuery=val; document.getElementById('searchClear').classList.toggle('visible',val.length>0); document.getElementById('searchKbd').style.display=val.length>0?'none':''; renderProjects(); }
 function clearSearch() { searchQuery=''; document.getElementById('mainSearch').value=''; document.getElementById('searchClear').classList.remove('visible'); document.getElementById('searchKbd').style.display=''; renderProjects(); }
 
 function shareProject(id, btn) {
@@ -3281,10 +3256,10 @@ async function submitProject() {
   const desc = document.getElementById('f_desc').value.trim();
   const buildTime = document.getElementById('f_time').value.trim();
   const cost = document.getElementById('f_cost').value.trim();
-  if (!name || !desc) { showToast('⚠️ Please fill in name and description!'); return; }
+  if (!name || !desc) { alert('Please fill in name and description!'); return; }
   const demo = document.getElementById('f_demo').value.trim();
-  if (!demo) { showToast('⚠️ Please add a demo link so people can try your project!'); document.getElementById('f_demo').focus(); return; }
-  if (!buildTime || !cost) { showToast('⚠️ Please fill in build time and cost — this helps other builders learn from your project!'); document.getElementById(!buildTime?'f_time':'f_cost').focus(); return; }
+  if (!demo) { alert('Please add a demo link so people can try or see your project!'); document.getElementById('f_demo').focus(); return; }
+  if (!buildTime || !cost) { alert('Please fill in Build time and Approx. cost — these help other builders learn from your project!'); document.getElementById(!buildTime?'f_time':'f_cost').focus(); return; }
   if (!currentUser) { closeSubmit(); openAuth(); return; }
   const submitBtn = document.querySelector('#submitModal .btn-primary');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting...'; }
@@ -3356,7 +3331,7 @@ async function submitProject() {
     showToast('🎉 Project submitted! We\'ll review it and publish it shortly.');
   } catch(e) {
     console.error('submitProject error:', e);
-    showToast(e.name === 'AbortError'
+    alert(e.name === 'AbortError'
       ? 'Request timed out, please try again.'
       : ('Could not submit project: ' + (e.message || 'Unknown error. Please try again.')));
   } finally {
