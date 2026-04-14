@@ -59,7 +59,7 @@ def _cache_delete(*keys):
 
 SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '') or os.environ.get('SUPABASE_SECRET_KEY', '')
 ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
 # Optional: Supabase direct PostgreSQL connection URL for startup DB migration.
 # Find it in Supabase Dashboard > Project Settings > Database > Connection string (URI mode).
