@@ -251,55 +251,51 @@ nav {
 .search-results-clear:hover { color:var(--text); }
 mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1px; }
 
-.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
-.card { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--r-lg); overflow:hidden; cursor:pointer; transition:transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s; animation:cardIn .35s var(--ease) both; box-shadow:var(--sh); contain:layout style paint; }
-.card:hover { box-shadow:var(--sh-md), 0 0 0 3px rgba(255,255,255,.15); transform:scale(1.02); border-color:var(--border2); }
-[data-theme="dark"] .card:hover { box-shadow:var(--sh-md), 0 0 0 3px rgba(255,255,255,.06); }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+.card { background:var(--surface); border:1.5px solid rgba(192,192,192,.45); border-radius:var(--r-lg); overflow:hidden; cursor:pointer; transition:border-color .2s, box-shadow .2s; animation:cardIn .35s var(--ease) both; box-shadow:var(--sh); contain:layout style paint; }
+.card:hover { box-shadow:var(--sh-md), 0 0 0 2px rgba(192,192,192,.2); transform:translateY(-2px); border-color:rgba(192,192,192,.7); }
 @media (hover:none) { .card:hover { box-shadow:var(--sh); transform:none; } }
 .card.featured { border-color:rgba(234,179,8,0.85); border-width:2px; box-shadow:0 0 0 3px rgba(234,179,8,0.18), 0 4px 20px rgba(234,179,8,0.15), var(--sh-md); }
-.card.featured:hover { border-color:#eab308; box-shadow:0 0 0 4px rgba(234,179,8,0.25), 0 6px 28px rgba(234,179,8,0.2), var(--sh-md); transform:scale(1.02); }
+.card.featured:hover { border-color:#eab308; box-shadow:0 0 0 4px rgba(234,179,8,0.25), 0 6px 28px rgba(234,179,8,0.2), var(--sh-md); transform:translateY(-2px); }
 .featured-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; background:#fefce8; border:1px solid rgba(234,179,8,0.3); border-radius:20px; font-size:10px; font-weight:700; color:#854d0e; letter-spacing:.3px; text-transform:uppercase; }
 @keyframes cardIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 .card-thumb { width:100%; height:170px; display:flex; align-items:center; justify-content:center; font-size:48px; overflow:hidden; position:relative; }
 .card-thumb img.card-screenshot { width:100%; height:100%; object-fit:cover; display:block; border-radius:0; }
-.card-body { padding:16px 18px 16px; display:flex; flex-direction:column; gap:0; }
-.card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px; }
-.card-title { font-size:16px; font-weight:700; letter-spacing:-.4px; line-height:1.25; }
+.card-body { padding:14px 16px 14px; display:flex; flex-direction:column; gap:0; }
+.card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px; }
+.card-title { font-size:15px; font-weight:600; letter-spacing:-.3px; line-height:1.3; }
 .score-pill { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; font-family:var(--mono); flex-shrink:0; }
 .sp-great { background:var(--green-bg); color:var(--green); border:1px solid var(--green-border); }
 .sp-ok    { background:var(--amber-bg); color:var(--amber); border:1px solid rgba(180,83,9,.15); }
 .sp-bad   { background:var(--red-bg);   color:var(--red);   border:1px solid rgba(220,38,38,.15); }
-.card-desc { font-size:12.5px; color:var(--muted); line-height:1.5; margin-bottom:10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.card-idea { font-size:12.5px; color:#16a34a; line-height:1.5; margin-bottom:10px; font-style:italic; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-.card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+.card-desc { font-size:13px; color:var(--muted2); line-height:1.5; margin-bottom:10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.card-idea { font-size:13px; color:#16a34a; line-height:1.5; margin-bottom:10px; font-style:italic; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
 .card-meta-row { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-bottom:8px; }
 .card-meta-dot { color:var(--muted); opacity:.5; }
-.tag { padding:2px 7px; border-radius:4px; font-size:11px; font-weight:500; font-family:var(--mono); background:var(--surface2); color:var(--muted2); }
-.card.featured .tag { background:var(--surface2); color:var(--muted2); }
-.t-claude,.t-cursor,.t-gpt,.t-bolt,.t-v0,.t-lovable,.t-replit,.t-gemini,.t-windsurf,.t-copilot,.t-perplexity,.t-canva,.t-grok,.t-mistral { background:var(--surface2); color:var(--muted2); }
-.t-cat{background:var(--surface2);color:var(--muted2);text-transform:capitalize}
-.card-author-row { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:12px; }
+.tag { padding:2px 7px; border-radius:4px; font-size:11px; font-weight:500; font-family:var(--mono); }
+.t-claude{background:#fff7ed;color:#c2410c} .t-cursor{background:var(--blue-bg);color:var(--blue)} .t-gpt{background:#d1fae5;color:#065f46} .t-bolt{background:var(--amber-bg);color:var(--amber)} .t-v0{background:var(--surface3);color:var(--muted2)} .t-lovable{background:#f3e8ff;color:#7c3aed} .t-replit{background:#fee2e2;color:#dc2626} .t-gemini{background:#dbeafe;color:#2563eb} .t-windsurf{background:#eef2ff;color:#4f46e5} .t-copilot{background:#e0f4ff;color:#0369a1} .t-perplexity{background:#e0faf7;color:#0d9488} .t-canva{background:#fce7f3;color:#be185d} .t-grok{background:#f0fdf4;color:#15803d} .t-mistral{background:#fef3c7;color:#b45309} .t-cat{background:var(--surface2);color:var(--muted2);text-transform:capitalize}
+.card-author-row { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-bottom:10px; }
 .card-author-row strong { color:var(--muted2); }
 .card-author-row .card-timeago { margin-left:auto; font-size:11px; color:var(--muted); font-family:var(--mono); white-space:nowrap; }
-.card-footer { display:flex; align-items:center; gap:8px; padding-top:12px; border-top:1px solid var(--border); }
-.card-footer-left { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
-.card-footer-right { display:flex; align-items:center; gap:6px; flex-shrink:0; }
-.card-stat-btn { display:inline-flex; align-items:center; gap:3px; padding:5px 9px; border-radius:var(--r-sm); font-size:11px; font-weight:500; border:none; background:transparent; color:var(--muted); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); }
+.card-footer { display:flex; align-items:center; gap:6px; padding-top:10px; border-top:1px solid var(--border); }
+.card-footer-left { display:flex; align-items:center; gap:5px; flex:1; min-width:0; }
+.card-footer-right { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+.card-stat-btn { display:inline-flex; align-items:center; gap:3px; padding:4px 8px; border-radius:var(--r-sm); font-size:11px; font-weight:500; border:none; background:transparent; color:var(--muted); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); }
 .card-stat-btn:hover { background:var(--surface2); color:var(--muted2); }
 .card-stat-btn svg { width:13px; height:13px; }
 .card-stat-btn.view-stat,
 .info-card.view-stat,
 .view-btn.view-stat { display:none; }
-.upvote-btn { display:inline-flex; align-items:center; gap:4px; padding:6px 12px; border-radius:var(--r-sm); font-size:12px; font-weight:600; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); position:relative; overflow:visible; box-shadow:var(--sh); }
+.upvote-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:var(--r-sm); font-size:12px; font-weight:600; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); position:relative; overflow:visible; box-shadow:var(--sh); }
 .upvote-btn:hover { border-color:var(--green-border); color:var(--green); background:var(--green-bg); }
 .upvote-btn.voted { background:rgba(139,92,246,.15); border-color:rgba(139,92,246,.4); color:#8b5cf6; box-shadow:none; }
 .view-btn { display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:var(--r-sm); font-size:12px; background:var(--surface2); border:1px solid var(--border); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--sans); font-weight:500; }
 .view-btn:hover { background:var(--surface3); color:var(--text); }
-.share-x-btn, .share-fb-btn, .share-li-btn, .share-rd-btn { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); flex-shrink:0; padding:0; }
+.share-x-btn, .share-fb-btn, .share-li-btn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:var(--r-sm); border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); flex-shrink:0; padding:0; }
 .share-x-btn:hover { background:#000; color:#fff; border-color:#000; }
 .share-fb-btn:hover { background:#1877f2; color:#fff; border-color:#1877f2; }
 .share-li-btn:hover { background:#0a66c2; color:#fff; border-color:#0a66c2; }
-.share-rd-btn:hover { background:#ff4500; color:#fff; border-color:#ff4500; }
 
 /* Sidebar */
 .sidebar { display:flex; flex-direction:column; gap:12px; }
@@ -353,37 +349,13 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .timeline-label { font-size:13px; font-weight:600; color:var(--text); margin-bottom:2px; }
 .timeline-desc { font-size:12px; color:var(--muted2); line-height:1.5; }
 .comment-list { margin-bottom:16px; }
-.comment-item-wrap { border-bottom:1px solid var(--border); padding-bottom:4px; }
-.comment-item-wrap:last-child { border-bottom:none; }
-.comment-item { display:flex; gap:10px; padding:12px 0 8px; }
+.comment-item { display:flex; gap:10px; padding:12px 0; border-bottom:1px solid var(--border); }
 .comment-item:last-child { border:none; }
 .c-avatar { width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--muted2); flex-shrink:0; overflow:hidden; }
 .c-avatar img { width:100%; height:100%; object-fit:cover; border-radius:7px; }
 .c-meta { font-size:11px; color:var(--muted); margin-bottom:4px; }
 .c-meta strong { color:var(--muted2); font-weight:600; }
 .c-text { font-size:13px; color:var(--muted2); line-height:1.5; }
-.c-upvote-btn { display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 6px; border:none; background:none; color:var(--muted); font-size:11px; font-weight:600; font-family:var(--mono); cursor:pointer; border-radius:6px; transition:all .15s var(--ease); flex-shrink:0; align-self:flex-start; margin-top:2px; min-width:32px; }
-.c-upvote-btn:hover:not(:disabled) { color:var(--green); background:var(--green-bg); }
-.c-upvote-btn.c-upvoted { color:var(--green); }
-.c-upvote-btn:disabled { opacity:.35; cursor:default; }
-.c-reply-btn { background:none; border:none; color:var(--muted); font-size:11px; font-weight:500; font-family:var(--sans); cursor:pointer; padding:2px 6px; border-radius:4px; transition:all .15s; }
-.c-reply-btn:hover { color:var(--text); background:var(--surface2); }
-.c-replies-wrap { margin-left:38px; padding-left:12px; border-left:2px solid var(--border); margin-top:4px; }
-.c-reply-item { display:flex; gap:8px; padding:8px 0; }
-.c-reply-item:not(:last-child) { border-bottom:1px solid var(--border); }
-.c-reply-avatar { width:22px; height:22px; border-radius:50%; background:var(--surface3); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:var(--muted2); flex-shrink:0; overflow:hidden; }
-.c-reply-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
-.c-reply-meta { font-size:10px; color:var(--muted); margin-bottom:2px; }
-.c-reply-meta strong { color:var(--muted2); font-weight:600; }
-.c-reply-body { font-size:12px; color:var(--muted2); line-height:1.5; }
-.c-reply-form { display:flex; gap:6px; padding:8px 0; margin-left:38px; padding-left:12px; border-left:2px solid var(--green-border); }
-.c-reply-input { flex:1; padding:7px 10px; border-radius:var(--r-sm); background:var(--surface2); border:1px solid var(--border2); font-family:var(--sans); font-size:12px; color:var(--text); outline:none; transition:all .15s; min-height:34px; resize:none; }
-.c-reply-input:focus { background:var(--surface); border-color:rgba(0,0,0,.22); box-shadow:0 0 0 3px rgba(0,0,0,.04); }
-[data-theme="dark"] .c-reply-input:focus { border-color:rgba(255,255,255,.2); box-shadow:0 0 0 3px rgba(255,255,255,.04); }
-.c-reply-submit { padding:7px 12px; border-radius:var(--r-sm); background:var(--text); color:var(--bg); border:none; font-family:var(--sans); font-size:11px; font-weight:600; cursor:pointer; transition:opacity .15s; flex-shrink:0; align-self:flex-end; }
-.c-reply-submit:hover { opacity:.82; }
-.c-reply-delete { background:none; border:none; color:var(--muted); font-size:10px; cursor:pointer; padding:1px 4px; border-radius:3px; transition:color .15s; }
-.c-reply-delete:hover { color:var(--red); }
 .comment-form { display:flex; gap:8px; padding:16px 24px; border-top:1px solid var(--border); background:var(--surface); position:sticky; bottom:0; }
 .comment-input { flex:1; padding:8px 12px; border-radius:var(--r-sm); background:var(--surface2); border:1px solid var(--border2); font-family:var(--sans); font-size:13px; color:var(--text); outline:none; transition:all .15s; }
 .comment-input:focus { background:var(--surface); border-color:rgba(0,0,0,.22); box-shadow:0 0 0 3px rgba(0,0,0,.04); }
@@ -507,9 +479,6 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .modal-title { font-size:16px; font-weight:600; letter-spacing:-.3px; }
 .close-btn { width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); color:var(--muted2); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; }
 .close-btn:hover { background:var(--surface3); color:var(--text); }
-.nl-slider::before { position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
-input:checked + .nl-slider { background:var(--green); }
-input:checked + .nl-slider::before { transform:translateX(18px); }
 .fgroup { margin-bottom:13px; }
 .flabel { display:block; font-size:11px; font-weight:600; color:var(--muted); letter-spacing:.5px; text-transform:uppercase; margin-bottom:5px; }
 .finput,.ftextarea,.fselect { width:100%; padding:8px 11px; border-radius:var(--r-sm); background:var(--surface2); border:1px solid var(--border2); color:var(--text); font-family:var(--sans); font-size:13px; outline:none; transition:all .15s; }
@@ -535,49 +504,47 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
 ═══════════════════════════════════ */
 @media (max-width:768px) {
   /* Nav */
-  nav { padding:0 8px; gap:0; height:52px; overflow:hidden; }
+  nav { padding:0 8px; gap:0; height:50px; overflow:hidden; }
   .logo-text { display:none; }
   .logo-muted { display:none; }
   .nav-sep { display:none; }
   .nav-search { display:none; }
   .nav-social { display:none; }
-  .mobile-search-btn { display:flex; flex-shrink:0; width:36px; height:36px; }
+  .mobile-search-btn { display:flex; flex-shrink:0; }
   .nav-right { margin-left:auto; gap:3px; flex-shrink:0; }
-  .nav-tab { padding:6px 10px; font-size:12px; flex-shrink:1; }
+  .nav-tab { padding:5px 7px; font-size:12px; flex-shrink:1; }
   .nav-checker-word { display:none; }
   .btn { padding:5px 9px; font-size:12px; }
   #navSubmitBtn { display:none !important; }
-  .mobile-sidebar-section { display:block; margin-top:32px; }
+  .mobile-sidebar-section { display:block; }
 
   /* Hero */
-  .hero { padding:32px 16px 24px; }
-  .hero h1 { font-size:28px; letter-spacing:-1px; line-height:1.15; }
+  .hero { padding:28px 16px 20px; }
+  .hero h1 { font-size:30px; letter-spacing:-1px; }
   .hero-sub { font-size:13px; margin-bottom:18px; }
-  .stats-row { gap:12px; }
-  .stat-div { display:none; }
+  .stats-row { gap:14px; }
   .stat-n { font-size:16px; }
 
   /* Layout */
-  .projects-layout { grid-template-columns:1fr; padding:0 16px 70px; gap:0; }
+  .projects-layout { grid-template-columns:1fr; padding:0 14px 60px; gap:0; }
   .sidebar { display:none; }
-  .grid { grid-template-columns:1fr; gap:12px; }
+  .grid { grid-template-columns:1fr; gap:10px; }
 
   /* Filter bar — wrap on mobile, no horizontal scroll */
-  .filter-bar { gap:6px; margin-bottom:14px; flex-wrap:wrap; overflow-x:visible; padding-bottom:0; }
-  .chip { white-space:nowrap; font-size:12px; padding:6px 12px; min-height:32px; }
+  .filter-bar { gap:5px; margin-bottom:14px; flex-wrap:wrap; overflow-x:visible; padding-bottom:0; }
+  .chip { white-space:nowrap; font-size:12px; padding:5px 10px; }
   .sort-select { margin-left:auto; flex-shrink:0; }
 
   /* Cards */
-  .card-thumb { height:140px; font-size:40px; }
-  .card-body { padding:14px 16px 16px; }
-  .card-title { font-size:15px; }
+  .card-thumb { height:130px; font-size:40px; }
+  .card-body { padding:12px 14px 14px; }
+  .card-title { font-size:14px; }
   .card-desc { font-size:12px; margin-bottom:8px; }
   .card-idea { font-size:12px; margin-bottom:8px; }
-  .card-author-row { font-size:11px; margin-bottom:10px; }
-  .card-footer { gap:6px; padding-top:10px; }
-  .upvote-btn { padding:7px 12px; font-size:12px; white-space:nowrap; min-height:34px; }
-  .card-stat-btn { padding:5px 8px; font-size:11px; min-height:34px; }
-  .share-x-btn, .share-fb-btn, .share-li-btn, .share-rd-btn { width:34px; height:34px; }
+  .card-author-row { font-size:11px; margin-bottom:8px; }
+  .card-footer { gap:4px; padding-top:8px; }
+  .upvote-btn { padding:5px 7px; font-size:11px; white-space:nowrap; }
+  .card-stat-btn { padding:3px 6px; font-size:10px; }
 
   /* Drawer — full screen on mobile */
   .drawer { width:100%; border-left:none; border-top:1px solid var(--border2); border-radius:20px 20px 0 0; top:auto; height:92vh; transform:translateY(100%); }
@@ -608,16 +575,12 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
   .modal-overlay { align-items:flex-end; padding:0; }
   .modal { border-radius:20px 20px 0 0; max-height:92vh; padding:20px 18px; border-bottom:none; }
 
-  /* Mobile search overlay */
-  .mobile-search-input-wrap { height:44px; }
-  .mobile-search-close { width:40px; height:40px; }
-
   /* Bottom nav bar for mobile */
   .mobile-nav {
     display:flex;
     position:fixed;
     bottom:0; left:0; right:0;
-    height:60px;
+    height:56px;
     background:rgba(248,248,246,0.96);
     backdrop-filter:blur(20px);
     border-top:1px solid var(--border2);
@@ -627,18 +590,18 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
   .mobile-nav-btn {
     flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:3px; border:none; background:none; cursor:pointer;
-    font-family:var(--sans); font-size:11px; font-weight:500;
+    font-family:var(--sans); font-size:10px; font-weight:500;
     color:var(--muted2); transition:color .15s; padding:0;
     -webkit-tap-highlight-color:transparent;
   }
   .mobile-nav-btn.active { color:var(--text); }
-  .mobile-nav-icon { font-size:20px; line-height:1; }
+  .mobile-nav-icon { font-size:18px; line-height:1; }
   .mobile-nav-submit {
     flex:1; display:flex; align-items:center; justify-content:center;
     margin:8px 4px;
     background:#7c3aed; color:#fff;
-    border:none; border-radius:10px;
-    font-family:var(--sans); font-size:13px; font-weight:600;
+    border:none; border-radius:12px;
+    font-family:var(--sans); font-size:12px; font-weight:600;
     cursor:pointer; -webkit-tap-highlight-color:transparent;
   }
 }
@@ -779,63 +742,62 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
 /* ═══════════════════════════════════
    FORUM PAGE
 ═══════════════════════════════════ */
-.forum-wrap { max-width:720px; margin:0 auto; padding:48px 24px 80px; }
-.forum-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:36px; flex-wrap:wrap; }
+.forum-wrap { max-width:720px; margin:0 auto; padding:40px 24px 80px; }
+.forum-page-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:32px; flex-wrap:wrap; }
 .forum-page-header-left .forum-eyebrow { font-size:11px; font-weight:600; color:var(--green); letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; }
 .forum-page-header-left h2 { font-size:clamp(24px,3.5vw,32px); font-weight:700; letter-spacing:-.8px; margin-bottom:6px; }
 .forum-page-header-left p { font-size:13px; color:var(--muted2); }
-.forum-new-btn { padding:9px 18px; border-radius:var(--r); background:var(--text); color:var(--bg); border:none; font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer; transition:opacity .15s var(--ease); box-shadow:var(--sh); flex-shrink:0; }
-.forum-new-btn:hover { opacity:.85; }
-.forum-thread-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:16px 20px; cursor:pointer; transition:background .15s var(--ease), border-color .15s; margin-bottom:2px; display:flex; gap:16px; align-items:flex-start; position:relative; }
-.forum-thread-card:hover { background:var(--surface2); border-color:var(--border2); }
-.forum-thread-upvote { display:flex; flex-direction:column; align-items:center; gap:1px; flex-shrink:0; padding:6px 0; min-width:44px; font-family:var(--mono); color:var(--muted); cursor:pointer; transition:color .15s var(--ease); border:none; background:none; border-radius:8px; }
-.forum-thread-upvote:hover { color:var(--green); }
-.forum-thread-upvote.voted { color:var(--green); }
-.forum-thread-upvote-icon { font-size:14px; line-height:1; }
-.forum-thread-upvote-count { font-size:15px; font-weight:700; letter-spacing:-.5px; }
+.forum-thread-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px 20px; cursor:pointer; transition:box-shadow .2s var(--ease),transform .18s var(--ease),border-color .2s; box-shadow:var(--sh); margin-bottom:10px; display:flex; gap:16px; align-items:flex-start; position:relative; overflow:hidden; }
+.forum-thread-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition:background .2s; border-radius:4px 0 0 4px; }
+.forum-thread-card:hover { box-shadow:var(--sh-md); transform:translateY(-2px); border-color:var(--border2); }
+.forum-thread-card:hover::before { background:var(--accent,#6366f1); }
+.forum-thread-upvote { display:flex; flex-direction:column; align-items:center; gap:2px; flex-shrink:0; padding:8px 10px; border-radius:10px; border:1.5px solid var(--border2); background:var(--surface2); cursor:pointer; transition:all .15s var(--ease); min-width:48px; font-family:var(--mono); }
+.forum-thread-upvote:hover { border-color:var(--green-border); background:var(--green-bg); color:var(--green); transform:scale(1.06); }
+.forum-thread-upvote.voted { background:var(--green-bg); border-color:var(--green-border); color:var(--green); }
+.forum-thread-upvote-icon { font-size:16px; line-height:1; }
+.forum-thread-upvote-count { font-size:12px; font-weight:700; letter-spacing:-.5px; }
 .forum-thread-content { flex:1; min-width:0; }
-.forum-thread-title { font-size:15px; font-weight:600; letter-spacing:-.3px; line-height:1.35; margin-bottom:6px; color:var(--text); }
-.forum-thread-card:hover .forum-thread-title { color:var(--text); }
-.forum-thread-preview { font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:10px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.forum-thread-title { font-size:16px; font-weight:700; letter-spacing:-.4px; line-height:1.3; margin-bottom:6px; color:var(--text); }
+.forum-thread-preview { font-size:13.5px; color:var(--muted2); line-height:1.55; margin-bottom:12px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .forum-thread-meta { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
-.forum-thread-meta .t-author { color:var(--muted2); font-weight:500; font-size:12px; }
+.forum-thread-meta .t-author { color:var(--text); font-weight:600; font-size:12px; }
 .forum-thread-meta .t-sep { width:3px; height:3px; background:var(--border2); border-radius:50%; flex-shrink:0; }
 .forum-thread-meta .t-time { color:var(--muted); }
-.forum-thread-meta .t-replies { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:500; color:var(--muted); margin-left:2px; background:none; border:none; padding:0; }
-.forum-empty { text-align:center; padding:80px 20px; color:var(--muted2); }
-.forum-empty-icon { font-size:48px; margin-bottom:16px; }
-.forum-empty-title { font-size:18px; font-weight:600; color:var(--text); margin-bottom:8px; }
-.forum-empty-sub { font-size:14px; color:var(--muted); line-height:1.5; max-width:320px; margin:0 auto; }
-.forum-skeleton { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:16px 20px; margin-bottom:2px; }
+.forum-thread-meta .t-replies { display:inline-flex; align-items:center; gap:4px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:2px 8px; font-size:11.5px; font-weight:500; color:var(--muted2); margin-left:2px; }
+.forum-empty { text-align:center; padding:60px 20px; color:var(--muted2); }
+.forum-empty-icon { font-size:36px; margin-bottom:12px; }
+.forum-empty-title { font-size:16px; font-weight:600; color:var(--text); margin-bottom:6px; }
+.forum-empty-sub { font-size:13px; color:var(--muted); }
+.forum-skeleton { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 18px; margin-bottom:10px; }
 .forum-skel-line { height:12px; border-radius:4px; background:var(--surface3); margin-bottom:8px; animation:skelPulse 1.4s ease infinite; }
 @keyframes skelPulse { 0%,100%{opacity:.5} 50%{opacity:1} }
 
 /* Forum detail view */
 .forum-detail { animation:cardIn .25s var(--ease) both; }
-.forum-detail-back { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted2); background:none; border:none; cursor:pointer; font-family:var(--sans); padding:0; margin-bottom:28px; transition:color .15s; }
+.forum-detail-back { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--muted2); background:none; border:none; cursor:pointer; font-family:var(--sans); padding:0; margin-bottom:24px; transition:color .15s; }
 .forum-detail-back:hover { color:var(--text); }
-.forum-detail-title { font-size:clamp(24px,3.5vw,32px); font-weight:700; letter-spacing:-.7px; line-height:1.2; margin-bottom:12px; }
-.forum-detail-meta { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-bottom:24px; flex-wrap:wrap; }
+.forum-detail-title { font-size:clamp(20px,3vw,26px); font-weight:700; letter-spacing:-.5px; line-height:1.25; margin-bottom:10px; }
+.forum-detail-meta { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin-bottom:20px; flex-wrap:wrap; }
 .forum-detail-meta strong { color:var(--muted2); }
-.forum-detail-body { font-size:15px; color:var(--text); line-height:1.75; white-space:pre-wrap; margin-bottom:32px; padding:24px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--r-lg); }
-.forum-detail-actions { display:flex; align-items:center; gap:8px; margin-bottom:36px; padding-bottom:28px; border-bottom:1px solid var(--border2); }
-.forum-detail-upvote { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:var(--r-sm); font-size:13px; font-weight:600; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); box-shadow:var(--sh); }
+.forum-detail-body { font-size:14px; color:var(--muted2); line-height:1.7; white-space:pre-wrap; margin-bottom:28px; padding:16px 18px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--r); }
+.forum-detail-actions { display:flex; align-items:center; gap:8px; margin-bottom:32px; padding-bottom:24px; border-bottom:1px solid var(--border2); }
+.forum-detail-upvote { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:var(--r-sm); font-size:13px; font-weight:600; border:1px solid var(--border2); background:var(--surface); color:var(--muted2); cursor:pointer; transition:all .15s var(--ease); font-family:var(--mono); box-shadow:var(--sh); }
 .forum-detail-upvote:hover { border-color:var(--green-border); color:var(--green); background:var(--green-bg); }
 .forum-detail-upvote.voted { background:var(--green-bg); border-color:var(--green-border); color:var(--green); box-shadow:none; }
-.forum-replies-title { font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.5px; text-transform:uppercase; margin-bottom:16px; }
-.forum-reply-item { display:flex; gap:12px; padding:16px 0; border-bottom:none; position:relative; padding-left:16px; border-left:2px solid var(--border2); margin-left:14px; margin-bottom:4px; }
-.forum-reply-item:last-child { margin-bottom:0; }
-.forum-reply-avatar { width:32px; height:32px; border-radius:50%; background:var(--surface3); border:1px solid var(--border2); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:var(--muted2); flex-shrink:0; overflow:hidden; }
-.forum-reply-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+.forum-replies-title { font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.5px; text-transform:uppercase; margin-bottom:14px; }
+.forum-reply-item { display:flex; gap:10px; padding:14px 0; border-bottom:1px solid var(--border); }
+.forum-reply-item:last-child { border:none; }
+.forum-reply-avatar { width:28px; height:28px; border-radius:7px; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:var(--muted2); flex-shrink:0; overflow:hidden; }
+.forum-reply-avatar img { width:100%; height:100%; object-fit:cover; border-radius:7px; }
 .forum-reply-meta { font-size:11px; color:var(--muted); margin-bottom:5px; }
-.forum-reply-meta strong { color:var(--text); font-weight:600; }
-.forum-reply-body { font-size:13px; color:var(--muted2); line-height:1.65; white-space:pre-wrap; }
-.forum-reply-form { display:flex; gap:8px; margin-top:24px; padding-top:24px; border-top:1px solid var(--border); }
-.forum-reply-input { flex:1; padding:10px 14px; border-radius:var(--r); background:var(--surface2); border:1px solid var(--border2); font-family:var(--sans); font-size:13px; color:var(--text); outline:none; transition:all .15s; resize:vertical; min-height:44px; max-height:160px; }
+.forum-reply-meta strong { color:var(--muted2); font-weight:600; }
+.forum-reply-body { font-size:13px; color:var(--muted2); line-height:1.6; white-space:pre-wrap; }
+.forum-reply-form { display:flex; gap:8px; margin-top:20px; padding-top:20px; border-top:1px solid var(--border); }
+.forum-reply-input { flex:1; padding:8px 12px; border-radius:var(--r-sm); background:var(--surface2); border:1px solid var(--border2); font-family:var(--sans); font-size:13px; color:var(--text); outline:none; transition:all .15s; resize:vertical; min-height:40px; max-height:160px; }
 .forum-reply-input:focus { background:var(--surface); border-color:rgba(0,0,0,.22); box-shadow:0 0 0 3px rgba(0,0,0,.04); }
 [data-theme="dark"] .forum-reply-input:focus { border-color:rgba(255,255,255,.2); box-shadow:0 0 0 3px rgba(255,255,255,.04); }
 .forum-reply-input::placeholder { color:var(--muted); }
-.forum-reply-post { padding:10px 18px; border-radius:var(--r); background:var(--text); color:var(--bg); border:none; font-family:var(--sans); font-size:13px; font-weight:600; cursor:pointer; transition:opacity .15s; flex-shrink:0; align-self:flex-end; }
+.forum-reply-post { padding:8px 14px; border-radius:var(--r-sm); background:var(--text); color:var(--bg); border:none; font-family:var(--sans); font-size:13px; font-weight:500; cursor:pointer; transition:opacity .15s; flex-shrink:0; align-self:flex-end; }
 .forum-reply-post:hover { opacity:.82; }
 
 /* New Thread Modal */
@@ -858,20 +820,8 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
 .forum-modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
 
 @media (max-width:600px) {
-  .forum-wrap { padding:20px 12px 100px; }
+  .forum-wrap { padding:24px 16px 100px; }
   .forum-page-header { gap:12px; }
-  .forum-thread-card { padding:14px 14px; gap:12px; border-radius:var(--r-sm); }
-  .forum-thread-upvote { min-width:38px; }
-  .forum-thread-upvote-count { font-size:14px; }
-  .forum-thread-title { font-size:14px; }
-  .forum-thread-preview { font-size:12px; margin-bottom:8px; }
-  .forum-detail-title { font-size:22px; }
-  .forum-detail-body { padding:18px 16px; font-size:14px; }
-  .forum-reply-item { padding:14px 0 14px 12px; gap:10px; margin-left:10px; }
-  .forum-reply-avatar { width:28px; height:28px; font-size:11px; }
-  .forum-reply-input { min-height:44px; font-size:14px; }
-  .forum-reply-post { padding:10px 16px; }
-  .forum-new-btn { padding:9px 14px; width:100%; text-align:center; }
 }
 
 /* ── COOKIE BANNER ── */
@@ -1241,16 +1191,6 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
       <label class="flabel">Bio <span id="bioCharCount" style="font-weight:400;color:var(--muted)">0/150</span></label>
       <textarea class="finput" id="settingsBio" placeholder="Tell us about yourself…" maxlength="150" rows="2" style="resize:vertical;min-height:48px" oninput="document.getElementById('bioCharCount').textContent=this.value.length+'/150'"></textarea>
     </div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding:12px 14px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--surface2)">
-      <div>
-        <div style="font-size:13px;font-weight:600;color:var(--text)">📬 Wöchentlicher Newsletter</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px">Neue Projekte, Tipps &amp; Community-Updates</div>
-      </div>
-      <label style="position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0;margin-left:12px">
-        <input type="checkbox" id="newsletterToggle" onchange="toggleNewsletter(this.checked)" style="opacity:0;width:0;height:0">
-        <span style="position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:24px;transition:.2s" class="nl-slider"></span>
-      </label>
-    </div>
     <button class="auth-btn" onclick="saveAccountSettings()" id="saveSettingsBtn">Save changes</button>
 
     <div style="border-top:1px solid var(--border);margin-top:24px;padding-top:20px">
@@ -1258,18 +1198,6 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
       <p style="font-size:12px;color:var(--muted2);margin-bottom:12px;line-height:1.5">Permanently delete your account and all associated data. This action cannot be undone.</p>
       <button class="auth-btn" style="background:var(--red);border-color:var(--red)" onclick="confirmDeleteAccount()" id="deleteAccountBtn">Delete my account</button>
     </div>
-  </div>
-</div>
-
-<!-- Newsletter Modal -->
-<div class="modal-overlay" id="newsletterModal" onclick="outsideClose(event,'newsletterModal')">
-  <div class="modal" style="max-width:400px;text-align:center">
-    <div style="font-size:36px;margin-bottom:8px">📬</div>
-    <div class="modal-title" style="margin-bottom:6px;font-size:18px;letter-spacing:-.4px">Bleib auf dem Laufenden!</div>
-    <p style="font-size:13.5px;color:var(--muted2);line-height:1.6;margin-bottom:20px">Erhalte einmal pro Woche die besten neuen Vibe-Coding-Projekte, Tipps und Community-Updates direkt in dein Postfach.</p>
-    <p style="font-size:11.5px;color:var(--muted);margin-bottom:20px;line-height:1.5">🔒 Kein Spam — nur Neuigkeiten &amp; Tipps rund um Vibe Coding. Du kannst dich jederzeit abmelden.</p>
-    <button class="auth-btn" onclick="newsletterRespond(true)" style="width:100%;margin-bottom:10px;background:var(--green);border-color:var(--green)">Ja, anmelden</button>
-    <button class="auth-btn" onclick="newsletterRespond(false)" style="width:100%;background:transparent;border:1px solid var(--border2);color:var(--muted2)">Vielleicht später</button>
   </div>
 </div>
 
@@ -1394,8 +1322,6 @@ setTimeout(() => hidePreloader && hidePreloader(), 7000);
 let currentUser = null;
 let votedProjectIds = new Set();
 let bookmarkedIds = new Set();
-let commentUpvotedIds = new Set();
-let commentUpvoteCounts = {};
 
 function openAuth() {
   document.getElementById('authOverlay').classList.add('open');
@@ -1534,81 +1460,11 @@ function openAccountSettings() {
   document.getElementById('settingsBio').value = currentUser.bio || '';
   const bioLen = (currentUser.bio || '').length;
   document.getElementById('bioCharCount').textContent = bioLen + '/150';
-  document.getElementById('newsletterToggle').checked = currentUser.newsletterSubscribed === true;
   document.getElementById('accountSettingsModal').classList.add('open');
 }
 
 function closeAccountSettings() {
   document.getElementById('accountSettingsModal').classList.remove('open');
-}
-
-/* ── Newsletter Modal ─────────────────────────────────────────── */
-async function checkNewsletterModal() {
-  if (!currentUser || !currentUser.accessToken) return;
-  try {
-    const resp = await fetch('/api/account/newsletter-status', {
-      headers: { 'Authorization': 'Bearer ' + currentUser.accessToken }
-    });
-    if (!resp.ok) return;
-    const data = await resp.json();
-    // Only show modal if newsletter_subscribed is null (never responded)
-    if (data.newsletter_subscribed === null) {
-      setTimeout(() => {
-        document.getElementById('newsletterModal').classList.add('open');
-      }, 800);
-    }
-    // Store status on currentUser for settings toggle
-    currentUser.newsletterSubscribed = data.newsletter_subscribed;
-  } catch(e) { console.warn('Newsletter check failed:', e); }
-}
-
-async function newsletterRespond(subscribed) {
-  document.getElementById('newsletterModal').classList.remove('open');
-  if (!currentUser) return;
-  try {
-    const resp = await fetch('/api/account/newsletter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + currentUser.accessToken
-      },
-      body: JSON.stringify({ subscribed })
-    });
-    if (resp.ok) {
-      currentUser.newsletterSubscribed = subscribed;
-      if (subscribed) {
-        showToast('✓ Du bist jetzt für den wöchentlichen Newsletter angemeldet!');
-      }
-      // Update toggle if settings are open
-      const toggle = document.getElementById('newsletterToggle');
-      if (toggle) toggle.checked = subscribed;
-    }
-  } catch(e) { console.warn('Newsletter update failed:', e); }
-}
-
-async function toggleNewsletter(checked) {
-  if (!currentUser) return;
-  try {
-    const resp = await fetch('/api/account/newsletter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + currentUser.accessToken
-      },
-      body: JSON.stringify({ subscribed: checked })
-    });
-    if (resp.ok) {
-      currentUser.newsletterSubscribed = checked;
-      showToast(checked ? '✓ Newsletter aktiviert!' : 'Newsletter deaktiviert.');
-    } else {
-      // Revert toggle on error
-      document.getElementById('newsletterToggle').checked = !checked;
-      showToast('Fehler beim Aktualisieren.');
-    }
-  } catch(e) {
-    document.getElementById('newsletterToggle').checked = !checked;
-    showToast('Fehler beim Aktualisieren.');
-  }
 }
 
 async function saveAccountSettings() {
@@ -1945,7 +1801,6 @@ document.addEventListener('click', function(e) {
       console.log('[auth] restored user:', handle);
       await loadUserVotes(user.id);
       await loadUserBookmarks(user.id);
-      checkNewsletterModal();
     }
   } catch(e) { console.error('[auth] init session error:', e); }
 })();
@@ -1996,9 +1851,6 @@ sb.auth.onAuthStateChange(async (event, session) => {
 
     await loadUserVotes(user.id);
     await loadUserBookmarks(user.id);
-    if (event === 'SIGNED_IN' || event === 'SIGNED_UP') {
-      checkNewsletterModal();
-    }
   } else {
     currentUser = null;
     updateNavForUser();
@@ -2303,7 +2155,6 @@ function renderProjects() {
             <button class="share-x-btn" onclick="event.stopPropagation();shareX('${p.id}')" title="Share on X"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.264 5.633 5.9-5.633zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></button>
             <button class="share-fb-btn" onclick="event.stopPropagation();shareFb('${p.id}')" title="Share on Facebook"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></button>
             <button class="share-li-btn" onclick="event.stopPropagation();shareLi('${p.id}')" title="Share on LinkedIn"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></button>
-            <button class="share-rd-btn" onclick="event.stopPropagation();shareRd('${p.id}')" title="Share on Reddit"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg></button>
           </div>
           <div class="card-footer-right">
             <button class="bm-btn${p.bookmarked?' bm-active':''}" id="bm-${p.id}" onclick="event.stopPropagation();toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}">${p.bookmarked?BM_ICON_ON:BM_ICON_OFF}</button>
@@ -2419,7 +2270,6 @@ function openDrawer(id) {
     <button onclick="shareX('${p.id}')" title="Share on X" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 11px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#000';this.style.color='#fff';this.style.borderColor='#000'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--muted2)';this.style.borderColor='var(--border2)'"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.264 5.633 5.9-5.633zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> X</button>
     <button onclick="shareFb('${p.id}')" title="Share on Facebook" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 11px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#1877f2';this.style.color='#fff';this.style.borderColor='#1877f2'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--muted2)';this.style.borderColor='var(--border2)'"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> FB</button>
     <button onclick="shareLi('${p.id}')" title="Share on LinkedIn" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 11px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#0a66c2';this.style.color='#fff';this.style.borderColor='#0a66c2'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--muted2)';this.style.borderColor='var(--border2)'"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg> LinkedIn</button>
-    <button onclick="shareRd('${p.id}')" title="Share on Reddit" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 11px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='#ff4500';this.style.color='#fff';this.style.borderColor='#ff4500'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--muted2)';this.style.borderColor='var(--border2)'"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg> Reddit</button>
 `;
   document.getElementById('commentInput').value = '';
   document.getElementById('drawerOverlay').classList.add('open');
@@ -2483,29 +2333,6 @@ async function loadComments(projectId) {
   if (p) p.comments = comments;
   const countEl = document.getElementById('commentCount');
   if (countEl) countEl.textContent = `(${comments.length})`;
-
-  // Load comment upvote counts + user votes in parallel
-  const cIds = comments.map(c => c.id).filter(Boolean);
-  if (cIds.length) {
-    const token = currentUser?.accessToken || '';
-    const [countsResp, userVotesResp] = await Promise.all([
-      fetch('/api/comments/upvote-counts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: cIds })
-      }).then(r => r.ok ? r.json() : {}).catch(() => ({})),
-      token
-        ? fetch('/api/comments/user-upvotes', {
-            headers: { 'Authorization': 'Bearer ' + token }
-          }).then(r => r.ok ? r.json() : []).catch(() => [])
-        : Promise.resolve([])
-    ]);
-    commentUpvoteCounts = { ...commentUpvoteCounts, ...countsResp };
-    if (Array.isArray(userVotesResp)) {
-      userVotesResp.forEach(id => commentUpvotedIds.add(id));
-    }
-  }
-
   const commentsEl = document.getElementById('drawerComments');
   if (commentsEl && currentProject && currentProject.id === projectId) {
     commentsEl.innerHTML = renderComments({ comments });
@@ -2548,27 +2375,17 @@ function _upgradeAvatarsInContainer(container) {
   });
 }
 
-let commentRepliesCache = {};
-let commentReplyCounts = {};
-
 function renderComments(p) {
   if (!p.comments || !p.comments.length) return '<div style="color:var(--muted);font-size:13px;padding:8px 0">No comments yet — be the first!</div>';
   const myHandle = currentUser?.handle || '';
-  const myUid = currentUser?.id || '';
   const html = p.comments.map(c => {
-    const canDelete = (myHandle && c.author && c.author === myHandle) || (myUid && c.user_id && c.user_id === myUid);
+    const canDelete = (myHandle && c.author && c.author === myHandle) || (currentUser?.id && c.user_id && c.user_id === currentUser.id);
     const deleteBtn = canDelete ? `<button onclick="event.stopPropagation();deleteComment('${c.id}')" title="Delete comment" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:#dc2626;cursor:pointer;font-size:11px;padding:3px 8px;margin-left:auto;border-radius:4px;font-weight:600;font-family:var(--sans);transition:all .15s" onmouseover="this.style.background='rgba(220,38,38,.15)';this.style.borderColor='rgba(220,38,38,.4)'" onmouseout="this.style.background='rgba(220,38,38,.08)';this.style.borderColor='rgba(220,38,38,.2)'">🗑 Delete</button>` : '';
     const cachedUrl = _getCachedAvatarUrl(c.author);
     const initials = (c.author||'@?').slice(1,3).toUpperCase();
     const avatarContent = cachedUrl ? '' : initials;
     const dataAttr = c.author ? ` data-avatar-handle="${escAttr(c.author)}"` : '';
-    const isOwn = (myHandle && c.author === myHandle) || (myUid && c.user_id && c.user_id === myUid);
-    const voted = commentUpvotedIds.has(c.id);
-    const count = commentUpvoteCounts[c.id] || 0;
-    const upvoteBtn = c.id ? `<button class="c-upvote-btn${voted ? ' c-upvoted' : ''}" id="cuv-${c.id}" onclick="event.stopPropagation();toggleCommentUpvote('${c.id}')" title="${isOwn ? 'Cannot upvote own comment' : voted ? 'Remove upvote' : 'Upvote'}"${isOwn ? ' disabled' : ''}>▲ <span id="cuvc-${c.id}">${count}</span></button>` : '';
-    const replyCount = commentReplyCounts[c.id] || 0;
-    const replyBtn = c.id ? `<button class="c-reply-btn" onclick="event.stopPropagation();toggleReplyInput('${c.id}')">↩ Reply${replyCount ? ` (${replyCount})` : ''}</button>` : '';
-    return `<div class="comment-item-wrap"><div class="comment-item"><div class="c-avatar"${dataAttr}>${avatarContent}</div><div style="flex:1"><div class="c-meta" style="display:flex;align-items:center;gap:6px"><span><strong>${esc(c.author)}</strong> · ${c.time}</span>${replyBtn}${deleteBtn}</div><div class="c-text">${esc(c.text)}</div></div>${upvoteBtn}</div><div class="c-replies-wrap" id="creplies-${c.id}" style="display:none"></div><div id="creply-form-${c.id}" style="display:none"></div></div>`;
+    return `<div class="comment-item"><div class="c-avatar"${dataAttr}>${avatarContent}</div><div style="flex:1"><div class="c-meta" style="display:flex;align-items:center"><span><strong>${esc(c.author)}</strong> · ${c.time}</span>${deleteBtn}</div><div class="c-text">${esc(c.text)}</div></div></div>`;
   }).join('');
   setTimeout(() => {
     const container = document.getElementById('drawerComments');
@@ -2579,206 +2396,8 @@ function renderComments(p) {
       });
       _upgradeAvatarsInContainer(container);
     }
-    // Auto-load replies for comments that have them
-    if (p.comments) {
-      const cIds = p.comments.map(c => c.id).filter(Boolean);
-      if (cIds.length) _loadReplyCounts(cIds);
-    }
   }, 0);
   return html;
-}
-
-async function _loadReplyCounts(commentIds) {
-  try {
-    const resp = await fetch('/api/comments/replies-counts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: commentIds })
-    });
-    if (!resp.ok) return;
-    const counts = await resp.json();
-    commentReplyCounts = { ...commentReplyCounts, ...counts };
-    // Update reply button labels
-    for (const [cid, cnt] of Object.entries(counts)) {
-      if (cnt > 0) {
-        const wrap = document.getElementById('creplies-' + cid);
-        // Update button text
-        const btns = document.querySelectorAll(`.c-reply-btn`);
-        btns.forEach(btn => {
-          if (btn.getAttribute('onclick')?.includes(cid)) {
-            btn.textContent = `↩ Reply (${cnt})`;
-          }
-        });
-        // Auto-expand replies that exist
-        if (wrap) loadCommentReplies(cid);
-      }
-    }
-  } catch(e) {}
-}
-
-async function toggleReplyInput(commentId) {
-  const formEl = document.getElementById('creply-form-' + commentId);
-  if (!formEl) return;
-  if (formEl.style.display !== 'none') {
-    formEl.style.display = 'none';
-    formEl.innerHTML = '';
-    return;
-  }
-  if (!currentUser) { requireAuth(() => {}); return; }
-  formEl.style.display = '';
-  formEl.innerHTML = `<div class="c-reply-form"><textarea class="c-reply-input" id="creply-input-${commentId}" placeholder="Write a reply..." rows="1" maxlength="2000"></textarea><button class="c-reply-submit" onclick="postCommentReply('${commentId}')">Reply</button></div>`;
-  const inp = document.getElementById('creply-input-' + commentId);
-  if (inp) inp.focus();
-  // Also load existing replies if not already loaded
-  const wrap = document.getElementById('creplies-' + commentId);
-  if (wrap && wrap.style.display === 'none') {
-    loadCommentReplies(commentId);
-  }
-}
-
-async function loadCommentReplies(commentId) {
-  const wrap = document.getElementById('creplies-' + commentId);
-  if (!wrap) return;
-  try {
-    const resp = await fetch('/api/comments/' + commentId + '/replies');
-    if (!resp.ok) return;
-    const replies = await resp.json();
-    commentRepliesCache[commentId] = Array.isArray(replies) ? replies : [];
-  } catch(e) { return; }
-  renderCommentReplies(commentId);
-}
-
-function renderCommentReplies(commentId) {
-  const wrap = document.getElementById('creplies-' + commentId);
-  if (!wrap) return;
-  const replies = commentRepliesCache[commentId] || [];
-  if (!replies.length) { wrap.style.display = 'none'; return; }
-  wrap.style.display = '';
-  const myUid = currentUser?.id || '';
-  const myHandle = currentUser?.handle || '';
-  wrap.innerHTML = replies.map(r => {
-    const initials = (r.author_handle || '@?').slice(1, 3).toUpperCase();
-    const canDel = (myUid && r.user_id === myUid) || (myHandle && r.author_handle === myHandle);
-    const delBtn = canDel ? `<button class="c-reply-delete" onclick="event.stopPropagation();deleteCommentReply('${r.id}','${commentId}')" title="Delete">✕</button>` : '';
-    const time = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
-    return `<div class="c-reply-item"><div class="c-reply-avatar" data-avatar-handle="${escAttr(r.author_handle || '')}">${initials}</div><div style="flex:1"><div class="c-reply-meta"><strong>${esc(r.author_handle)}</strong> · ${time} ${delBtn}</div><div class="c-reply-body">${esc(r.body)}</div></div></div>`;
-  }).join('');
-  setTimeout(() => _upgradeAvatarsInContainer(wrap), 0);
-}
-
-async function postCommentReply(commentId) {
-  if (!currentUser) return;
-  const inp = document.getElementById('creply-input-' + commentId);
-  if (!inp) return;
-  const body = inp.value.trim();
-  if (!body) return;
-  const btn = inp.parentElement?.querySelector('.c-reply-submit');
-  if (btn) { btn.disabled = true; btn.textContent = '...'; }
-  try {
-    const resp = await fetch('/api/comments/' + commentId + '/replies', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + (currentUser.accessToken || '')
-      },
-      body: JSON.stringify({ body, author_handle: currentUser.handle || '@anon' })
-    });
-    if (btn) { btn.disabled = false; btn.textContent = 'Reply'; }
-    if (!resp.ok) {
-      const d = await resp.json().catch(() => ({}));
-      showToast(d.error || 'Could not post reply');
-      return;
-    }
-    const newReply = await resp.json();
-    if (!commentRepliesCache[commentId]) commentRepliesCache[commentId] = [];
-    commentRepliesCache[commentId].push(newReply);
-    commentReplyCounts[commentId] = (commentReplyCounts[commentId] || 0) + 1;
-    renderCommentReplies(commentId);
-    inp.value = '';
-    // Update reply button count
-    const btns = document.querySelectorAll('.c-reply-btn');
-    btns.forEach(b => {
-      if (b.getAttribute('onclick')?.includes(commentId)) {
-        b.textContent = `↩ Reply (${commentReplyCounts[commentId]})`;
-      }
-    });
-    showToast('Reply posted!');
-  } catch(e) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Reply'; }
-    showToast('Error posting reply');
-  }
-}
-
-async function deleteCommentReply(replyId, commentId) {
-  if (!confirm('Delete this reply?')) return;
-  if (!currentUser) return;
-  try {
-    const resp = await fetch('/api/comment-replies/' + replyId, {
-      method: 'DELETE',
-      headers: { 'Authorization': 'Bearer ' + (currentUser.accessToken || '') }
-    });
-    if (resp.ok) {
-      showToast('Reply deleted');
-      commentRepliesCache[commentId] = (commentRepliesCache[commentId] || []).filter(r => r.id !== replyId);
-      commentReplyCounts[commentId] = Math.max(0, (commentReplyCounts[commentId] || 1) - 1);
-      renderCommentReplies(commentId);
-      const btns = document.querySelectorAll('.c-reply-btn');
-      btns.forEach(b => {
-        if (b.getAttribute('onclick')?.includes(commentId)) {
-          const cnt = commentReplyCounts[commentId];
-          b.textContent = cnt ? `↩ Reply (${cnt})` : '↩ Reply';
-        }
-      });
-    } else {
-      const d = await resp.json().catch(() => ({}));
-      showToast(d.error || 'Could not delete reply');
-    }
-  } catch(e) { showToast('Error deleting reply'); }
-}
-
-async function toggleCommentUpvote(commentId) {
-  if (!currentUser) { requireAuth(() => {}); return; }
-  const btn = document.getElementById('cuv-' + commentId);
-  const countEl = document.getElementById('cuvc-' + commentId);
-  if (!btn || btn.disabled) return;
-
-  const wasVoted = commentUpvotedIds.has(commentId);
-  const oldCount = commentUpvoteCounts[commentId] || 0;
-
-  // Optimistic update
-  if (wasVoted) {
-    commentUpvotedIds.delete(commentId);
-    commentUpvoteCounts[commentId] = Math.max(0, oldCount - 1);
-    btn.classList.remove('c-upvoted');
-    btn.title = 'Upvote';
-  } else {
-    commentUpvotedIds.add(commentId);
-    commentUpvoteCounts[commentId] = oldCount + 1;
-    btn.classList.add('c-upvoted');
-    btn.title = 'Remove upvote';
-  }
-  if (countEl) countEl.textContent = commentUpvoteCounts[commentId];
-
-  // Server call
-  try {
-    const resp = await fetch('/api/comments/' + commentId + '/toggle-upvote', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + (currentUser.accessToken || '') }
-    });
-    if (!resp.ok) {
-      const d = await resp.json().catch(() => ({}));
-      // Revert optimistic update
-      if (wasVoted) { commentUpvotedIds.add(commentId); commentUpvoteCounts[commentId] = oldCount; btn.classList.add('c-upvoted'); }
-      else { commentUpvotedIds.delete(commentId); commentUpvoteCounts[commentId] = oldCount; btn.classList.remove('c-upvoted'); }
-      if (countEl) countEl.textContent = oldCount;
-      if (d.error) showToast(d.error);
-    }
-  } catch(e) {
-    // Revert on network error
-    if (wasVoted) { commentUpvotedIds.add(commentId); commentUpvoteCounts[commentId] = oldCount; btn.classList.add('c-upvoted'); }
-    else { commentUpvotedIds.delete(commentId); commentUpvoteCounts[commentId] = oldCount; btn.classList.remove('c-upvoted'); }
-    if (countEl) countEl.textContent = oldCount;
-  }
 }
 
 async function deleteComment(commentId) {
@@ -3214,7 +2833,7 @@ function renderForumThreadList() {
   const el = document.getElementById('forum-thread-list');
   if (!el) return;
   if (!forumThreads.length) {
-    el.innerHTML = `<div class="forum-empty"><div class="forum-empty-icon">🌱</div><div class="forum-empty-title">No conversations yet</div><div class="forum-empty-sub">The forum is fresh and waiting for its first thread. Share a question, tip, or idea with the community!</div>${currentUser?`<button class="forum-new-btn" style="margin-top:18px" onclick="openNewThreadModal()">Start the first thread</button>`:''}</div>`;
+    el.innerHTML = `<div class="forum-empty"><div class="forum-empty-icon">💬</div><div class="forum-empty-title">No threads yet</div><div class="forum-empty-sub">Be the first to start a conversation.</div></div>`;
     return;
   }
   el.innerHTML = forumThreads.map(t => {
@@ -3268,32 +2887,9 @@ async function loadForumReplies(threadId) {
   } catch(e) { console.error('loadForumReplies error:', e); } finally { clearTimeout(t); }
   if (titleEl) titleEl.textContent = `Replies (${replies.length})`;
   if (!replies.length) { el.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:12px 0">No replies yet — be the first to respond.</div>`; return; }
-
-  // Load reply upvote counts + user votes
-  const rIds = replies.map(r => r.id).filter(Boolean);
-  if (rIds.length) {
-    const token = currentUser?.accessToken || '';
-    const [countsResp, userVotesResp] = await Promise.all([
-      fetch('/api/comments/upvote-counts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: rIds })
-      }).then(r => r.ok ? r.json() : {}).catch(() => ({})),
-      token
-        ? fetch('/api/comments/user-upvotes', {
-            headers: { 'Authorization': 'Bearer ' + token }
-          }).then(r => r.ok ? r.json() : []).catch(() => [])
-        : Promise.resolve([])
-    ]);
-    commentUpvoteCounts = { ...commentUpvoteCounts, ...countsResp };
-    if (Array.isArray(userVotesResp)) {
-      userVotesResp.forEach(id => commentUpvotedIds.add(id));
-    }
-  }
-
   const myHandle = currentUser?.handle || '';
   const myUid = currentUser?.id || '';
-  el.innerHTML = `<div class="comment-list">${replies.map(r=>{const canDel=(myHandle && r.author_handle && r.author_handle===myHandle)||(myUid && r.author_id && r.author_id===myUid);const delBtn=canDel?`<button onclick="event.stopPropagation();deleteForumReply('${r.id}','${currentForumThreadId}')" title="Delete reply" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:#dc2626;cursor:pointer;font-size:11px;padding:3px 8px;margin-left:auto;border-radius:4px;font-weight:600;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='rgba(220,38,38,.15)';this.style.borderColor='rgba(220,38,38,.4)'" onmouseout="this.style.background='rgba(220,38,38,.08)';this.style.borderColor='rgba(220,38,38,.2)'">🗑 Delete</button>`:'';const isOwn=(myHandle && r.author_handle===myHandle)||(myUid && r.author_id && r.author_id===myUid);const voted=commentUpvotedIds.has(r.id);const count=commentUpvoteCounts[r.id]||0;const upvoteBtn=r.id?`<button class="c-upvote-btn${voted?' c-upvoted':''}" id="cuv-${r.id}" onclick="event.stopPropagation();toggleCommentUpvote('${r.id}')" title="${isOwn?'Cannot upvote own reply':voted?'Remove upvote':'Upvote'}"${isOwn?' disabled':''}>▲ <span id="cuvc-${r.id}">${count}</span></button>`:'';return `<div class="forum-reply-item"><div class="forum-reply-avatar" style="overflow:hidden" data-avatar-handle="${escAttr(r.author_handle||'')}">${forumAvatar(r.author_handle)}</div><div style="flex:1"><div class="forum-reply-meta" style="display:flex;align-items:center;gap:6px"><strong>${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}${delBtn}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div>${upvoteBtn}</div>`;}).join('')}</div>`;
+  el.innerHTML = `<div class="comment-list">${replies.map(r=>{const canDel=(myHandle && r.author_handle && r.author_handle===myHandle)||(myUid && r.author_id && r.author_id===myUid);const delBtn=canDel?`<button onclick="event.stopPropagation();deleteForumReply('${r.id}','${currentForumThreadId}')" title="Delete reply" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:#dc2626;cursor:pointer;font-size:11px;padding:3px 8px;margin-left:auto;border-radius:4px;font-weight:600;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='rgba(220,38,38,.15)';this.style.borderColor='rgba(220,38,38,.4)'" onmouseout="this.style.background='rgba(220,38,38,.08)';this.style.borderColor='rgba(220,38,38,.2)'">🗑 Delete</button>`:'';return `<div class="forum-reply-item"><div class="forum-reply-avatar" style="overflow:hidden" data-avatar-handle="${escAttr(r.author_handle||'')}">${forumAvatar(r.author_handle)}</div><div style="flex:1"><div class="forum-reply-meta" style="display:flex;align-items:center;gap:6px"><strong>${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}${delBtn}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div></div>`;}).join('')}</div>`;
   setTimeout(() => _upgradeAvatarsInContainer(el), 0);
 }
 
@@ -3501,13 +3097,6 @@ function shareFb(id) {
 function shareLi(id) {
   const url = _shareBase + '/p/' + id;
   window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, '_blank', 'noopener');
-}
-
-function shareRd(id) {
-  const url = _shareBase + '/p/' + id;
-  const p = projects.find(x => x.id === id);
-  const title = p ? p.name : '';
-  window.open(`https://www.reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`, '_blank', 'noopener');
 }
 
 function shareNavX() {
@@ -4242,7 +3831,7 @@ loadProjects().then(() => checkDeepLink());
         <h2>Forum</h2>
         <p>Discuss vibe coding, share tips, ask questions. 👇🏼</p>
       </div>
-      <button class="forum-new-btn" id="forumNewBtn" onclick="openNewThreadModal()">+ New Thread</button>
+      <button class="btn btn-primary" id="forumNewBtn" onclick="openNewThreadModal()" style="flex-shrink:0">+ New Thread</button>
     </div>
 
     <div id="forum-thread-list">
