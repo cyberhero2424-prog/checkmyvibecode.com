@@ -844,6 +844,47 @@ def _resolve_handle_to_user_id(handle):
         return None
 
 
+def _derive_handle_from_user_id(user_id, token=None):
+    """Get handle string for a user_id via token verification shortcut."""
+    if token:
+        user = _verify_supabase_token(token)
+        if user:
+            return _derive_author_handle(user)
+    return None
+
+
+def _resolve_user_id_to_handle(user_id):
+    """Reverse lookup: user_id → handle string via admin API."""
+    if not user_id or not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return None
+    try:
+        req = urllib.request.Request(
+            f"{SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000",
+            headers={
+                'apikey': SUPABASE_SERVICE_KEY,
+                'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        for u in data.get('users', []):
+            if u.get('id') == user_id:
+                meta = u.get('user_metadata') or {}
+                app_m = u.get('app_metadata') or {}
+                if meta.get('handle'):
+                    return meta['handle']
+                provider = app_m.get('provider', '')
+                if provider == 'github' and meta.get('user_name'):
+                    return '@' + meta['user_name']
+                email = u.get('email', '')
+                if email:
+                    return '@' + email.split('@')[0]
+                return '@user_' + str(user_id)[:8]
+        return None
+    except Exception:
+        return None
+
+
 def _insert_notification(user_id, notif_type, project_id, actor_handle, message):
     """Insert a notification record via service key. Fire-and-forget."""
     if not user_id:
@@ -2124,6 +2165,244 @@ def api_update_handle():
     return jsonify({'ok': True})
 
 
+# ── Newsletter ────────────────────────────────────────────────────────────────
+
+@app.route('/api/account/newsletter-status', methods=['GET'])
+def api_newsletter_status():
+    """Check if the user has seen the newsletter modal (newsletter_subscribed is NULL = not seen)."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data, err = _sb_service_request(
+        'GET',
+        f'profiles?id=eq.{user_id}&select=newsletter_subscribed'
+    )
+    if err or not data:
+        return jsonify({'newsletter_subscribed': None})
+
+    val = data[0].get('newsletter_subscribed') if data else None
+    return jsonify({'newsletter_subscribed': val})
+
+
+@app.route('/api/account/newsletter', methods=['POST'])
+def api_newsletter_update():
+    """Update newsletter subscription status."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    body = request.get_json(silent=True) or {}
+    subscribed = bool(body.get('subscribed', False))
+
+    patch_body = {'newsletter_subscribed': subscribed}
+    if subscribed:
+        patch_body['newsletter_subscribed_at'] = 'now()'
+
+    # Use raw SQL-style timestamp via Supabase
+    if subscribed:
+        import datetime
+        patch_body['newsletter_subscribed_at'] = datetime.datetime.utcnow().isoformat() + 'Z'
+    else:
+        patch_body['newsletter_subscribed_at'] = None
+
+    _, err = _sb_service_request(
+        'PATCH',
+        f'profiles?id=eq.{user_id}',
+        patch_body
+    )
+    if err:
+        return jsonify({'error': 'Failed to update newsletter preference'}), 502
+
+    return jsonify({'ok': True, 'newsletter_subscribed': subscribed})
+
+
+# ── Follow System ─────────────────────────────────────────────────────────────
+
+@app.route('/api/follow', methods=['POST'])
+def api_toggle_follow():
+    """Toggle follow for a user. Body: {handle: '@username'}."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    handle = data.get('handle', '')
+    if not handle:
+        return jsonify({'error': 'Missing handle'}), 400
+    target_user_id = _resolve_handle_to_user_id(handle)
+    if not target_user_id:
+        return jsonify({'error': 'User not found'}), 404
+    if target_user_id == user_id:
+        return jsonify({'error': 'Cannot follow yourself'}), 400
+    existing, err = _sb_service_request(
+        'GET', f'follows?follower_id=eq.{user_id}&following_id=eq.{target_user_id}&select=follower_id&limit=1'
+    )
+    if err:
+        return jsonify({'error': 'Database error'}), 502
+    if existing:
+        _sb_service_request('DELETE', f'follows?follower_id=eq.{user_id}&following_id=eq.{target_user_id}')
+        following = False
+    else:
+        _, err2 = _sb_service_request('POST', 'follows', {'follower_id': user_id, 'following_id': target_user_id})
+        following = True
+        if not err2:
+            sender_handle = _derive_handle_from_user_id(user_id, token)
+            _insert_notification(target_user_id, 'follow', None, sender_handle,
+                                 f'{sender_handle or "Someone"} folgt dir jetzt')
+    rows, _ = _sb_service_request('GET', f'follows?following_id=eq.{target_user_id}&select=follower_id')
+    count = len(rows) if rows else 0
+    return jsonify({'ok': True, 'following': following, 'follower_count': count})
+
+
+@app.route('/api/following')
+def api_following():
+    """Return list of user IDs the current user follows."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    rows, err = _sb_service_request('GET', f'follows?follower_id=eq.{user_id}&select=following_id')
+    if err:
+        return jsonify([])
+    return jsonify([r['following_id'] for r in (rows or [])])
+
+
+@app.route('/api/followers/count/<path:handle>')
+def api_followers_count(handle):
+    """Return follower count + is_following + user_id for a handle."""
+    clean = handle.lstrip('@').lower()
+    target_user_id = _resolve_handle_to_user_id(clean)
+    if not target_user_id:
+        return jsonify({'count': 0, 'user_id': None, 'is_following': False})
+    rows, _ = _sb_service_request('GET', f'follows?following_id=eq.{target_user_id}&select=follower_id')
+    count = len(rows) if rows else 0
+    is_following = False
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    caller_id = _decode_jwt_user_id(token)
+    if caller_id and rows:
+        is_following = any(r['follower_id'] == caller_id for r in rows)
+    return jsonify({'count': count, 'user_id': target_user_id, 'is_following': is_following})
+
+
+# ── Direct Messages ───────────────────────────────────────────────────────────
+
+@app.route('/api/messages/unread-count')
+def api_messages_unread_count():
+    """Return total unread message count for authenticated user."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'count': 0})
+    rows, _ = _sb_service_request('GET', f'messages?receiver_id=eq.{user_id}&read=eq.false&select=id')
+    return jsonify({'count': len(rows) if rows else 0})
+
+
+@app.route('/api/messages/conversations')
+def api_message_conversations():
+    """Return conversation list for authenticated user with partner handles."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    rows, err = _sb_service_request(
+        'GET',
+        f'messages?or=(sender_id.eq.{user_id},receiver_id.eq.{user_id})'
+        f'&select=id,sender_id,receiver_id,body,read,created_at'
+        f'&order=created_at.desc&limit=500'
+    )
+    if err:
+        return jsonify({'error': 'Database error'}), 502
+    convos = {}
+    for m in (rows or []):
+        partner = m['receiver_id'] if m['sender_id'] == user_id else m['sender_id']
+        if partner not in convos:
+            convos[partner] = {
+                'partner_id': partner,
+                'partner_handle': '',
+                'last_message': m['body'][:100],
+                'last_at': m['created_at'],
+                'unread': 0,
+            }
+        if m['receiver_id'] == user_id and not m.get('read'):
+            convos[partner]['unread'] += 1
+    for pid in convos:
+        h = _resolve_user_id_to_handle(pid)
+        convos[pid]['partner_handle'] = h or ('@user_' + pid[:8])
+    result = sorted(convos.values(), key=lambda c: c['last_at'], reverse=True)
+    return jsonify(result)
+
+
+@app.route('/api/messages/<partner_id>')
+def api_messages_with_user(partner_id):
+    """Return message history with a specific user. Marks received as read."""
+    if not re.match(r'^[0-9a-f-]{36}$', partner_id):
+        return jsonify({'error': 'Invalid user id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    rows, err = _sb_service_request(
+        'GET',
+        f'messages?or=(and(sender_id.eq.{user_id},receiver_id.eq.{partner_id}),'
+        f'and(sender_id.eq.{partner_id},receiver_id.eq.{user_id}))'
+        f'&select=id,sender_id,receiver_id,body,read,created_at'
+        f'&order=created_at.asc&limit=200'
+    )
+    if err:
+        return jsonify({'error': 'Database error'}), 502
+    _sb_service_request(
+        'PATCH',
+        f'messages?sender_id=eq.{partner_id}&receiver_id=eq.{user_id}&read=eq.false',
+        {'read': True}
+    )
+    return jsonify(rows or [])
+
+
+@app.route('/api/messages', methods=['POST'])
+def api_send_message():
+    """Send a direct message. Body: {receiver_id, body} or {receiver_handle, body}."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    body_text = (data.get('body') or '').strip()
+    if not body_text or len(body_text) > 2000:
+        return jsonify({'error': 'Message required (max 2000 chars)'}), 400
+    receiver_id = data.get('receiver_id', '')
+    if not receiver_id:
+        rh = data.get('receiver_handle', '')
+        if rh:
+            receiver_id = _resolve_handle_to_user_id(rh)
+    if not receiver_id:
+        return jsonify({'error': 'Receiver not found'}), 404
+    if receiver_id == user_id:
+        return jsonify({'error': 'Cannot message yourself'}), 400
+    result, err = _sb_service_request('POST', 'messages', {
+        'sender_id': user_id,
+        'receiver_id': receiver_id,
+        'body': body_text,
+    })
+    if err:
+        return jsonify({'error': 'Could not send message'}), 502
+    sender_handle = _derive_handle_from_user_id(user_id, token)
+    _insert_notification(receiver_id, 'message', None, sender_handle,
+                         f'{sender_handle or "Jemand"} hat dir eine Nachricht geschickt')
+    return jsonify({'ok': True, 'message': result[0] if result else {}})
+
+
 @app.route('/api/account/delete', methods=['POST'])
 def api_delete_account():
     """Delete the authenticated user's account and all associated data."""
@@ -2340,6 +2619,220 @@ def delete_comment(comment_id):
     if err:
         app.logger.error('delete_comment error: %s', err)
         return jsonify({'error': 'Could not delete comment'}), 502
+    return jsonify({'ok': True})
+
+
+# ── Comment upvotes ──────────────────────────────────────────────────────────
+
+@app.route('/api/comments/<comment_id>/toggle-upvote', methods=['POST'])
+def toggle_comment_upvote(comment_id):
+    """Toggle an upvote on a comment. Auth required via JWT.
+    Users cannot upvote their own comments (checked server-side)."""
+    if not _UUID_RE.match(comment_id):
+        return jsonify({'error': 'Invalid comment id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        user_obj = _verify_supabase_token(token)
+        user_id = user_obj.get('id') if user_obj else None
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    # Check if user owns this comment (cannot upvote own comment)
+    comment_rows, cerr = _sb_service_request('GET', f'comments?select=user_id&id=eq.{comment_id}&limit=1')
+    if not cerr and comment_rows:
+        comment_owner = comment_rows[0].get('user_id')
+        if comment_owner and comment_owner == user_id:
+            return jsonify({'error': 'Cannot upvote your own comment'}), 403
+
+    # Check if already upvoted
+    safe_uid = urllib.parse.quote(user_id, safe='')
+    existing, err = _sb_service_request(
+        'GET', f'comment_upvotes?comment_id=eq.{comment_id}&user_id=eq.{safe_uid}&select=comment_id'
+    )
+    if err:
+        app.logger.error('toggle_comment_upvote check error: %s', err)
+        return jsonify({'error': 'Could not check upvote'}), 502
+
+    if existing:
+        # Remove upvote
+        _, err = _sb_service_request(
+            'DELETE', f'comment_upvotes?comment_id=eq.{comment_id}&user_id=eq.{safe_uid}'
+        )
+        if err:
+            app.logger.error('remove comment upvote error: %s', err)
+            return jsonify({'error': 'Could not remove upvote'}), 502
+        return jsonify({'voted': False})
+    else:
+        # Add upvote
+        _, err = _sb_service_request('POST', 'comment_upvotes', {
+            'comment_id': comment_id,
+            'user_id': user_id,
+        })
+        if err:
+            app.logger.error('add comment upvote error: %s', err)
+            return jsonify({'error': 'Could not add upvote'}), 502
+        return jsonify({'voted': True})
+
+
+@app.route('/api/comments/upvote-counts', methods=['POST'])
+def api_comment_upvote_counts():
+    """Return upvote counts for a list of comment IDs.
+    Accepts JSON body: {"ids": ["uuid1", "uuid2", ...]}
+    Returns: {"uuid1": 3, "uuid2": 0, ...}"""
+    try:
+        payload = request.get_json(force=True) or {}
+        ids = payload.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return jsonify({})
+    except Exception:
+        return jsonify({})
+
+    # Validate all IDs
+    safe_ids = [i for i in ids if isinstance(i, str) and _UUID_RE.match(i)]
+    if not safe_ids:
+        return jsonify({})
+
+    # Fetch all upvotes for these comment IDs
+    id_filter = ','.join(safe_ids)
+    rows, err = _sb_service_request(
+        'GET', f'comment_upvotes?comment_id=in.({id_filter})&select=comment_id'
+    )
+    if err:
+        app.logger.error('comment_upvote_counts error: %s', err)
+        return jsonify({})
+
+    counts = {}
+    for r in (rows or []):
+        cid = r.get('comment_id')
+        if cid:
+            counts[cid] = counts.get(cid, 0) + 1
+    return jsonify(counts)
+
+
+@app.route('/api/comments/user-upvotes')
+def api_comment_user_upvotes():
+    """Return list of comment IDs the current user has upvoted."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify([])
+    safe_uid = urllib.parse.quote(user_id, safe='')
+    rows, err = _sb_service_request(
+        'GET', f'comment_upvotes?user_id=eq.{safe_uid}&select=comment_id'
+    )
+    if err:
+        return jsonify([])
+    return jsonify([r['comment_id'] for r in (rows or []) if r.get('comment_id')])
+
+
+# ── Comment replies (nested replies on project comments) ────────────────────
+
+@app.route('/api/comments/<comment_id>/replies')
+def api_comment_replies(comment_id):
+    """Return replies for a comment, oldest first. Public — no auth required."""
+    if not _UUID_RE.match(comment_id):
+        return jsonify({'error': 'Invalid comment id'}), 400
+    rows, err = _sb_service_request(
+        'GET', f'comment_replies?comment_id=eq.{comment_id}&select=id,comment_id,user_id,author_handle,body,created_at&order=created_at.asc'
+    )
+    if err:
+        app.logger.error('api_comment_replies error: %s', err)
+        return jsonify({'error': 'Could not fetch replies'}), 502
+    return jsonify(rows or [])
+
+
+@app.route('/api/comments/replies-counts', methods=['POST'])
+def api_comment_replies_counts():
+    """Return reply counts for a list of comment IDs.
+    Accepts JSON body: {"ids": ["uuid1", "uuid2", ...]}
+    Returns: {"uuid1": 2, "uuid2": 0, ...}"""
+    try:
+        payload = request.get_json(force=True) or {}
+        ids = payload.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return jsonify({})
+    except Exception:
+        return jsonify({})
+    safe_ids = [i for i in ids if isinstance(i, str) and _UUID_RE.match(i)]
+    if not safe_ids:
+        return jsonify({})
+    id_filter = ','.join(safe_ids)
+    rows, err = _sb_service_request(
+        'GET', f'comment_replies?comment_id=in.({id_filter})&select=comment_id'
+    )
+    if err:
+        return jsonify({})
+    counts = {}
+    for r in (rows or []):
+        cid = r.get('comment_id')
+        if cid:
+            counts[cid] = counts.get(cid, 0) + 1
+    return jsonify(counts)
+
+
+@app.route('/api/comments/<comment_id>/replies', methods=['POST'])
+def post_comment_reply(comment_id):
+    """Post a reply on a comment. Auth required via JWT."""
+    if not _UUID_RE.match(comment_id):
+        return jsonify({'error': 'Invalid comment id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    verified_user = None
+    if not user_id:
+        verified_user = _verify_supabase_token(token)
+        user_id = verified_user.get('id') if verified_user else None
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+    try:
+        payload = request.get_json(force=True) or {}
+        body_text = str(payload.get('body', '')).strip()[:2000]
+        author_handle = str(payload.get('author_handle', '')).strip()[:100]
+        if not body_text:
+            return jsonify({'error': 'Reply body is required'}), 400
+        if not author_handle:
+            if verified_user:
+                author_handle = _derive_author_handle(verified_user)
+            else:
+                author_handle = '@user'
+    except Exception:
+        return jsonify({'error': 'Bad request'}), 400
+    result, err = _sb_service_request('POST', 'comment_replies', {
+        'comment_id': comment_id,
+        'user_id': user_id,
+        'author_handle': author_handle,
+        'body': body_text,
+    })
+    if err:
+        app.logger.error('post_comment_reply error: %s', err)
+        return jsonify({'error': 'Could not save reply'}), 502
+    return jsonify(result[0] if isinstance(result, list) and result else result or {'ok': True})
+
+
+@app.route('/api/comment-replies/<reply_id>', methods=['DELETE'])
+def delete_comment_reply(reply_id):
+    """Delete a comment reply. Only the reply author can delete."""
+    if not _UUID_RE.match(reply_id):
+        return jsonify({'error': 'Invalid reply id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        user_obj = _verify_supabase_token(token)
+        user_id = user_obj.get('id') if user_obj else None
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+    rows, err = _sb_service_request('GET', f'comment_replies?select=id,user_id&id=eq.{reply_id}&limit=1')
+    if err or not rows:
+        return jsonify({'error': 'Reply not found'}), 404
+    if rows[0].get('user_id') != user_id:
+        return jsonify({'error': 'You can only delete your own replies'}), 403
+    _, err = _sb_service_request('DELETE', f'comment_replies?id=eq.{reply_id}')
+    if err:
+        return jsonify({'error': 'Could not delete reply'}), 502
     return jsonify({'ok': True})
 
 
