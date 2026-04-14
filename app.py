@@ -2124,6 +2124,62 @@ def api_update_handle():
     return jsonify({'ok': True})
 
 
+# ── Newsletter ────────────────────────────────────────────────────────────────
+
+@app.route('/api/account/newsletter-status', methods=['GET'])
+def api_newsletter_status():
+    """Check if the user has seen the newsletter modal (newsletter_subscribed is NULL = not seen)."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data, err = _sb_service_request(
+        'GET',
+        f'profiles?id=eq.{user_id}&select=newsletter_subscribed'
+    )
+    if err or not data:
+        return jsonify({'newsletter_subscribed': None})
+
+    val = data[0].get('newsletter_subscribed') if data else None
+    return jsonify({'newsletter_subscribed': val})
+
+
+@app.route('/api/account/newsletter', methods=['POST'])
+def api_newsletter_update():
+    """Update newsletter subscription status."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    body = request.get_json(silent=True) or {}
+    subscribed = bool(body.get('subscribed', False))
+
+    patch_body = {'newsletter_subscribed': subscribed}
+    if subscribed:
+        patch_body['newsletter_subscribed_at'] = 'now()'
+
+    # Use raw SQL-style timestamp via Supabase
+    if subscribed:
+        import datetime
+        patch_body['newsletter_subscribed_at'] = datetime.datetime.utcnow().isoformat() + 'Z'
+    else:
+        patch_body['newsletter_subscribed_at'] = None
+
+    _, err = _sb_service_request(
+        'PATCH',
+        f'profiles?id=eq.{user_id}',
+        patch_body
+    )
+    if err:
+        return jsonify({'error': 'Failed to update newsletter preference'}), 502
+
+    return jsonify({'ok': True, 'newsletter_subscribed': subscribed})
+
+
 @app.route('/api/account/delete', methods=['POST'])
 def api_delete_account():
     """Delete the authenticated user's account and all associated data."""
@@ -2340,6 +2396,220 @@ def delete_comment(comment_id):
     if err:
         app.logger.error('delete_comment error: %s', err)
         return jsonify({'error': 'Could not delete comment'}), 502
+    return jsonify({'ok': True})
+
+
+# ── Comment upvotes ──────────────────────────────────────────────────────────
+
+@app.route('/api/comments/<comment_id>/toggle-upvote', methods=['POST'])
+def toggle_comment_upvote(comment_id):
+    """Toggle an upvote on a comment. Auth required via JWT.
+    Users cannot upvote their own comments (checked server-side)."""
+    if not _UUID_RE.match(comment_id):
+        return jsonify({'error': 'Invalid comment id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        user_obj = _verify_supabase_token(token)
+        user_id = user_obj.get('id') if user_obj else None
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+
+    # Check if user owns this comment (cannot upvote own comment)
+    comment_rows, cerr = _sb_service_request('GET', f'comments?select=user_id&id=eq.{comment_id}&limit=1')
+    if not cerr and comment_rows:
+        comment_owner = comment_rows[0].get('user_id')
+        if comment_owner and comment_owner == user_id:
+            return jsonify({'error': 'Cannot upvote your own comment'}), 403
+
+    # Check if already upvoted
+    safe_uid = urllib.parse.quote(user_id, safe='')
+    existing, err = _sb_service_request(
+        'GET', f'comment_upvotes?comment_id=eq.{comment_id}&user_id=eq.{safe_uid}&select=comment_id'
+    )
+    if err:
+        app.logger.error('toggle_comment_upvote check error: %s', err)
+        return jsonify({'error': 'Could not check upvote'}), 502
+
+    if existing:
+        # Remove upvote
+        _, err = _sb_service_request(
+            'DELETE', f'comment_upvotes?comment_id=eq.{comment_id}&user_id=eq.{safe_uid}'
+        )
+        if err:
+            app.logger.error('remove comment upvote error: %s', err)
+            return jsonify({'error': 'Could not remove upvote'}), 502
+        return jsonify({'voted': False})
+    else:
+        # Add upvote
+        _, err = _sb_service_request('POST', 'comment_upvotes', {
+            'comment_id': comment_id,
+            'user_id': user_id,
+        })
+        if err:
+            app.logger.error('add comment upvote error: %s', err)
+            return jsonify({'error': 'Could not add upvote'}), 502
+        return jsonify({'voted': True})
+
+
+@app.route('/api/comments/upvote-counts', methods=['POST'])
+def api_comment_upvote_counts():
+    """Return upvote counts for a list of comment IDs.
+    Accepts JSON body: {"ids": ["uuid1", "uuid2", ...]}
+    Returns: {"uuid1": 3, "uuid2": 0, ...}"""
+    try:
+        payload = request.get_json(force=True) or {}
+        ids = payload.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return jsonify({})
+    except Exception:
+        return jsonify({})
+
+    # Validate all IDs
+    safe_ids = [i for i in ids if isinstance(i, str) and _UUID_RE.match(i)]
+    if not safe_ids:
+        return jsonify({})
+
+    # Fetch all upvotes for these comment IDs
+    id_filter = ','.join(safe_ids)
+    rows, err = _sb_service_request(
+        'GET', f'comment_upvotes?comment_id=in.({id_filter})&select=comment_id'
+    )
+    if err:
+        app.logger.error('comment_upvote_counts error: %s', err)
+        return jsonify({})
+
+    counts = {}
+    for r in (rows or []):
+        cid = r.get('comment_id')
+        if cid:
+            counts[cid] = counts.get(cid, 0) + 1
+    return jsonify(counts)
+
+
+@app.route('/api/comments/user-upvotes')
+def api_comment_user_upvotes():
+    """Return list of comment IDs the current user has upvoted."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify([])
+    safe_uid = urllib.parse.quote(user_id, safe='')
+    rows, err = _sb_service_request(
+        'GET', f'comment_upvotes?user_id=eq.{safe_uid}&select=comment_id'
+    )
+    if err:
+        return jsonify([])
+    return jsonify([r['comment_id'] for r in (rows or []) if r.get('comment_id')])
+
+
+# ── Comment replies (nested replies on project comments) ────────────────────
+
+@app.route('/api/comments/<comment_id>/replies')
+def api_comment_replies(comment_id):
+    """Return replies for a comment, oldest first. Public — no auth required."""
+    if not _UUID_RE.match(comment_id):
+        return jsonify({'error': 'Invalid comment id'}), 400
+    rows, err = _sb_service_request(
+        'GET', f'comment_replies?comment_id=eq.{comment_id}&select=id,comment_id,user_id,author_handle,body,created_at&order=created_at.asc'
+    )
+    if err:
+        app.logger.error('api_comment_replies error: %s', err)
+        return jsonify({'error': 'Could not fetch replies'}), 502
+    return jsonify(rows or [])
+
+
+@app.route('/api/comments/replies-counts', methods=['POST'])
+def api_comment_replies_counts():
+    """Return reply counts for a list of comment IDs.
+    Accepts JSON body: {"ids": ["uuid1", "uuid2", ...]}
+    Returns: {"uuid1": 2, "uuid2": 0, ...}"""
+    try:
+        payload = request.get_json(force=True) or {}
+        ids = payload.get('ids', [])
+        if not ids or not isinstance(ids, list):
+            return jsonify({})
+    except Exception:
+        return jsonify({})
+    safe_ids = [i for i in ids if isinstance(i, str) and _UUID_RE.match(i)]
+    if not safe_ids:
+        return jsonify({})
+    id_filter = ','.join(safe_ids)
+    rows, err = _sb_service_request(
+        'GET', f'comment_replies?comment_id=in.({id_filter})&select=comment_id'
+    )
+    if err:
+        return jsonify({})
+    counts = {}
+    for r in (rows or []):
+        cid = r.get('comment_id')
+        if cid:
+            counts[cid] = counts.get(cid, 0) + 1
+    return jsonify(counts)
+
+
+@app.route('/api/comments/<comment_id>/replies', methods=['POST'])
+def post_comment_reply(comment_id):
+    """Post a reply on a comment. Auth required via JWT."""
+    if not _UUID_RE.match(comment_id):
+        return jsonify({'error': 'Invalid comment id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    verified_user = None
+    if not user_id:
+        verified_user = _verify_supabase_token(token)
+        user_id = verified_user.get('id') if verified_user else None
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+    try:
+        payload = request.get_json(force=True) or {}
+        body_text = str(payload.get('body', '')).strip()[:2000]
+        author_handle = str(payload.get('author_handle', '')).strip()[:100]
+        if not body_text:
+            return jsonify({'error': 'Reply body is required'}), 400
+        if not author_handle:
+            if verified_user:
+                author_handle = _derive_author_handle(verified_user)
+            else:
+                author_handle = '@user'
+    except Exception:
+        return jsonify({'error': 'Bad request'}), 400
+    result, err = _sb_service_request('POST', 'comment_replies', {
+        'comment_id': comment_id,
+        'user_id': user_id,
+        'author_handle': author_handle,
+        'body': body_text,
+    })
+    if err:
+        app.logger.error('post_comment_reply error: %s', err)
+        return jsonify({'error': 'Could not save reply'}), 502
+    return jsonify(result[0] if isinstance(result, list) and result else result or {'ok': True})
+
+
+@app.route('/api/comment-replies/<reply_id>', methods=['DELETE'])
+def delete_comment_reply(reply_id):
+    """Delete a comment reply. Only the reply author can delete."""
+    if not _UUID_RE.match(reply_id):
+        return jsonify({'error': 'Invalid reply id'}), 400
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        user_obj = _verify_supabase_token(token)
+        user_id = user_obj.get('id') if user_obj else None
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired session'}), 401
+    rows, err = _sb_service_request('GET', f'comment_replies?select=id,user_id&id=eq.{reply_id}&limit=1')
+    if err or not rows:
+        return jsonify({'error': 'Reply not found'}), 404
+    if rows[0].get('user_id') != user_id:
+        return jsonify({'error': 'You can only delete your own replies'}), 403
+    _, err = _sb_service_request('DELETE', f'comment_replies?id=eq.{reply_id}')
+    if err:
+        return jsonify({'error': 'Could not delete reply'}), 502
     return jsonify({'ok': True})
 
 
