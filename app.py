@@ -454,7 +454,8 @@ def _sb_service_request(method, path, body=None, extra_headers=None):
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read().decode()), None
+            raw = resp.read().decode()
+            return (json.loads(raw) if raw.strip() else None), None
     except urllib.error.HTTPError as e:
         return None, f'HTTP {e.code}: {e.read().decode()}'
     except Exception as ex:
@@ -2217,7 +2218,7 @@ def api_newsletter_update():
         'POST',
         'profiles',
         upsert_body,
-        extra_headers={'Prefer': 'resolution=merge-duplicates'}
+        extra_headers={'Prefer': 'resolution=merge-duplicates,return=representation'}
     )
     if err:
         return jsonify({'error': 'Failed to update newsletter preference'}), 502
