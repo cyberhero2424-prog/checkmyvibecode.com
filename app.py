@@ -437,7 +437,7 @@ def _fetch_profile_projects(handle):
 
 # ── Supabase admin helpers (use service key — bypasses RLS) ───────────────────
 
-def _sb_service_request(method, path, body=None):
+def _sb_service_request(method, path, body=None, extra_headers=None):
     """Make a Supabase REST request using the service role key."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         return None, 'SUPABASE_SERVICE_KEY is not configured'
@@ -449,6 +449,8 @@ def _sb_service_request(method, path, body=None):
         'Content-Type': 'application/json',
         'Prefer': 'return=representation',
     }
+    if extra_headers:
+        headers.update(extra_headers)
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -2210,10 +2212,12 @@ def api_newsletter_update():
     else:
         patch_body['newsletter_subscribed_at'] = None
 
+    upsert_body = {'id': user_id, **patch_body}
     _, err = _sb_service_request(
-        'PATCH',
-        f'profiles?id=eq.{user_id}',
-        patch_body
+        'POST',
+        'profiles',
+        upsert_body,
+        extra_headers={'Prefer': 'resolution=merge-duplicates'}
     )
     if err:
         return jsonify({'error': 'Failed to update newsletter preference'}), 502
