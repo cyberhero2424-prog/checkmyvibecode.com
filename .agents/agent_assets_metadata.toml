@@ -18,3 +18,9 @@ id = "Dc-gEnMCmeJEQTDK_mgLZ"
 uri = "file://screenshots/checkmyvibecode-homepage.jpg"
 type = "image"
 title = "CheckMyVibeCode Homepage Screenshot"
+
+[[outputs]]
+id = "eS5btsmCt4Qlei-4IyNzm"
+uri = "file://exports/checkmyvibecode-export.zip"
+type = "unspecified"
+title = "checkmyvibecode Projekt (ZIP)"
