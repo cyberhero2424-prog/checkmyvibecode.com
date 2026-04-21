@@ -2611,19 +2611,29 @@ def delete_comment(comment_id):
     if not isinstance(user_obj, dict) or not user_obj.get('id'):
         return jsonify({'error': 'Invalid or expired session'}), 401
     user_id = user_obj['id']
-    jwt_handle = _derive_author_handle(user_obj)
-    rows, err = _sb_service_request('GET', f'comments?select=id,author,user_id&id=eq.{comment_id}&limit=1')
-    if err or not rows:
-        return jsonify({'error': 'Comment not found'}), 404
-    comment = rows[0]
-    owner_by_handle = jwt_handle and comment.get('author') == jwt_handle
-    owner_by_uid = comment.get('user_id') and comment['user_id'] == user_id
-    if not owner_by_handle and not owner_by_uid:
-        return jsonify({'error': 'You can only delete your own comments'}), 403
-    _, err = _sb_service_request('DELETE', f'comments?id=eq.{comment_id}')
+    jwt_handle = _derive_author_handle(user_obj) or ''
+    safe_uid = urllib.parse.quote(user_id, safe='')
+    safe_handle = urllib.parse.quote(jwt_handle, safe='')
+    if jwt_handle:
+        ownership_filter = f'or=(user_id.eq."{safe_uid}",author.eq."{safe_handle}")'
+    else:
+        ownership_filter = f'user_id=eq.{safe_uid}'
+    deleted, err = _sb_service_request(
+        'DELETE',
+        f'comments?id=eq.{comment_id}&{ownership_filter}',
+        extra_headers={'Prefer': 'return=representation'},
+    )
     if err:
-        app.logger.error('delete_comment error: %s', err)
+        app.logger.error('delete_comment error: comment_id=%s user_id=%s err=%s', comment_id, user_id, err)
         return jsonify({'error': 'Could not delete comment'}), 502
+    if isinstance(deleted, list) and len(deleted) > 0:
+        app.logger.info('delete_comment ok: comment_id=%s user_id=%s', comment_id, user_id)
+        return jsonify({'ok': True})
+    existing, gerr = _sb_service_request('GET', f'comments?select=id&id=eq.{comment_id}&limit=1')
+    if not gerr and isinstance(existing, list) and len(existing) > 0:
+        app.logger.info('delete_comment forbidden: comment_id=%s user_id=%s', comment_id, user_id)
+        return jsonify({'error': 'You can only delete your own comments'}), 403
+    app.logger.info('delete_comment idempotent (already gone): comment_id=%s user_id=%s', comment_id, user_id)
     return jsonify({'ok': True})
 
 
