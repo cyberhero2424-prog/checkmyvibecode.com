@@ -2630,7 +2630,10 @@ def delete_comment(comment_id):
         app.logger.info('delete_comment ok: comment_id=%s user_id=%s', comment_id, user_id)
         return jsonify({'ok': True})
     existing, gerr = _sb_service_request('GET', f'comments?select=id&id=eq.{comment_id}&limit=1')
-    if not gerr and isinstance(existing, list) and len(existing) > 0:
+    if gerr:
+        app.logger.error('delete_comment fallback GET failed: comment_id=%s user_id=%s err=%s', comment_id, user_id, gerr)
+        return jsonify({'error': 'Could not delete comment'}), 502
+    if isinstance(existing, list) and len(existing) > 0:
         app.logger.info('delete_comment forbidden: comment_id=%s user_id=%s', comment_id, user_id)
         return jsonify({'error': 'You can only delete your own comments'}), 403
     app.logger.info('delete_comment idempotent (already gone): comment_id=%s user_id=%s', comment_id, user_id)
