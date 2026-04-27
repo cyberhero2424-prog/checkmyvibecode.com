@@ -3613,6 +3613,16 @@ def robots():
     )
     return Response(body, mimetype='text/plain')
 
+
+@app.route('/llms.txt')
+def llms_txt():
+    try:
+        with open(os.path.join(BASE_DIR, 'llms.txt'), 'r', encoding='utf-8') as f:
+            body = f.read()
+    except FileNotFoundError:
+        return Response('', mimetype='text/plain', status=404)
+    return Response(body, mimetype='text/plain')
+
 # ── 404 handler ───────────────────────────────────────────────────────────────
 
 @app.errorhandler(404)
