@@ -59,7 +59,7 @@ def _cache_delete(*keys):
 
 SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '') or os.environ.get('SUPABASE_SECRET_KEY', '')
 ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
 # Optional: Supabase direct PostgreSQL connection URL for startup DB migration.
 # Find it in Supabase Dashboard > Project Settings > Database > Connection string (URI mode).
@@ -495,8 +495,8 @@ def _sb_service_request(method, path, body=None, extra_headers=None):
                 return [], None
             try:
                 return json.loads(raw), None
-            except (ValueError, json.JSONDecodeError):
-                return [], None
+            except (ValueError, json.JSONDecodeError) as je:
+                return None, f'Invalid JSON response: {je}'
     except urllib.error.HTTPError as e:
         return None, f'HTTP {e.code}: {e.read().decode()}'
     except Exception as ex:
