@@ -3605,11 +3605,13 @@ def sitemap():
 def robots():
     base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
     sitemap_url = base_url + '/sitemap.xml'
+    llms_txt_url = base_url + '/llms.txt'
     body = (
         "User-agent: *\n"
         "Disallow: /admin\n"
         "Disallow: /api/\n"
         f"Sitemap: {sitemap_url}\n"
+        f"Llms-txt: {llms_txt_url}\n"
     )
     return Response(body, mimetype='text/plain')
 
