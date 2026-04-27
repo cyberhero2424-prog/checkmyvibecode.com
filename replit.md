@@ -86,6 +86,15 @@ The notifications table is auto-created at startup via `_apply_notifications_mig
 - **Nav avatar**: Shows profile picture in navbar when set; falls back to initial letter
 - **API**: `/api/profile-meta/<handle>` returns `{avatar_url, bio}` for any user (cached 2min, paginated up to 5000 users)
 
+## Blog
+- File-based Markdown blog. Posts live in `blog_posts/*.md`.
+- Each post has YAML-style frontmatter (`title`, `slug`, `date`, `description`) followed by Markdown body.
+- Routes: `/blog` (list, sorted newest-first), `/blog/<slug>` (single post with full SEO meta).
+- Templates: `templates/blog_list.html`, `templates/blog_post.html` (dark theme, self-contained).
+- Posts are auto-picked up: in-memory cache invalidates whenever any `.md` file's mtime changes (no restart needed).
+- Blog URLs are included in `/sitemap.xml` (`/blog` priority 0.6, individual posts priority 0.7).
+- Dependency: `markdown>=3.5` (added to `requirements.txt`).
+
 ## Migrations
 - `migrations/bookmarks.sql` — bookmarks table + RLS
 - `migrations/forum.sql` — forum tables + RLS (run in Supabase dashboard)

@@ -6,3 +6,4 @@ Pillow
 whitenoise[brotli]
 psycopg2-binary>=2.9
 requests>=2.31
+markdown>=3.5

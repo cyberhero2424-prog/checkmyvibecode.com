@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} — CheckMyVibeCode Blog</title>
+<meta name="description" content="{{ description }}">
+<link rel="canonical" href="{{ base_url }}/blog/{{ slug }}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="CheckMyVibeCode">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description }}">
+<meta property="og:url" content="{{ base_url }}/blog/{{ slug }}">
+<meta property="og:image" content="{{ base_url }}/static/og-image.png">
+<meta property="article:published_time" content="{{ date }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ title }}">
+<meta name="twitter:description" content="{{ description }}">
+<meta name="twitter:image" content="{{ base_url }}/static/og-image.png">
+<link rel="icon" type="image/png" href="/static/favicon-logo.png">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0d0f; color: #e8e8e6; min-height: 100vh; line-height: 1.7; }
+  a { color: #39ff14; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header.site-head { background: #111113; border-bottom: 1px solid #1e1e22; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header.site-head .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; color: #e8e8e6; text-decoration: none; }
+  header.site-head .brand img { width: 26px; height: 26px; border-radius: 6px; }
+  header.site-head .brand .muted { color: #888; font-weight: 400; }
+  header.site-head .brand:hover { text-decoration: none; }
+  header.site-head nav a { color: #aaa; font-size: 13px; padding: 6px 12px; border-radius: 7px; transition: background .15s, color .15s; }
+  header.site-head nav a:hover { background: #1a1a1d; color: #e8e8e6; text-decoration: none; }
+
+  .wrap { max-width: 720px; margin: 0 auto; padding: 56px 24px 80px; }
+  .post-meta { font-size: 12px; color: #888; font-family: ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 12px; }
+  .post-title { font-size: 38px; font-weight: 700; line-height: 1.15; letter-spacing: -1px; margin-bottom: 32px; color: #f5f5f3; }
+
+  .article { font-size: 17px; color: #d8d8d6; }
+  .article h1 { font-size: 30px; font-weight: 700; letter-spacing: -.6px; margin: 36px 0 16px; color: #f5f5f3; line-height: 1.2; }
+  .article h1:first-child { margin-top: 0; }
+  .article h2 { font-size: 24px; font-weight: 700; letter-spacing: -.3px; margin: 32px 0 14px; color: #f5f5f3; line-height: 1.25; }
+  .article h3 { font-size: 19px; font-weight: 600; margin: 28px 0 12px; color: #f5f5f3; }
+  .article p { margin-bottom: 18px; }
+  .article ul, .article ol { margin: 0 0 20px 22px; }
+  .article li { margin-bottom: 6px; }
+  .article strong { color: #f5f5f3; font-weight: 700; }
+  .article em { color: #c8c8c6; }
+  .article blockquote { border-left: 3px solid #39ff14; padding: 4px 0 4px 18px; margin: 22px 0; color: #b8b8b6; font-style: italic; }
+  .article code { background: #1a1a1d; border: 1px solid #2a2a2e; padding: 1px 6px; border-radius: 5px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 14px; color: #e8e8e6; }
+  .article pre { background: #111113; border: 1px solid #2a2a2e; border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 22px 0; line-height: 1.5; }
+  .article pre code { background: none; border: none; padding: 0; font-size: 13px; color: #c8c8c6; }
+  .article a { color: #39ff14; }
+  .article hr { border: none; border-top: 1px solid #2a2a2e; margin: 32px 0; }
+  .article img { max-width: 100%; height: auto; border-radius: 10px; margin: 22px 0; }
+  .article table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: 14px; }
+  .article th, .article td { border: 1px solid #2a2a2e; padding: 8px 12px; text-align: left; }
+  .article th { background: #1a1a1d; font-weight: 700; color: #f5f5f3; }
+
+  .footer { margin-top: 56px; padding-top: 24px; border-top: 1px solid #1e1e22; font-size: 14px; }
+  .footer a { color: #aaa; }
+  .footer a:hover { color: #39ff14; }
+</style>
+</head>
+<body>
+
+<header class="site-head">
+  <a class="brand" href="/">
+    <img src="/static/logo2.png" alt="CheckMyVibeCode">
+    <span>checkmyvibecode<span class="muted">.com</span></span>
+  </a>
+  <nav>
+    <a href="/blog">All posts</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="post-meta">{{ date_human }}</div>
+  <h1 class="post-title">{{ title }}</h1>
+
+  <div class="article">
+    {{ content_html|safe }}
+  </div>
+
+  <div class="footer">
+    <a href="/blog">← Back to Blog</a>
+  </div>
+</div>
+
+</body>
+</html>

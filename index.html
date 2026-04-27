@@ -1038,6 +1038,7 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
   <button class="nav-tab active" id="tab-projects" onclick="switchPage('projects')">Projects</button>
   <button class="nav-tab" id="tab-forum" onclick="switchPage('forum')">Forum</button>
   <button class="nav-tab" id="tab-checker" onclick="switchPage('checker')"><span class="nav-checker-word">Code </span>Checker<span class="nav-soon">Soon</span></button>
+  <a class="nav-tab" id="tab-blog" href="/blog" style="text-decoration:none;display:inline-flex;align-items:center">Blog</a>
 
   <div class="nav-search">
     <div class="search-wrap" onclick="document.getElementById('mainSearch').focus()">
@@ -1092,6 +1093,7 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
   <button class="dropdown-item" id="myProfileDropBtn" onclick="if(currentUser)openProfile(currentUser.handle);closeDropdown()">👤 My profile</button>
   <button class="dropdown-item" onclick="switchPage('forum');closeDropdown()">◎ Forum</button>
   <button class="dropdown-item" onclick="switchPage('checker');closeDropdown()">⚡ Code Checker <span class="nav-soon" style="margin-left:4px">Soon</span></button>
+  <a class="dropdown-item" href="/blog" style="text-decoration:none" onclick="closeDropdown()">📝 Blog</a>
   <button class="dropdown-item" onclick="openAccountSettings();closeDropdown()">⚙ Account settings</button>
   <button class="dropdown-item danger" onclick="signOut()">→ Sign out</button>
 </div>

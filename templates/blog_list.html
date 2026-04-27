@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blog — CheckMyVibeCode</title>
+<meta name="description" content="Articles about AI-assisted coding, vibe coding tools, and what the community is shipping.">
+<link rel="canonical" href="{{ base_url }}/blog">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="CheckMyVibeCode">
+<meta property="og:title" content="Blog — CheckMyVibeCode">
+<meta property="og:description" content="Articles about AI-assisted coding, vibe coding tools, and what the community is shipping.">
+<meta property="og:url" content="{{ base_url }}/blog">
+<meta property="og:image" content="{{ base_url }}/static/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Blog — CheckMyVibeCode">
+<meta name="twitter:description" content="Articles about AI-assisted coding, vibe coding tools, and what the community is shipping.">
+<meta name="twitter:image" content="{{ base_url }}/static/og-image.png">
+<link rel="icon" type="image/png" href="/static/favicon-logo.png">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0d0f; color: #e8e8e6; min-height: 100vh; line-height: 1.55; }
+  a { color: #39ff14; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header.site-head { background: #111113; border-bottom: 1px solid #1e1e22; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header.site-head .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; color: #e8e8e6; text-decoration: none; }
+  header.site-head .brand img { width: 26px; height: 26px; border-radius: 6px; }
+  header.site-head .brand .muted { color: #888; font-weight: 400; }
+  header.site-head .brand:hover { text-decoration: none; }
+  header.site-head nav a { color: #aaa; font-size: 13px; padding: 6px 12px; border-radius: 7px; transition: background .15s, color .15s; }
+  header.site-head nav a:hover { background: #1a1a1d; color: #e8e8e6; text-decoration: none; }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+  .page-eyebrow { font-size: 12px; font-weight: 600; color: #39ff14; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 8px; }
+  .page-title { font-size: 36px; font-weight: 700; letter-spacing: -1px; margin-bottom: 8px; }
+  .page-sub { font-size: 14px; color: #888; margin-bottom: 36px; }
+
+  .post-list { display: flex; flex-direction: column; gap: 14px; }
+  .post-card { display: block; background: #1a1a1d; border: 1px solid #2a2a2e; border-radius: 14px; padding: 22px 24px; transition: border-color .15s, transform .15s, background .15s; color: #e8e8e6; text-decoration: none; }
+  .post-card:hover { border-color: #39ff14; transform: translateY(-1px); background: #1d1d20; text-decoration: none; }
+  .post-card-date { font-size: 12px; color: #888; font-family: ui-monospace, 'SF Mono', Menlo, monospace; margin-bottom: 6px; }
+  .post-card-title { font-size: 19px; font-weight: 700; color: #e8e8e6; margin-bottom: 6px; letter-spacing: -.3px; }
+  .post-card-desc { font-size: 14px; color: #b8b8b6; line-height: 1.55; }
+
+  .empty { text-align: center; padding: 80px 20px; color: #555; font-size: 14px; }
+
+  .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #1e1e22; font-size: 13px; }
+  .footer a { color: #888; }
+  .footer a:hover { color: #e8e8e6; }
+</style>
+</head>
+<body>
+
+<header class="site-head">
+  <a class="brand" href="/">
+    <img src="/static/logo2.png" alt="CheckMyVibeCode">
+    <span>checkmyvibecode<span class="muted">.com</span></span>
+  </a>
+  <nav>
+    <a href="/">← Back to projects</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="page-eyebrow">CheckMyVibeCode Blog</div>
+  <h1 class="page-title">Blog</h1>
+  <p class="page-sub">Notes on vibe coding, AI tools, and what builders are shipping.</p>
+
+  {% if posts %}
+  <div class="post-list">
+    {% for p in posts %}
+    <a class="post-card" href="/blog/{{ p.slug }}">
+      <div class="post-card-date">{{ p.date_human }}</div>
+      <div class="post-card-title">{{ p.title }}</div>
+      {% if p.description %}<div class="post-card-desc">{{ p.description }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">No posts yet. Check back soon.</div>
+  {% endif %}
+
+  <div class="footer">
+    <a href="/">← Back to home</a>
+  </div>
+</div>
+
+</body>
+</html>

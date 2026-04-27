@@ -10,6 +10,9 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+import datetime as _datetime
+import glob as _glob
+import markdown as _markdown
 import requests as _requests_lib
 from collections import defaultdict
 from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template, jsonify
@@ -21,6 +24,8 @@ load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
+BLOG_DIR = os.path.join(BASE_DIR, 'blog_posts')
+_BLOG_CACHE = {'posts': None, 'mtime': 0.0}
 
 BLOCKED_NAMES = {'.env', '.git', 'app.py', 'requirements.txt'}
 HTML_ENTRY_POINTS = {'index.html', 'checkmyvibecode-app.html'}
@@ -3581,6 +3586,24 @@ def sitemap():
             entry['lastmod'] = lastmod
         urls.append(entry)
 
+    # Blog index + individual posts
+    try:
+        blog_posts = _load_blog_posts()
+        blog_lastmod = blog_posts[0]['date'] if blog_posts else ''
+        blog_index_entry = {'loc': base_url + '/blog', 'changefreq': 'weekly', 'priority': '0.6'}
+        if blog_lastmod:
+            blog_index_entry['lastmod'] = blog_lastmod
+        urls.append(blog_index_entry)
+        for p in blog_posts:
+            urls.append({
+                'loc': base_url + '/blog/' + urllib.parse.quote(p['slug'], safe=''),
+                'changefreq': 'weekly',
+                'priority': '0.7',
+                'lastmod': p['date'],
+            })
+    except Exception:
+        pass
+
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for u in urls:
@@ -3624,6 +3647,128 @@ def llms_txt():
     except FileNotFoundError:
         return Response('', mimetype='text/plain', status=404)
     return Response(body, mimetype='text/plain')
+
+
+# ── Blog ──────────────────────────────────────────────────────────────────────
+
+def _parse_blog_file(path):
+    """Parse a single blog .md file. Returns dict or None on malformed input.
+
+    Frontmatter delimiter '---' must be on its own line (no leading/trailing
+    chars apart from whitespace), so a literal '---' appearing inside a value
+    won't be misread as a delimiter.
+    """
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            raw = f.read()
+    except OSError:
+        return None
+    lines = raw.splitlines(keepends=True)
+    if not lines or lines[0].strip() != '---':
+        return None
+    close_idx = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == '---':
+            close_idx = i
+            break
+    if close_idx is None:
+        return None
+    fm_text = ''.join(lines[1:close_idx])
+    body = ''.join(lines[close_idx + 1:]).lstrip('\r\n')
+    meta = {}
+    for line in fm_text.splitlines():
+        line = line.strip()
+        if not line or ':' not in line:
+            continue
+        key, _, val = line.partition(':')
+        key = key.strip()
+        val = val.strip()
+        if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+            val = val[1:-1]
+        meta[key] = val
+    if not all(meta.get(k) for k in ('title', 'slug', 'date')):
+        return None
+    return {
+        'title': meta['title'],
+        'slug': meta['slug'],
+        'date': meta['date'],
+        'description': meta.get('description', ''),
+        'body': body,
+    }
+
+
+def _format_blog_date(date_str):
+    """Format ISO date 'YYYY-MM-DD' as 'April 27, 2026'. Returns input on failure."""
+    try:
+        d = _datetime.datetime.strptime(date_str, '%Y-%m-%d')
+        return d.strftime('%B %d, %Y').replace(' 0', ' ')
+    except (ValueError, TypeError):
+        return date_str
+
+
+def _load_blog_posts():
+    """Load blog posts from BLOG_DIR. Cached; invalidated when the set of files
+    or any individual file's mtime changes (so deletions and out-of-order
+    timestamps are also detected, not just the newest mtime)."""
+    if not os.path.isdir(BLOG_DIR):
+        if _BLOG_CACHE['posts'] is not None:
+            _BLOG_CACHE['posts'] = []
+            _BLOG_CACHE['mtime'] = ()
+        return []
+    files = sorted(_glob.glob(os.path.join(BLOG_DIR, '*.md')))
+    fingerprint = []
+    for f in files:
+        try:
+            fingerprint.append((f, os.path.getmtime(f)))
+        except OSError:
+            continue
+    fingerprint = tuple(fingerprint)
+    if _BLOG_CACHE['posts'] is not None and fingerprint == _BLOG_CACHE['mtime']:
+        return _BLOG_CACHE['posts']
+    posts = []
+    for path, _mtime in fingerprint:
+        post = _parse_blog_file(path)
+        if post:
+            post['date_human'] = _format_blog_date(post['date'])
+            posts.append(post)
+    posts.sort(key=lambda p: p['date'], reverse=True)
+    _BLOG_CACHE['posts'] = posts
+    _BLOG_CACHE['mtime'] = fingerprint
+    return posts
+
+
+def _render_markdown(body):
+    return _markdown.markdown(body, extensions=['fenced_code', 'tables'])
+
+
+@app.route('/blog')
+def blog_index():
+    posts = _load_blog_posts()
+    base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
+    return render_template('blog_list.html', posts=posts, base_url=base_url)
+
+
+@app.route('/blog/<slug>')
+def blog_post(slug):
+    posts = _load_blog_posts()
+    post = next((p for p in posts if p['slug'] == slug), None)
+    base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
+    if not post:
+        # Bypass the global 404 → home redirect by returning a Response directly.
+        body = render_template('blog_list.html', posts=posts, base_url=base_url)
+        return Response(body, mimetype='text/html', status=404)
+    content_html = _render_markdown(post['body'])
+    return render_template(
+        'blog_post.html',
+        title=post['title'],
+        slug=post['slug'],
+        date=post['date'],
+        date_human=post['date_human'],
+        description=post['description'],
+        content_html=content_html,
+        base_url=base_url,
+    )
+
 
 # ── 404 handler ───────────────────────────────────────────────────────────────
 
