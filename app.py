@@ -2370,6 +2370,22 @@ def api_update_handle():
         return jsonify({'error': 'Invalid handle format'}), 400
 
     old_handle = jwt_handle
+
+    # Uniqueness check: reject if the handle is already used by a *different* user.
+    # Comparison is case-insensitive (handles are stored case-preserving but
+    # resolved lower-case throughout the app). Skip the check if the user is
+    # essentially re-saving their own current handle.
+    if new_handle.lstrip('@').lower() != (old_handle or '').lstrip('@').lower():
+        # Bypass the 10-min cache so very-recent updates are still visible
+        with _user_id_cache_lock:
+            _user_id_cache.pop(new_handle.lstrip('@').lower(), None)
+        existing_owner = _resolve_handle_to_user_id(new_handle)
+        if existing_owner and existing_owner != user_id:
+            return jsonify({
+                'error': 'Handle already taken',
+                'message': f'The handle {new_handle} is already in use. Please choose a different one.'
+            }), 409
+
     new_user_name = new_handle.lstrip('@')
 
     _, err = _sb_service_request(

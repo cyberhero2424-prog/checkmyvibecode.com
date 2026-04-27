@@ -1793,6 +1793,23 @@ async function saveAccountSettings() {
     const token = currentUser.accessToken || '';
     const oldHandle = currentUser.handle;
 
+    // Handle change must be checked BEFORE we touch user_metadata via supabase-js,
+    // otherwise the metadata would already carry the rejected handle when the
+    // server-side uniqueness check returns 409.
+    if (oldHandle !== newHandle) {
+      const resp = await fetch('/api/account/update-handle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ old_handle: oldHandle, new_handle: newHandle })
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        const msg = data.message || data.error || 'Unknown error';
+        showToast(resp.status === 409 ? msg : 'Error updating handle: ' + msg);
+        return;
+      }
+    }
+
     try {
       const updatePromise = sb.auth.updateUser({
         data: { name: newName, handle: newHandle, user_name: newHandle.replace('@', ''), avatar_url: newAvatarUrl, bio: newBio, website: newWebsite }
@@ -1802,19 +1819,6 @@ async function saveAccountSettings() {
       if (error) console.warn('updateUser warning:', error.message);
     } catch(ue) {
       console.warn('updateUser skipped:', ue.message);
-    }
-
-    if (oldHandle !== newHandle) {
-      const resp = await fetch('/api/account/update-handle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ old_handle: oldHandle, new_handle: newHandle })
-      });
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        showToast('Error updating handle: ' + (data.error || 'Unknown error'));
-        return;
-      }
     }
 
     await fetch('/api/account/update', {
