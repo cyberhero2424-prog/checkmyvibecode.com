@@ -108,6 +108,43 @@
   .btn-del-reply { background: transparent; color: #f87171; font-size: 11px; font-weight: 600; padding: 4px 10px; border: 1px solid #3a1515; border-radius: 6px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: background .15s; }
   .btn-del-reply:hover { background: #2a0a0a; border-color: #f87171; }
   .forum-no-replies { padding: 14px 20px; font-size: 12px; color: #555; font-style: italic; }
+
+  /* ── Blog admin ── */
+  .blog-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+  .btn-new { background: #39ff14; color: #000; font-size: 13px; font-weight: 700; padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn-new:hover { opacity: .85; text-decoration: none; }
+  .btn-secondary { background: transparent; color: #aaa; font-size: 13px; font-weight: 600; padding: 9px 16px; border: 1px solid #2a2a2e; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; }
+  .btn-secondary:hover { color: #e8e8e6; border-color: #3a3a3e; text-decoration: none; }
+
+  .blog-card { background: #1a1a1d; border: 1px solid #2a2a2e; border-radius: 12px; padding: 18px 20px; margin-bottom: 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+  .blog-card-info { flex: 1; min-width: 0; }
+  .blog-card-title { font-size: 15px; font-weight: 700; color: #e8e8e6; margin-bottom: 4px; }
+  .blog-card-meta { font-size: 12px; color: #888; margin-bottom: 6px; }
+  .blog-card-meta b { color: #aaa; }
+  .blog-card-meta code { background: #111113; padding: 1px 6px; border-radius: 4px; color: #aaa; font-size: 11px; }
+  .blog-card-desc { font-size: 13px; color: #bbb; line-height: 1.5; }
+  .blog-card-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; align-items: center; }
+  .btn-edit { background: transparent; color: #60a5fa; font-size: 12px; font-weight: 600; padding: 6px 14px; border: 1px solid #1e3a5f; border-radius: 7px; cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; transition: background .15s, border-color .15s; }
+  .btn-edit:hover { background: rgba(96,165,250,.1); border-color: #60a5fa; text-decoration: none; }
+  .btn-view { background: transparent; color: #aaa; font-size: 12px; font-weight: 600; padding: 6px 14px; border: 1px solid #2a2a2e; border-radius: 7px; cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; transition: border-color .15s, color .15s; }
+  .btn-view:hover { color: #e8e8e6; border-color: #3a3a3e; text-decoration: none; }
+
+  .blog-form { background: #1a1a1d; border: 1px solid #2a2a2e; border-radius: 12px; padding: 24px; }
+  .blog-form .field { margin-bottom: 18px; }
+  .blog-form label { display: block; font-size: 12px; font-weight: 600; color: #aaa; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 6px; }
+  .blog-form input[type="text"], .blog-form input[type="date"], .blog-form textarea {
+    width: 100%; background: #111113; border: 1px solid #2a2a2e; border-radius: 8px;
+    padding: 10px 14px; font-size: 14px; color: #e8e8e6; outline: none;
+    font-family: inherit; transition: border-color .15s;
+  }
+  .blog-form input:focus, .blog-form textarea:focus { border-color: #39ff14; }
+  .blog-form textarea { min-height: 360px; resize: vertical; line-height: 1.55; font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 13px; }
+  .blog-form .help { font-size: 11px; color: #666; margin-top: 4px; }
+  .blog-form .row { display: grid; grid-template-columns: 1fr 200px; gap: 16px; }
+  @media (max-width: 600px) { .blog-form .row { grid-template-columns: 1fr; } }
+  .blog-form-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .btn-save { background: #39ff14; color: #000; font-weight: 700; font-size: 14px; padding: 11px 22px; border: none; border-radius: 8px; cursor: pointer; transition: opacity .15s; }
+  .btn-save:hover { opacity: .85; }
 </style>
 </head>
 <body>
@@ -182,9 +219,109 @@
     <a href="/admin?tab=approved" class="tab {% if tab == 'approved' %}active{% endif %}">Approved</a>
     <a href="/admin?tab=rejected" class="tab {% if tab == 'rejected' %}active{% endif %}">Rejected</a>
     <a href="/admin?tab=forum" class="tab {% if tab == 'forum' %}active{% endif %}">Forum ({{ forum_thread_count }})</a>
+    <a href="/admin?tab=blog" class="tab {% if tab == 'blog' %}active{% endif %}">Blog</a>
   </div>
 
-  {% if tab == 'forum' %}
+  {% if tab == 'blog' %}
+    {% if blog_view == 'form' %}
+    <div class="section-head">{{ 'Edit post' if blog_form_mode == 'edit' else 'New post' }}</div>
+    <form method="post" action="/admin/blog/save" class="blog-form" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="original_slug" value="{{ blog_original_slug }}">
+
+      <div class="field">
+        <label for="bf_title">Title</label>
+        <input type="text" id="bf_title" name="title" value="{{ blog_form.title }}" required maxlength="200">
+      </div>
+
+      <div class="row">
+        <div class="field" style="margin-bottom:0">
+          <label for="bf_slug">Slug</label>
+          <input type="text" id="bf_slug" name="slug" value="{{ blog_form.slug }}" required maxlength="80" pattern="[a-z0-9]+(-[a-z0-9]+)*">
+          <div class="help">Lowercase letters, digits, hyphens. Used in the URL: /blog/&lt;slug&gt;</div>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label for="bf_date">Publish date</label>
+          <input type="date" id="bf_date" name="date" value="{{ blog_form.date }}" required>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:18px">
+        <label for="bf_desc">Description</label>
+        <input type="text" id="bf_desc" name="description" value="{{ blog_form.description }}" maxlength="500" placeholder="Short summary used in listings and meta tags">
+      </div>
+
+      <div class="field">
+        <label for="bf_body">Body (Markdown)</label>
+        <textarea id="bf_body" name="body" placeholder="# My post&#10;&#10;Write your post in Markdown…">{{ blog_form.body }}</textarea>
+        <div class="help">Supports standard Markdown plus fenced code blocks and tables.</div>
+      </div>
+
+      <div class="blog-form-actions">
+        <button type="submit" class="btn-save">{{ 'Save changes' if blog_form_mode == 'edit' else 'Publish post' }}</button>
+        <a href="/admin?tab=blog" class="btn-secondary">Cancel</a>
+      </div>
+    </form>
+
+    <script>
+    (function() {
+      var titleEl = document.getElementById('bf_title');
+      var slugEl  = document.getElementById('bf_slug');
+      if (!titleEl || !slugEl) return;
+      var slugManuallyEdited = {{ 'true' if blog_form_mode == 'edit' or blog_form.slug else 'false' }};
+      slugEl.addEventListener('input', function() { slugManuallyEdited = true; });
+      function slugify(t) {
+        return (t || '').toLowerCase().trim()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 80);
+      }
+      titleEl.addEventListener('input', function() {
+        if (slugManuallyEdited) return;
+        slugEl.value = slugify(titleEl.value);
+      });
+    })();
+    </script>
+
+    {% else %}
+    <div class="blog-toolbar">
+      <div class="section-head" style="border:none;padding:0;margin:0">Blog posts ({{ blog_posts | length }})</div>
+      <a href="/admin/blog/new" class="btn-new">+ New post</a>
+    </div>
+
+    {% if blog_posts %}
+      {% for post in blog_posts %}
+      <div class="blog-card">
+        <div class="blog-card-info">
+          <div class="blog-card-title">{{ post.title }}</div>
+          <div class="blog-card-meta">
+            <code>{{ post.slug }}.md</code> &middot;
+            <b>{{ post.date_human }}</b>
+          </div>
+          {% if post.description %}
+          <div class="blog-card-desc">{{ post.description }}</div>
+          {% endif %}
+        </div>
+        <div class="blog-card-actions">
+          <a class="btn-view" href="/blog/{{ post.slug }}" target="_blank" rel="noopener">↗ View</a>
+          <a class="btn-edit" href="/admin/blog/edit/{{ post.slug }}">✎ Edit</a>
+          <form method="post" action="/admin/blog/delete" style="margin:0" onsubmit="return confirm('Delete the post &quot;{{ post.title|e }}&quot;? This cannot be undone.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="slug" value="{{ post.slug }}">
+            <button type="submit" class="btn-del-thread">✕ Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div class="icon">📝</div>
+        <p>No blog posts yet. Click <b>+ New post</b> to write the first one.</p>
+      </div>
+    {% endif %}
+    {% endif %}
+
+  {% elif tab == 'forum' %}
   <div class="section-head">Forum threads</div>
   {% if forum_threads %}
     {% for t in forum_threads %}

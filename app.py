@@ -1315,7 +1315,7 @@ def admin():
                                csrf_token=_csrf_token())
 
     tab = request.args.get('tab', 'pending')
-    if tab not in ('pending', 'approved', 'rejected', 'forum'):
+    if tab not in ('pending', 'approved', 'rejected', 'forum', 'blog'):
         tab = 'pending'
 
     flash_msg  = session.pop('flash_msg', None)
@@ -1342,6 +1342,24 @@ def admin():
             flash_msg=flash_msg,
             flash_type=flash_type,
             csrf_token=_csrf_token(),
+        )
+
+    if tab == 'blog':
+        blog_posts = _load_blog_posts()
+        return render_template(
+            'admin.html',
+            logged_in=True,
+            projects=[],
+            counts=counts,
+            tab=tab,
+            forum_threads=[],
+            forum_thread_count=forum_thread_count,
+            user_stats=user_stats,
+            flash_msg=flash_msg,
+            flash_type=flash_type,
+            csrf_token=_csrf_token(),
+            blog_view='list',
+            blog_posts=blog_posts,
         )
 
     projects, err = _admin_list_projects(tab)
@@ -1513,6 +1531,298 @@ def admin_update_project_details():
         return jsonify({'error': f'Update failed: {err}'}), 500
     _cache_delete('projects')
     return jsonify({'ok': True})
+
+
+# ── Blog admin (write/edit/delete posts) ──────────────────────────────────────
+
+_BLOG_SLUG_RE = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
+_BLOG_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+
+def _blog_slugify(text):
+    """Generate a URL-safe slug from arbitrary text. Returns '' if nothing left."""
+    text = (text or '').lower().strip()
+    text = re.sub(r"[^a-z0-9]+", '-', text)
+    text = text.strip('-')
+    return text[:80]
+
+
+def _blog_path_for_slug(slug):
+    """Return the absolute path for a blog post slug. Returns None if the slug is
+    invalid or would escape BLOG_DIR (defense in depth against path traversal)."""
+    if not slug or not _BLOG_SLUG_RE.match(slug):
+        return None
+    candidate = os.path.normpath(os.path.join(BLOG_DIR, slug + '.md'))
+    blog_dir_abs = os.path.normpath(BLOG_DIR) + os.sep
+    if not (candidate + os.sep).startswith(blog_dir_abs):
+        return None
+    return candidate
+
+
+def _blog_sanitize_inline(value, max_len=300):
+    """Sanitize a single-line frontmatter value: trim, strip newlines, limit length,
+    and replace double quotes (which would otherwise break our quoted frontmatter)."""
+    s = (value or '').replace('\r', ' ').replace('\n', ' ').strip()
+    s = s.replace('"', "'")
+    if len(s) > max_len:
+        s = s[:max_len].rstrip()
+    return s
+
+
+def _blog_write_post_file(path, title, slug, date, description, body):
+    """Atomically write a blog post markdown file with frontmatter."""
+    title_s = _blog_sanitize_inline(title, 200)
+    slug_s = slug
+    date_s = _blog_sanitize_inline(date, 10)
+    desc_s = _blog_sanitize_inline(description, 500)
+    body_norm = (body or '').replace('\r\n', '\n').replace('\r', '\n')
+    if not body_norm.endswith('\n'):
+        body_norm += '\n'
+    contents = (
+        '---\n'
+        f'title: "{title_s}"\n'
+        f'slug: "{slug_s}"\n'
+        f'date: "{date_s}"\n'
+        f'description: "{desc_s}"\n'
+        '---\n\n'
+        f'{body_norm}'
+    )
+    os.makedirs(BLOG_DIR, exist_ok=True)
+    tmp_path = path + '.tmp'
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        f.write(contents)
+    os.replace(tmp_path, path)
+
+
+def _blog_validate_form(title, slug, date, description, body, original_slug=None):
+    """Validate blog form input. Returns (cleaned_dict, error_message)."""
+    title = (title or '').strip()
+    slug = (slug or '').strip().lower()
+    date = (date or '').strip()
+    description = (description or '').strip()
+    body = body or ''
+
+    if not title:
+        return None, 'Title is required.'
+    if len(title) > 200:
+        return None, 'Title is too long (max 200 characters).'
+    if not slug:
+        return None, 'Slug is required.'
+    if not _BLOG_SLUG_RE.match(slug):
+        return None, 'Slug must be lowercase letters, digits, and single hyphens (e.g. my-post-title).'
+    if len(slug) > 80:
+        return None, 'Slug is too long (max 80 characters).'
+    if not date or not _BLOG_DATE_RE.match(date):
+        return None, 'Date must be in YYYY-MM-DD format.'
+    try:
+        _datetime.datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        return None, 'Date is not a real calendar date.'
+    if len(description) > 500:
+        return None, 'Description is too long (max 500 characters).'
+    if len(body) > 200_000:
+        return None, 'Body is too long (max 200,000 characters).'
+
+    target_path = _blog_path_for_slug(slug)
+    if target_path is None:
+        return None, 'Slug is invalid.'
+
+    if slug != original_slug and os.path.exists(target_path):
+        return None, f'A post with slug "{slug}" already exists.'
+
+    return {
+        'title': title,
+        'slug': slug,
+        'date': date,
+        'description': description,
+        'body': body,
+        'path': target_path,
+    }, None
+
+
+def _blog_invalidate_cache():
+    _BLOG_CACHE['posts'] = None
+    _BLOG_CACHE['mtime'] = ()
+
+
+@app.route('/admin/blog/new', methods=['GET'])
+def admin_blog_new():
+    if not _admin_logged_in():
+        return redirect(url_for('admin'))
+    today = _datetime.date.today().isoformat()
+    flash_msg  = session.pop('flash_msg', None)
+    flash_type = session.pop('flash_type', 'ok')
+    return render_template(
+        'admin.html',
+        logged_in=True,
+        projects=[],
+        counts=_admin_count_by_status(),
+        tab='blog',
+        forum_threads=[],
+        forum_thread_count=_admin_forum_thread_count(),
+        user_stats=_admin_user_stats(),
+        flash_msg=flash_msg,
+        flash_type=flash_type,
+        csrf_token=_csrf_token(),
+        blog_view='form',
+        blog_form_mode='new',
+        blog_form={'title': '', 'slug': '', 'date': today, 'description': '', 'body': ''},
+        blog_original_slug='',
+    )
+
+
+@app.route('/admin/blog/edit/<slug>', methods=['GET'])
+def admin_blog_edit(slug):
+    if not _admin_logged_in():
+        return redirect(url_for('admin'))
+    path = _blog_path_for_slug(slug)
+    if path is None or not os.path.exists(path):
+        session['flash_msg']  = 'That blog post could not be found.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    post = _parse_blog_file(path)
+    if not post:
+        session['flash_msg']  = 'That blog post is malformed and cannot be edited here.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    flash_msg  = session.pop('flash_msg', None)
+    flash_type = session.pop('flash_type', 'ok')
+    return render_template(
+        'admin.html',
+        logged_in=True,
+        projects=[],
+        counts=_admin_count_by_status(),
+        tab='blog',
+        forum_threads=[],
+        forum_thread_count=_admin_forum_thread_count(),
+        user_stats=_admin_user_stats(),
+        flash_msg=flash_msg,
+        flash_type=flash_type,
+        csrf_token=_csrf_token(),
+        blog_view='form',
+        blog_form_mode='edit',
+        blog_form={
+            'title': post['title'],
+            'slug': post['slug'],
+            'date': post['date'],
+            'description': post.get('description', ''),
+            'body': post['body'],
+        },
+        blog_original_slug=post['slug'],
+    )
+
+
+@app.route('/admin/blog/save', methods=['POST'])
+def admin_blog_save():
+    if not _admin_logged_in():
+        return redirect(url_for('admin'))
+    if not _csrf_valid():
+        session['flash_msg']  = 'Invalid request token. Please try again.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+
+    original_slug = (request.form.get('original_slug') or '').strip().lower()
+    if original_slug and not _BLOG_SLUG_RE.match(original_slug):
+        original_slug = ''
+
+    cleaned, err = _blog_validate_form(
+        title=request.form.get('title'),
+        slug=request.form.get('slug'),
+        date=request.form.get('date'),
+        description=request.form.get('description'),
+        body=request.form.get('body'),
+        original_slug=original_slug or None,
+    )
+    if err:
+        session['flash_msg']  = err
+        session['flash_type'] = 'err'
+        # Re-render the form with the user's input preserved.
+        return render_template(
+            'admin.html',
+            logged_in=True,
+            projects=[],
+            counts=_admin_count_by_status(),
+            tab='blog',
+            forum_threads=[],
+            forum_thread_count=_admin_forum_thread_count(),
+            user_stats=_admin_user_stats(),
+            flash_msg=err,
+            flash_type='err',
+            csrf_token=_csrf_token(),
+            blog_view='form',
+            blog_form_mode='edit' if original_slug else 'new',
+            blog_form={
+                'title': request.form.get('title', ''),
+                'slug': request.form.get('slug', ''),
+                'date': request.form.get('date', ''),
+                'description': request.form.get('description', ''),
+                'body': request.form.get('body', ''),
+            },
+            blog_original_slug=original_slug,
+        )
+
+    try:
+        _blog_write_post_file(
+            cleaned['path'],
+            cleaned['title'],
+            cleaned['slug'],
+            cleaned['date'],
+            cleaned['description'],
+            cleaned['body'],
+        )
+    except OSError as e:
+        session['flash_msg']  = f'Could not save post: {e}'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+
+    # If editing and the slug changed, remove the old file.
+    if original_slug and original_slug != cleaned['slug']:
+        old_path = _blog_path_for_slug(original_slug)
+        if old_path and os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+
+    _blog_invalidate_cache()
+    session['flash_msg']  = f'Post "{cleaned["title"]}" saved.'
+    session['flash_type'] = 'ok'
+    return redirect(url_for('admin', tab='blog'))
+
+
+@app.route('/admin/blog/delete', methods=['POST'])
+def admin_blog_delete():
+    if not _admin_logged_in():
+        return redirect(url_for('admin'))
+    if not _csrf_valid():
+        session['flash_msg']  = 'Invalid request token. Please try again.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    slug = (request.form.get('slug') or '').strip().lower()
+    path = _blog_path_for_slug(slug)
+    if path is None or not os.path.exists(path):
+        session['flash_msg']  = 'That blog post could not be found.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    try:
+        os.remove(path)
+    except OSError as e:
+        session['flash_msg']  = f'Could not delete post: {e}'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    _blog_invalidate_cache()
+    session['flash_msg']  = 'Post deleted.'
+    session['flash_type'] = 'ok'
+    return redirect(url_for('admin', tab='blog'))
+
+
+@app.route('/admin/blog/slugify', methods=['POST'])
+def admin_blog_slugify():
+    """Helper for the JS in the new-post form to auto-suggest a slug."""
+    if not _admin_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    return jsonify({'slug': _blog_slugify(data.get('title', ''))})
 
 
 # ── Email notification helper ─────────────────────────────────────────────────

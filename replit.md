@@ -94,6 +94,7 @@ The notifications table is auto-created at startup via `_apply_notifications_mig
 - Posts are auto-picked up: in-memory cache invalidates whenever any `.md` file's mtime changes (no restart needed).
 - Blog URLs are included in `/sitemap.xml` (`/blog` priority 0.6, individual posts priority 0.7).
 - Dependency: `markdown>=3.5` (added to `requirements.txt`).
+- **Admin authoring** (no file editing required): the `/admin?tab=blog` panel lists posts with edit/delete actions and a "+ New post" button. Routes `/admin/blog/new`, `/admin/blog/edit/<slug>`, `/admin/blog/save`, `/admin/blog/delete` write Markdown files directly to `blog_posts/` (atomic write via temp file). Slugs validated by `_BLOG_SLUG_RE` and path-traversal-checked; uniqueness enforced; slug auto-suggested from title via JS.
 
 ## Migrations
 - `migrations/bookmarks.sql` — bookmarks table + RLS
