@@ -36,3 +36,9 @@ id = "_FY5ysHUiLSWQI_NWaDAQ"
 uri = "file://exports/checkmyvibecode-export-20260427.zip"
 type = "unspecified"
 title = "CheckMyVibeCode — Projekt-Export (mit Handle-Eindeutigkeits-Check)"
+
+[[outputs]]
+id = "sh9NxUas94xXykyy3wSOH"
+uri = "file://exports/checkmyvibecode.zip"
+type = "unspecified"
+title = "checkmyvibecode.zip — komplettes Projekt (102 MB)"
