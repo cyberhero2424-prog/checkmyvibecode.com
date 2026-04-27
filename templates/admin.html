@@ -41,6 +41,9 @@
   .stat-box.pending .n { color: #fbbf24; }
   .stat-box.approved .n { color: #39ff14; }
   .stat-box.rejected .n { color: #f87171; }
+  .stat-box.users .n { color: #60a5fa; }
+  .stat-box.builders .n { color: #a78bfa; }
+  .stat-box.newsletter .n { color: #34d399; }
 
   .section-head { font-size: 13px; font-weight: 600; color: #aaa; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #1e1e22; }
 
@@ -157,6 +160,20 @@
     <div class="stat-box rejected">
       <div class="n">{{ counts.rejected }}</div>
       <div class="l">Rejected</div>
+    </div>
+  </div>
+  <div class="stats-row">
+    <div class="stat-box users">
+      <div class="n">{{ user_stats.total_users }}</div>
+      <div class="l">Registered users</div>
+    </div>
+    <div class="stat-box builders">
+      <div class="n">{{ user_stats.builders }}</div>
+      <div class="l">Active builders</div>
+    </div>
+    <div class="stat-box newsletter">
+      <div class="n">{{ user_stats.newsletter }}</div>
+      <div class="l">Newsletter subscribers</div>
     </div>
   </div>
 

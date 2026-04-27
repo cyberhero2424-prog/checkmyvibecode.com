@@ -59,7 +59,7 @@ def _cache_delete(*keys):
 
 SUPABASE_URL        = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY   = os.environ.get('SUPABASE_ANON_KEY', '')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '') or os.environ.get('SUPABASE_SECRET_KEY', '')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 ADMIN_PASSWORD      = os.environ.get('ADMIN_PASSWORD', '')
 # Optional: Supabase direct PostgreSQL connection URL for startup DB migration.
 # Find it in Supabase Dashboard > Project Settings > Database > Connection string (URI mode).
@@ -92,7 +92,14 @@ def _derive_author_handle(user):
         return '@' + str(meta['user_name'])
     email = user.get('email', '')
     if email:
-        return '@' + email.split('@')[0]
+        domain = email.split('@')[-1] if '@' in email else ''
+        prefix = email.split('@')[0]
+        domain_name = domain.split('.')[0] if domain else ''
+        # Use domain name for generic prefixes (info, admin, contact, hello, etc.)
+        # so that info@company.com becomes @company rather than @info
+        GENERIC_PREFIXES = {'info', 'admin', 'contact', 'hello', 'support', 'mail', 'noreply', 'no-reply', 'sales', 'team'}
+        slug = domain_name if prefix.lower() in GENERIC_PREFIXES and domain_name else prefix
+        return '@' + slug
     return '@user_' + str(user.get('id', 'unknown'))[:8]
 
 def _rate_limit_submit_supabase(jwt_handle, max_calls=5, window_secs=3600):
@@ -153,6 +160,35 @@ def _inject_config(html):
     return html.replace('</head>', script + '</head>', 1)
 
 
+# ── Slug helpers ──────────────────────────────────────────────────────────────
+
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    re.IGNORECASE,
+)
+
+def _slugify_name(name):
+    """'My Cool App!' → 'my-cool-app'"""
+    s = re.sub(r'[^\w\s-]', '', str(name).lower())
+    s = re.sub(r'[\s_]+', '-', s)
+    s = re.sub(r'-+', '-', s).strip('-')
+    return s or 'project'
+
+def _project_slug(project):
+    """Return canonical slug: '{name-slug}-{uuid}'"""
+    name = project.get('name', '') or ''
+    uid  = str(project.get('id', ''))
+    return f"{_slugify_name(name)}-{uid}"
+
+def _slug_to_project_id(slug):
+    """Extract UUID from the last 36 chars of a slug, or return slug as-is."""
+    if len(slug) >= 36:
+        candidate = slug[-36:]
+        if _UUID_RE.match(candidate):
+            return candidate
+    return slug
+
+
 def serve_app():
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
@@ -165,12 +201,12 @@ def serve_app():
             ssr_parts = ['<h1>CheckMyVibeCode — AI-Built Projects</h1>',
                          '<p>The community for AI-built projects. Showcase your vibe-coded creations, collect upvotes and feedback.</p>']
             for p in projects:
-                p_url = base_url + '/p/' + urllib.parse.quote(str(p.get('id', '')), safe='')
+                p_url = base_url + '/project/' + urllib.parse.quote(_project_slug(p), safe='-')
                 ssr_parts.append(_ssr_project_block(p, p_url))
 
             item_list = []
             for i, p in enumerate(projects):
-                p_url = base_url + '/p/' + urllib.parse.quote(str(p.get('id', '')), safe='')
+                p_url = base_url + '/project/' + urllib.parse.quote(_project_slug(p), safe='-')
                 item_list.append({
                     "@type": "ListItem",
                     "position": i + 1,
@@ -455,7 +491,12 @@ def _sb_service_request(method, path, body=None, extra_headers=None):
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             raw = resp.read().decode()
-            return (json.loads(raw) if raw.strip() else None), None
+            if not raw.strip():
+                return [], None
+            try:
+                return json.loads(raw), None
+            except (ValueError, json.JSONDecodeError):
+                return [], None
     except urllib.error.HTTPError as e:
         return None, f'HTTP {e.code}: {e.read().decode()}'
     except Exception as ex:
@@ -486,6 +527,55 @@ def _admin_count_by_status():
         data, _ = _sb_service_request('GET', path)
         counts[status] = len(data) if data else 0
     return counts
+
+
+def _admin_user_stats():
+    """Return three user-level metrics for the admin dashboard:
+    total registered users, distinct builders (≥1 approved project),
+    and newsletter subscribers."""
+    result = {'total_users': 0, 'builders': 0, 'newsletter': 0}
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return result
+
+    # 1. Total registered users (paginate auth.users)
+    try:
+        total = 0
+        for page in range(1, 100):
+            req = urllib.request.Request(
+                f"{SUPABASE_URL}/auth/v1/admin/users?page={page}&per_page=1000",
+                headers={
+                    'apikey': SUPABASE_SERVICE_KEY,
+                    'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+            batch = data.get('users', [])
+            total += len(batch)
+            if len(batch) < 1000:
+                break
+        result['total_users'] = total
+    except Exception as ex:
+        app.logger.warning('_admin_user_stats total_users: %s', ex)
+
+    # 2. Distinct builders: unique authors with at least one approved project
+    try:
+        raw, err = _sb_get('projects', 'status=eq.approved&select=author')
+        if raw and not err:
+            rows = json.loads(raw)
+            result['builders'] = len({r['author'] for r in rows if r.get('author')})
+    except Exception as ex:
+        app.logger.warning('_admin_user_stats builders: %s', ex)
+
+    # 3. Newsletter subscribers (profiles.newsletter_subscribed = true)
+    try:
+        rows, err = _sb_service_request('GET', 'profiles?newsletter_subscribed=eq.true&select=id')
+        if not err and rows is not None:
+            result['newsletter'] = len(rows)
+    except Exception as ex:
+        app.logger.warning('_admin_user_stats newsletter: %s', ex)
+
+    return result
 
 
 def _admin_set_status(project_id, new_status):
@@ -923,7 +1013,14 @@ threading.Thread(target=_startup_init, daemon=True).start()
 def index():
     pid = request.args.get('project', '').strip()
     if pid:
-        return redirect(url_for('project_detail', project_id=pid), code=301)
+        project = _fetch_project(pid)
+        if project:
+            slug = _project_slug(project)
+            base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+            return redirect(
+                base_url + '/project/' + urllib.parse.quote(slug, safe='-'), 301
+            )
+        return redirect(url_for('project_detail_slug', slug=pid), code=301)
     return serve_app()
 
 
@@ -986,7 +1083,7 @@ def user_profile(handle):
     if projects:
         ssr_parts = [f'<h1>{html_module.escape(db_handle)} on CheckMyVibeCode</h1>']
         for p in projects:
-            p_url = base_url + '/p/' + urllib.parse.quote(str(p.get('id', '')), safe='')
+            p_url = base_url + '/project/' + urllib.parse.quote(_project_slug(p), safe='-')
             ssr_parts.append(_ssr_project_block(p, p_url))
         profile_ld = json.dumps({
             "@context": "https://schema.org",
@@ -1009,19 +1106,130 @@ def user_profile(handle):
     return resp
 
 
-@app.route('/p/<project_id>')
-def project_detail(project_id):
+_CAT_META = {
+    'app':     ('App',     'apps'),
+    'game':    ('Game',    'games'),
+    'tool':    ('Tool',    'tools'),
+    'website': ('Website', 'websites'),
+}
+
+@app.route('/c/<category>')
+def category_page(category):
+    """Category filter page — same SPA with category-specific OG meta tags.
+    Invalid categories redirect to /."""
+    cat = category.lower()
+    if cat not in _CAT_META:
+        return redirect('/', 302)
+    label, plural = _CAT_META[cat]
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
     base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
     html = html.replace('__BASE_URL__', base_url)
+    cat_url = f"{base_url}/c/{cat}"
+    title = f"{label} Projects — CheckMyVibeCode"
+    desc   = f"Discover AI-built {plural} on the CheckMyVibeCode community."
+    safe_t = html_module.escape(title)
+    safe_d = html_module.escape(desc)
+    html = re.sub(r'<title>[^<]*</title>', f'<title>{safe_t}</title>', html, count=1)
+    og_tags = (
+        f'<meta property="og:title" content="{safe_t}">\n'
+        f'<meta property="og:description" content="{safe_d}">\n'
+        f'<meta name="description" content="{safe_d}">\n'
+        f'<link rel="canonical" href="{html_module.escape(cat_url)}">\n'
+        f'<meta name="twitter:title" content="{safe_t}">\n'
+        f'<meta name="twitter:description" content="{safe_d}">\n'
+    )
+    html = html.replace('<head>', '<head>\n' + og_tags, 1)
+    html = _inject_config(html)
+    resp = Response(html, mimetype='text/html')
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
+@app.route('/f/<thread_id>')
+def forum_thread_page(thread_id):
+    """Forum thread page — same SPA with thread-specific OG meta tags."""
+    safe_id = urllib.parse.quote(str(thread_id), safe='')
+    raw, err = _sb_get('forum_threads', f'id=eq.{safe_id}&select=id,title,body,author_handle,created_at&limit=1')
+    thread = None
+    if raw and not err:
+        rows = json.loads(raw)
+        thread = rows[0] if rows else None
+    if not thread:
+        abort(404)
+
+    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+    thread_url = f"{base_url}/f/{urllib.parse.quote(str(thread_id), safe='')}"
+    title = f"{thread.get('title') or 'Forum Thread'} — CheckMyVibeCode"
+    body_preview = (thread.get('body') or '')[:160].replace('\n', ' ')
+    desc  = body_preview or f"Join the discussion on CheckMyVibeCode."
+
+    with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
+        html = f.read()
+    html = html.replace('__BASE_URL__', base_url)
+    safe_t = html_module.escape(title)
+    safe_d = html_module.escape(desc)
+    html = re.sub(r'<title>[^<]*</title>', f'<title>{safe_t}</title>', html, count=1)
+    og_tags = (
+        f'<meta property="og:title" content="{safe_t}">\n'
+        f'<meta property="og:description" content="{safe_d}">\n'
+        f'<meta name="description" content="{safe_d}">\n'
+        f'<link rel="canonical" href="{html_module.escape(thread_url)}">\n'
+        f'<meta name="twitter:title" content="{safe_t}">\n'
+        f'<meta name="twitter:description" content="{safe_d}">\n'
+    )
+    html = html.replace('<head>', '<head>\n' + og_tags, 1)
+    html = _inject_config(html)
+    resp = Response(html, mimetype='text/html')
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
+@app.route('/p/<project_id>')
+def project_detail(project_id):
+    """Legacy UUID URL — 301 redirect to canonical slug URL."""
     project = _fetch_project(project_id)
     if project:
-        project_url = base_url + '/p/' + urllib.parse.quote(str(project_id), safe='')
-        html = _inject_project_og(html, project, project_url)
-        ssr_html = _ssr_project_block(project, project_url)
-        jsonld = f'<script type="application/ld+json">{_project_jsonld(project, project_url)}</script>'
-        html = _inject_ssr_content(html, ssr_html, jsonld)
+        slug = _project_slug(project)
+        base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+        return redirect(base_url + '/project/' + urllib.parse.quote(slug, safe='-'), 301)
+    # Project not found or Supabase unavailable — fall back to serving the SPA
+    with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
+        html = f.read()
+    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+    html = html.replace('__BASE_URL__', base_url)
+    html = _inject_config(html)
+    return Response(html, mimetype='text/html')
+
+
+@app.route('/project/<slug>')
+def project_detail_slug(slug):
+    """SEO-optimized project detail page with human-readable slug URL."""
+    project_id = _slug_to_project_id(slug)
+    project = _fetch_project(project_id)
+    if not project:
+        abort(404)
+
+    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+    canonical_slug = _project_slug(project)
+
+    # Redirect non-canonical slugs (wrong name prefix, etc.)
+    if slug != canonical_slug:
+        return redirect(
+            base_url + '/project/' + urllib.parse.quote(canonical_slug, safe='-'), 301
+        )
+
+    project_url = base_url + '/project/' + urllib.parse.quote(canonical_slug, safe='-')
+
+    with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
+        html = f.read()
+    html = html.replace('__BASE_URL__', base_url)
+    html = _inject_project_og(html, project, project_url)
+    ssr_html = _ssr_project_block(project, project_url)
+    jsonld = f'<script type="application/ld+json">{_project_jsonld(project, project_url)}</script>'
+    html = _inject_ssr_content(html, ssr_html, jsonld)
     html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
@@ -1110,6 +1318,7 @@ def admin():
 
     counts = _admin_count_by_status()
     forum_thread_count = _admin_forum_thread_count()
+    user_stats = _admin_user_stats()
 
     if tab == 'forum':
         forum_threads, _ = _admin_list_forum_threads()
@@ -1124,6 +1333,7 @@ def admin():
             tab=tab,
             forum_threads=forum_threads,
             forum_thread_count=forum_thread_count,
+            user_stats=user_stats,
             flash_msg=flash_msg,
             flash_type=flash_type,
             csrf_token=_csrf_token(),
@@ -1139,6 +1349,7 @@ def admin():
         tab=tab,
         forum_threads=[],
         forum_thread_count=forum_thread_count,
+        user_stats=user_stats,
         flash_msg=flash_msg,
         flash_type=flash_type,
         csrf_token=_csrf_token(),
@@ -1474,6 +1685,17 @@ def _notify_project_approved(project_id, project_name, author_handle):
         )
         if not ok:
             app.logger.warning('Approval notification email failed for %s: %s', author_handle, err)
+        if owner_user_id:
+            rows, _ = _sb_service_request(
+                'GET', f'follows?following_id=eq.{owner_user_id}&select=follower_id'
+            )
+            for row in (rows or []):
+                follower_id = row.get('follower_id')
+                if follower_id:
+                    _insert_notification(
+                        follower_id, 'new_project', project_id, author_handle,
+                        f'{author_handle} just published a new project: "{project_name}"'
+                    )
     threading.Thread(target=_do, daemon=True).start()
 
 
@@ -1837,6 +2059,36 @@ def api_projects():
     return {'error': 'Could not fetch projects'}, 502
 
 
+@app.route('/api/my-projects', methods=['GET'])
+def api_my_projects():
+    """Return all projects (pending, approved, rejected) belonging to the
+    authenticated user.  Requires a valid Supabase JWT in the Authorization
+    header.  Uses the service key to bypass RLS so pending/rejected rows are
+    visible — but only returns rows whose author matches the JWT-derived handle."""
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return {'ok': False, 'error': 'Unauthorized'}, 401
+    user = _verify_supabase_token(auth_header[7:])
+    if not user:
+        return {'ok': False, 'error': 'Invalid or expired session'}, 401
+
+    jwt_handle = _derive_author_handle(user)
+    safe_h = urllib.parse.quote(jwt_handle, safe='')
+
+    select = 'id,name,description,emoji,author,cat,status,upvotes,demo,tools,created_at,screenshot_url,build_time,cost,score'
+    path = f"projects?author=eq.{safe_h}&order=created_at.desc&select={select}"
+    data, err = _sb_service_request('GET', path)
+    if err:
+        # Retry with a narrower select in case optional columns are missing
+        select_narrow = 'id,name,description,emoji,author,cat,status,upvotes,demo,tools,created_at'
+        path = f"projects?author=eq.{safe_h}&order=created_at.desc&select={select_narrow}"
+        data, err = _sb_service_request('GET', path)
+    if err:
+        return {'ok': False, 'error': 'Could not fetch projects'}, 502
+
+    return {'ok': True, 'projects': data or []}
+
+
 @app.route('/api/profile/<path:handle>')
 def api_profile(handle):
     """Return approved projects for a given author handle as JSON.
@@ -1922,19 +2174,19 @@ def api_profile_meta(handle):
                 else:
                     continue
                 if u_handle == clean:
-                    result = {'avatar_url': meta.get('avatar_url', ''), 'bio': meta.get('bio', '')}
+                    result = {'avatar_url': meta.get('avatar_url', ''), 'bio': meta.get('bio', ''), 'website': meta.get('website', '')}
                     with _profile_meta_lock:
                         _profile_meta_cache[clean] = {'val': result, 'exp': time.monotonic() + 120}
                     return result
             if len(users) < 1000:
                 break
-        result = {'avatar_url': '', 'bio': ''}
+        result = {'avatar_url': '', 'bio': '', 'website': ''}
         with _profile_meta_lock:
             _profile_meta_cache[clean] = {'val': result, 'exp': time.monotonic() + 60}
         return result
     except Exception as ex:
         app.logger.warning('api_profile_meta error: %s', ex)
-        return {'avatar_url': '', 'bio': ''}
+        return {'avatar_url': '', 'bio': '', 'website': ''}
 
 
 # ── Project upvote toggle (service-key, bypasses RLS) ──────────────────────────
@@ -2168,6 +2420,47 @@ def api_update_handle():
     return jsonify({'ok': True})
 
 
+@app.route('/api/account/update', methods=['POST'])
+def api_account_update():
+    """Update safe user_metadata fields (currently: website) via the Admin API."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_obj = _verify_supabase_token(token)
+    user_id = user_obj.get('id') if isinstance(user_obj, dict) else None
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json(silent=True) or {}
+    website = data.get('website', '').strip()
+    if website and not re.match(r'^https?://', website, re.I):
+        return jsonify({'error': 'website must start with http:// or https://'}), 400
+
+    existing_meta = (user_obj.get('user_metadata') or {}).copy()
+    existing_meta['website'] = website
+
+    try:
+        admin_url = f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}"
+        payload = json.dumps({'user_metadata': existing_meta}).encode()
+        req = urllib.request.Request(admin_url, data=payload, headers={
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+            'Content-Type': 'application/json',
+        }, method='PUT')
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            resp.read()
+    except Exception as e:
+        app.logger.warning('api_account_update error: %s', e)
+        return jsonify({'error': 'Failed to update metadata'}), 502
+
+    # Invalidate profile-meta cache for this user
+    handle = _derive_author_handle(user_obj)
+    clean = handle.lstrip('@').lower()
+    with _profile_meta_lock:
+        _profile_meta_cache.pop(clean, None)
+
+    return jsonify({'ok': True})
+
+
 # ── Newsletter ────────────────────────────────────────────────────────────────
 
 @app.route('/api/account/newsletter-status', methods=['GET'])
@@ -2213,12 +2506,13 @@ def api_newsletter_update():
     else:
         patch_body['newsletter_subscribed_at'] = None
 
+    # Upsert: insert if not exists, update if exists
     upsert_body = {'id': user_id, **patch_body}
     _, err = _sb_service_request(
         'POST',
         'profiles',
         upsert_body,
-        extra_headers={'Prefer': 'resolution=merge-duplicates,return=representation'}
+        extra_headers={'Prefer': 'resolution=merge-duplicates'}
     )
     if err:
         return jsonify({'error': 'Failed to update newsletter preference'}), 502
@@ -2260,6 +2554,26 @@ def api_toggle_follow():
             sender_handle = _derive_handle_from_user_id(user_id, token)
             _insert_notification(target_user_id, 'follow', None, sender_handle,
                                  f'{sender_handle or "Someone"} folgt dir jetzt')
+            def _notify_follow(target_uid=target_user_id, from_handle=sender_handle):
+                email = _resolve_handle_to_email(handle)
+                if not email or _is_unsubscribed(email):
+                    return
+                site_url = BASE_URL_OVERRIDE or 'https://checkmyvibecode.com'
+                bare = (from_handle or '').lstrip('@')
+                profile_url = f"{site_url}/u/{urllib.parse.quote(bare, safe='')}"
+                body = (
+                    f"{from_handle or 'Someone'} is now following you on CheckMyVibeCode"
+                    f" — check out their profile: {profile_url}"
+                    f"{_unsubscribe_footer(email)}"
+                )
+                ok, err = _send_resend_email(
+                    to=email,
+                    subject=f'{from_handle or "Someone"} is now following you on CheckMyVibeCode',
+                    text_body=body,
+                )
+                if not ok:
+                    app.logger.warning('Follow notification email failed for %s: %s', handle, err)
+            threading.Thread(target=_notify_follow, daemon=True).start()
     rows, _ = _sb_service_request('GET', f'follows?following_id=eq.{target_user_id}&select=follower_id')
     count = len(rows) if rows else 0
     return jsonify({'ok': True, 'following': following, 'follower_count': count})
@@ -3217,6 +3531,29 @@ def sitemap():
     if latest_date:
         home_entry['lastmod'] = latest_date
     urls.insert(0, home_entry)
+
+    # Forum index
+    urls.append({'loc': base_url + '/#forum', 'changefreq': 'daily', 'priority': '0.6'})
+
+    # Individual forum threads
+    try:
+        raw, err = _sb_get('forum_threads', 'select=id,created_at&order=created_at.desc')
+        if raw and not err:
+            for row in json.loads(raw):
+                tid = str(row.get('id', ''))
+                if not tid:
+                    continue
+                entry = {
+                    'loc': base_url + '/f/' + urllib.parse.quote(tid, safe=''),
+                    'changefreq': 'weekly',
+                    'priority': '0.5',
+                }
+                raw_ts = row.get('created_at') or ''
+                if len(raw_ts) >= 10:
+                    entry['lastmod'] = raw_ts[:10]
+                urls.append(entry)
+    except Exception:
+        pass
 
     for author, lastmod in authors.items():
         bare = author.lstrip('@')
