@@ -1569,21 +1569,24 @@ def _blog_sanitize_inline(value, max_len=300):
     return s
 
 
-def _blog_write_post_file(path, title, slug, date, description, body):
+def _blog_write_post_file(path, title, slug, date, description, body, image=''):
     """Atomically write a blog post markdown file with frontmatter."""
     title_s = _blog_sanitize_inline(title, 200)
     slug_s = slug
     date_s = _blog_sanitize_inline(date, 10)
     desc_s = _blog_sanitize_inline(description, 500)
+    image_s = _blog_sanitize_inline(image, 500)
     body_norm = (body or '').replace('\r\n', '\n').replace('\r', '\n')
     if not body_norm.endswith('\n'):
         body_norm += '\n'
+    image_line = f'image: "{image_s}"\n' if image_s else ''
     contents = (
         '---\n'
         f'title: "{title_s}"\n'
         f'slug: "{slug_s}"\n'
         f'date: "{date_s}"\n'
         f'description: "{desc_s}"\n'
+        f'{image_line}'
         '---\n\n'
         f'{body_norm}'
     )
@@ -1594,12 +1597,13 @@ def _blog_write_post_file(path, title, slug, date, description, body):
     os.replace(tmp_path, path)
 
 
-def _blog_validate_form(title, slug, date, description, body, original_slug=None):
+def _blog_validate_form(title, slug, date, description, body, image='', original_slug=None):
     """Validate blog form input. Returns (cleaned_dict, error_message)."""
     title = (title or '').strip()
     slug = (slug or '').strip().lower()
     date = (date or '').strip()
     description = (description or '').strip()
+    image = (image or '').strip()
     body = body or ''
 
     if not title:
@@ -1622,6 +1626,15 @@ def _blog_validate_form(title, slug, date, description, body, original_slug=None
         return None, 'Description is too long (max 500 characters).'
     if len(body) > 200_000:
         return None, 'Body is too long (max 200,000 characters).'
+    if image:
+        if len(image) > 500:
+            return None, 'Image URL is too long (max 500 characters).'
+        low = image.lower()
+        is_url = (low.startswith('http://') or low.startswith('https://')
+                  or image.startswith('//'))
+        is_static_path = image.startswith('/static/') or image.startswith('static/')
+        if not (is_url or is_static_path):
+            return None, 'Image must be an http(s) URL or a path under /static/ (e.g. /static/og/my-post.png).'
 
     target_path = _blog_path_for_slug(slug)
     if target_path is None:
@@ -1635,6 +1648,7 @@ def _blog_validate_form(title, slug, date, description, body, original_slug=None
         'slug': slug,
         'date': date,
         'description': description,
+        'image': image,
         'body': body,
         'path': target_path,
     }, None
@@ -1666,7 +1680,7 @@ def admin_blog_new():
         csrf_token=_csrf_token(),
         blog_view='form',
         blog_form_mode='new',
-        blog_form={'title': '', 'slug': '', 'date': today, 'description': '', 'body': ''},
+        blog_form={'title': '', 'slug': '', 'date': today, 'description': '', 'image': '', 'body': ''},
         blog_original_slug='',
     )
 
@@ -1706,6 +1720,7 @@ def admin_blog_edit(slug):
             'slug': post['slug'],
             'date': post['date'],
             'description': post.get('description', ''),
+            'image': post.get('image', ''),
             'body': post['body'],
         },
         blog_original_slug=post['slug'],
@@ -1731,6 +1746,7 @@ def admin_blog_save():
         date=request.form.get('date'),
         description=request.form.get('description'),
         body=request.form.get('body'),
+        image=request.form.get('image'),
         original_slug=original_slug or None,
     )
     if err:
@@ -1756,6 +1772,7 @@ def admin_blog_save():
                 'slug': request.form.get('slug', ''),
                 'date': request.form.get('date', ''),
                 'description': request.form.get('description', ''),
+                'image': request.form.get('image', ''),
                 'body': request.form.get('body', ''),
             },
             blog_original_slug=original_slug,
@@ -1769,6 +1786,7 @@ def admin_blog_save():
             cleaned['date'],
             cleaned['description'],
             cleaned['body'],
+            image=cleaned['image'],
         )
     except OSError as e:
         session['flash_msg']  = f'Could not save post: {e}'
@@ -4003,8 +4021,31 @@ def _parse_blog_file(path):
         'slug': meta['slug'],
         'date': meta['date'],
         'description': meta.get('description', ''),
+        'image': meta.get('image', ''),
         'body': body,
     }
+
+
+def _blog_image_url(image, base_url):
+    """Resolve a blog post's `image` field into an absolute URL suitable for
+    og:image / twitter:image. Falls back to the site default when blank.
+    Accepts:
+      - Absolute http(s) URLs (used as-is)
+      - Protocol-relative URLs (//example.com/foo.png)
+      - Site-relative paths (e.g. '/static/og.png' or 'static/og.png')
+    """
+    img = (image or '').strip()
+    base = (base_url or '').rstrip('/')
+    if not img:
+        return f'{base}/static/og-image.png'
+    low = img.lower()
+    if low.startswith('http://') or low.startswith('https://'):
+        return img
+    if img.startswith('//'):
+        return img
+    if not img.startswith('/'):
+        img = '/' + img
+    return f'{base}{img}'
 
 
 def _format_blog_date(date_str):
@@ -4055,7 +4096,14 @@ def _render_markdown(body):
 def blog_index():
     posts = _load_blog_posts()
     base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
-    return render_template('blog_list.html', posts=posts, base_url=base_url)
+    # Resolve thumbnail URLs without mutating cached post dicts so site-relative
+    # paths like 'static/foo.png' don't get resolved against /blog by the browser.
+    posts_view = []
+    for p in posts:
+        item = dict(p)
+        item['thumb_url'] = _blog_image_url(p.get('image'), base_url) if p.get('image') else ''
+        posts_view.append(item)
+    return render_template('blog_list.html', posts=posts_view, base_url=base_url)
 
 
 @app.route('/blog/<slug>')
@@ -4075,6 +4123,7 @@ def blog_post(slug):
         date=post['date'],
         date_human=post['date_human'],
         description=post['description'],
+        og_image_url=_blog_image_url(post.get('image'), base_url),
         content_html=content_html,
         base_url=base_url,
     )
