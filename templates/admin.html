@@ -595,7 +595,7 @@
           {{ '✦ Pinned' if p.featured else '✦ Pin to top' }}
         </button>
         {% endif %}
-        {% if p.demo and p.demo != '#' %}
+        {% if p.demo and (p.demo.startswith('http://') or p.demo.startswith('https://')) %}
         <a class="demo-link" href="{{ p.demo }}" target="_blank" rel="noopener">↗ View project</a>
         {% endif %}
       </div>

@@ -1528,10 +1528,13 @@ def admin_update_project_details():
         raw = (data['demo'] or '').strip()
         if not raw:
             updates['demo'] = None
-        elif re.match(r'^https?://', raw, re.IGNORECASE):
-            updates['demo'] = raw[:500]
         else:
-            return jsonify({'error': 'URL must start with http:// or https://'}), 400
+            # Reuse the same allow-list helper as the public submission flow
+            # (_safe_url returns '#' for anything not http(s)://).
+            cleaned = _safe_url(raw)
+            if cleaned == '#':
+                return jsonify({'error': 'URL must start with http:// or https://'}), 400
+            updates['demo'] = cleaned
     if not updates:
         return jsonify({'error': 'Nothing to update'}), 400
     result, err = _sb_service_request('PATCH', f'projects?id=eq.{project_id}', body=updates)
