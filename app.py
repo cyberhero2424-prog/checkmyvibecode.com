@@ -15,7 +15,7 @@ import glob as _glob
 import markdown as _markdown
 import requests as _requests_lib
 from collections import defaultdict
-from flask import Flask, Response, send_from_directory, abort, redirect, url_for, request, session, render_template, jsonify
+from flask import Flask, Response, send_file, send_from_directory, abort, redirect, url_for, request, session, render_template, jsonify
 from flask_compress import Compress
 from dotenv import load_dotenv
 from whitenoise import WhiteNoise
@@ -4122,9 +4122,11 @@ def _parse_blog_file(path):
     }
 
 
-def _blog_image_url(image, base_url):
+def _blog_image_url(image, base_url, slug=None):
     """Resolve a blog post's `image` field into an absolute URL suitable for
-    og:image / twitter:image. Falls back to the site default when blank.
+    og:image / twitter:image. When blank, falls back to the per-post auto-
+    generated preview image (`/blog/<slug>/og.png`) if a slug is provided,
+    otherwise the site-wide default.
     Accepts:
       - Absolute http(s) URLs (used as-is)
       - Protocol-relative URLs (//example.com/foo.png)
@@ -4133,6 +4135,8 @@ def _blog_image_url(image, base_url):
     img = (image or '').strip()
     base = (base_url or '').rstrip('/')
     if not img:
+        if slug:
+            return f'{base}/blog/{urllib.parse.quote(slug, safe="")}/og.png'
         return f'{base}/static/og-image.png'
     low = img.lower()
     if low.startswith('http://') or low.startswith('https://'):
@@ -4142,6 +4146,141 @@ def _blog_image_url(image, base_url):
     if not img.startswith('/'):
         img = '/' + img
     return f'{base}{img}'
+
+
+# ── Auto-generated blog OG preview images ─────────────────────────────────────
+
+OG_AUTO_DIR = os.path.join(STATIC_DIR, 'og', 'auto')
+
+
+def _wrap_text_to_width(draw, text, font, max_width):
+    """Greedy word-wrap: return list of lines that each fit within max_width
+    when rendered with `font`. A single word longer than max_width is placed
+    on its own line (it will overflow rather than being broken character-wise)."""
+    words = (text or '').split()
+    if not words:
+        return ['']
+    lines = []
+    current = []
+    for word in words:
+        candidate = (' '.join(current + [word])).strip()
+        bbox = draw.textbbox((0, 0), candidate, font=font)
+        if bbox[2] - bbox[0] <= max_width or not current:
+            current.append(word)
+        else:
+            lines.append(' '.join(current))
+            current = [word]
+    if current:
+        lines.append(' '.join(current))
+    return lines
+
+
+def _generate_blog_og_image(post):
+    """Render a 1200×630 dark/green branded preview PNG for `post`. The result
+    is cached on disk under static/og/auto/<slug>.png and only regenerated when
+    the post title changes (tracked via a sidecar .meta fingerprint file).
+    Returns the absolute filesystem path to the cached PNG."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    slug = post['slug']
+    title = post.get('title', '') or ''
+    date_human = post.get('date_human') or _format_blog_date(post.get('date', ''))
+
+    os.makedirs(OG_AUTO_DIR, exist_ok=True)
+    out_path = os.path.join(OG_AUTO_DIR, f'{slug}.png')
+    meta_path = os.path.join(OG_AUTO_DIR, f'{slug}.meta')
+
+    # Cache key: title only. Spec calls out invalidation on title change; date
+    # is part of the immutable frontmatter, so including it would only force
+    # extra regenerations without buying anything.
+    fingerprint = hashlib.sha256(title.encode('utf-8')).hexdigest()
+    if os.path.exists(out_path) and os.path.exists(meta_path):
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as f:
+                if f.read().strip() == fingerprint:
+                    return out_path
+        except OSError:
+            pass
+
+    W, H = 1200, 630
+    bg = (13, 13, 15)         # #0d0d0f — site background
+    panel = (17, 17, 19)      # #111113 — header band
+    fg = (245, 245, 243)      # #f5f5f3 — primary text
+    muted = (160, 160, 160)
+    accent = (57, 255, 20)    # #39ff14 — brand green
+
+    img = Image.new('RGB', (W, H), bg)
+    draw = ImageDraw.Draw(img)
+
+    # Top accent rule.
+    draw.rectangle([0, 0, W, 8], fill=accent)
+    # Header band behind brand row.
+    draw.rectangle([0, 8, W, 130], fill=panel)
+
+    bold_font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
+    regular_font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+
+    margin_x = 72
+
+    # Brand row (logo + wordmark + "/ Blog" tag).
+    brand_top = 38
+    text_x = margin_x
+    logo_path = os.path.join(STATIC_DIR, 'favicon-logo.png')
+    if os.path.exists(logo_path):
+        try:
+            logo = Image.open(logo_path).convert('RGBA')
+            logo.thumbnail((64, 64))
+            img.paste(logo, (margin_x, brand_top - 4), logo)
+            text_x = margin_x + logo.width + 18
+        except Exception:
+            pass
+
+    brand_font = ImageFont.truetype(bold_font_path, 34)
+    tag_font = ImageFont.truetype(regular_font_path, 26)
+    draw.text((text_x, brand_top), 'CheckMyVibeCode', font=brand_font, fill=fg)
+    brand_bbox = draw.textbbox((text_x, brand_top), 'CheckMyVibeCode', font=brand_font)
+    draw.text((brand_bbox[2] + 14, brand_top + 6), '/ Blog', font=tag_font, fill=accent)
+
+    # Title block: shrink-to-fit so very long titles still render in <=4 lines.
+    title_size = 76
+    min_size = 40
+    title_font = ImageFont.truetype(bold_font_path, title_size)
+    max_text_w = W - margin_x * 2
+    lines = _wrap_text_to_width(draw, title, title_font, max_text_w)
+    while len(lines) > 4 and title_size > min_size:
+        title_size -= 4
+        title_font = ImageFont.truetype(bold_font_path, title_size)
+        lines = _wrap_text_to_width(draw, title, title_font, max_text_w)
+    if len(lines) > 4:
+        lines = lines[:4]
+        # Add an ellipsis to indicate truncation.
+        lines[-1] = lines[-1].rstrip() + '…'
+
+    line_gap = int(title_size * 0.18)
+    line_h = title_size + line_gap
+    block_h = line_h * len(lines) - line_gap
+    title_top = max(170, (H - block_h) // 2 - 10)
+    for i, line in enumerate(lines):
+        draw.text((margin_x, title_top + i * line_h), line, font=title_font, fill=fg)
+
+    # Footer: date on the left, URL pill on the right.
+    foot_font = ImageFont.truetype(regular_font_path, 26)
+    foot_y = H - 76
+    draw.text((margin_x, foot_y), date_human, font=foot_font, fill=muted)
+    url_text = 'checkmyvibecode.com/blog'
+    url_bbox = draw.textbbox((0, 0), url_text, font=foot_font)
+    url_w = url_bbox[2] - url_bbox[0]
+    draw.text((W - margin_x - url_w, foot_y), url_text, font=foot_font, fill=accent)
+
+    tmp_path = out_path + '.tmp'
+    img.save(tmp_path, 'PNG', optimize=True)
+    os.replace(tmp_path, out_path)
+    try:
+        with open(meta_path, 'w', encoding='utf-8') as f:
+            f.write(fingerprint)
+    except OSError:
+        pass
+    return out_path
 
 
 def _format_blog_date(date_str):
@@ -4227,10 +4366,36 @@ def blog_post(slug):
         date=post['date'],
         date_human=post['date_human'],
         description=post['description'],
-        og_image_url=_blog_image_url(post.get('image'), base_url),
+        og_image_url=_blog_image_url(post.get('image'), base_url, slug=post['slug']),
         content_html=content_html,
         base_url=base_url,
     )
+
+
+@app.route('/blog/<slug>/og.png')
+def blog_post_og_image(slug):
+    """Serve the per-post Open Graph image. If the author supplied a custom
+    `image` in frontmatter, redirect there; otherwise lazily render and cache
+    a 1200×630 PNG built from the title + brand."""
+    posts = _load_blog_posts()
+    is_admin = _admin_logged_in()
+    post = next((p for p in posts if p['slug'] == slug), None)
+    if not post or (post.get('draft') and not is_admin):
+        # Return an explicit 404 Response to bypass the global 404 → home
+        # redirect handler — crawlers should see a real 404 here.
+        return Response('Not Found', mimetype='text/plain', status=404)
+    custom = (post.get('image') or '').strip()
+    if custom:
+        base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
+        return redirect(_blog_image_url(custom, base_url), code=302)
+    try:
+        out_path = _generate_blog_og_image(post)
+    except Exception:
+        # Fall back to the site-wide default if rendering fails for any reason.
+        return redirect(url_for('static', filename='og-image.png'))
+    resp = send_file(out_path, mimetype='image/png', conditional=True,
+                     max_age=3600)
+    return resp
 
 
 # ── 404 handler ───────────────────────────────────────────────────────────────
