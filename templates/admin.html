@@ -265,9 +265,66 @@
 
       <div class="blog-form-actions">
         <button type="submit" class="btn-save">{{ 'Save changes' if blog_form_mode == 'edit' else 'Publish post' }}</button>
+        <button type="button" class="btn-secondary" id="bf_preview_btn">👁 Preview</button>
         <a href="/admin?tab=blog" class="btn-secondary">Cancel</a>
       </div>
     </form>
+
+    <div id="bf_preview_modal" class="bf-preview-modal" hidden aria-hidden="true" role="dialog" aria-label="Post preview">
+      <div class="bf-preview-backdrop" data-close="1"></div>
+      <div class="bf-preview-dialog">
+        <div class="bf-preview-bar">
+          <div class="bf-preview-bar-title">Preview <span style="color:#666;font-weight:400">— this is how the post will look on /blog/&lt;slug&gt;</span></div>
+          <button type="button" class="bf-preview-close" data-close="1" aria-label="Close preview">✕</button>
+        </div>
+        <div class="bf-preview-scroll">
+          <div class="bf-preview-wrap">
+            <div class="bf-preview-meta" id="bf_preview_date"></div>
+            <h1 class="bf-preview-title" id="bf_preview_title"></h1>
+            <div class="bf-preview-article" id="bf_preview_body"></div>
+            <div class="bf-preview-empty" id="bf_preview_empty" hidden>Nothing to preview yet — write some Markdown in the Body field above.</div>
+            <div class="bf-preview-error" id="bf_preview_error" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      .bf-preview-modal { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: stretch; justify-content: center; }
+      .bf-preview-modal[hidden] { display: none; }
+      .bf-preview-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.65); }
+      .bf-preview-dialog { position: relative; margin: 32px auto; width: min(880px, calc(100% - 32px)); max-height: calc(100vh - 64px); background: #0d0d0f; border: 1px solid #2a2a2e; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+      .bf-preview-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid #1e1e22; background: #111113; flex-shrink: 0; }
+      .bf-preview-bar-title { font-size: 13px; font-weight: 600; color: #e8e8e6; }
+      .bf-preview-close { background: transparent; color: #aaa; border: 1px solid #2a2a2e; border-radius: 6px; width: 32px; height: 32px; cursor: pointer; font-size: 14px; }
+      .bf-preview-close:hover { color: #f5f5f3; border-color: #444; }
+      .bf-preview-scroll { overflow-y: auto; background: #0d0d0f; }
+      .bf-preview-wrap { max-width: 720px; margin: 0 auto; padding: 56px 24px 80px; color: #d8d8d6; line-height: 1.7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      .bf-preview-meta { font-size: 12px; color: #888; font-family: ui-monospace, 'SF Mono', Menlo, monospace; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 12px; min-height: 1em; }
+      .bf-preview-title { font-size: 38px; font-weight: 700; line-height: 1.15; letter-spacing: -1px; margin-bottom: 32px; color: #f5f5f3; }
+      .bf-preview-article { font-size: 17px; color: #d8d8d6; }
+      .bf-preview-article h1 { font-size: 30px; font-weight: 700; letter-spacing: -.6px; margin: 36px 0 16px; color: #f5f5f3; line-height: 1.2; }
+      .bf-preview-article h1:first-child { margin-top: 0; }
+      .bf-preview-article h2 { font-size: 24px; font-weight: 700; letter-spacing: -.3px; margin: 32px 0 14px; color: #f5f5f3; line-height: 1.25; }
+      .bf-preview-article h3 { font-size: 19px; font-weight: 600; margin: 28px 0 12px; color: #f5f5f3; }
+      .bf-preview-article p { margin-bottom: 18px; }
+      .bf-preview-article ul, .bf-preview-article ol { margin: 0 0 20px 22px; }
+      .bf-preview-article li { margin-bottom: 6px; }
+      .bf-preview-article strong { color: #f5f5f3; font-weight: 700; }
+      .bf-preview-article em { color: #c8c8c6; }
+      .bf-preview-article a { color: #39ff14; }
+      .bf-preview-article blockquote { border-left: 3px solid #39ff14; padding: 4px 0 4px 18px; margin: 22px 0; color: #b8b8b6; font-style: italic; }
+      .bf-preview-article code { background: #1a1a1d; border: 1px solid #2a2a2e; padding: 1px 6px; border-radius: 5px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 14px; color: #e8e8e6; }
+      .bf-preview-article pre { background: #111113; border: 1px solid #2a2a2e; border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 22px 0; line-height: 1.5; }
+      .bf-preview-article pre code { background: none; border: none; padding: 0; font-size: 13px; color: #c8c8c6; }
+      .bf-preview-article hr { border: none; border-top: 1px solid #2a2a2e; margin: 32px 0; }
+      .bf-preview-article img { max-width: 100%; height: auto; border-radius: 10px; margin: 22px 0; }
+      .bf-preview-article table { width: 100%; border-collapse: collapse; margin: 22px 0; font-size: 14px; }
+      .bf-preview-article th, .bf-preview-article td { border: 1px solid #2a2a2e; padding: 8px 12px; text-align: left; }
+      .bf-preview-article th { background: #1a1a1d; font-weight: 700; color: #f5f5f3; }
+      .bf-preview-empty { color: #888; font-size: 14px; padding: 24px 0; }
+      .bf-preview-error { color: #ff6b6b; font-size: 14px; padding: 12px 14px; border: 1px solid #5a1f1f; background: #2a1212; border-radius: 8px; }
+    </style>
 
     <script>
     (function() {
@@ -285,6 +342,88 @@
       titleEl.addEventListener('input', function() {
         if (slugManuallyEdited) return;
         slugEl.value = slugify(titleEl.value);
+      });
+    })();
+    </script>
+
+    <script>
+    (function() {
+      var btn      = document.getElementById('bf_preview_btn');
+      var modal    = document.getElementById('bf_preview_modal');
+      var titleEl  = document.getElementById('bf_title');
+      var dateEl   = document.getElementById('bf_date');
+      var bodyEl   = document.getElementById('bf_body');
+      var outTitle = document.getElementById('bf_preview_title');
+      var outDate  = document.getElementById('bf_preview_date');
+      var outBody  = document.getElementById('bf_preview_body');
+      var outEmpty = document.getElementById('bf_preview_empty');
+      var outErr   = document.getElementById('bf_preview_error');
+      if (!btn || !modal || !bodyEl) return;
+      var csrfToken = {{ csrf_token | tojson }};
+
+      function openModal() { modal.hidden = false; modal.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; }
+      function closeModal() { modal.hidden = true; modal.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+
+      modal.addEventListener('click', function(e) {
+        if (e.target && e.target.getAttribute('data-close') === '1') closeModal();
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !modal.hidden) closeModal();
+      });
+
+      btn.addEventListener('click', function() {
+        outErr.hidden = true; outErr.textContent = '';
+        outBody.innerHTML = '';
+        outTitle.textContent = (titleEl && titleEl.value.trim()) || 'Untitled post';
+        outDate.textContent = '';
+        outEmpty.hidden = true;
+
+        var bodyText = bodyEl.value || '';
+        if (!bodyText.trim()) {
+          outEmpty.hidden = false;
+          openModal();
+          return;
+        }
+
+        btn.disabled = true;
+        var prevText = btn.textContent;
+        btn.textContent = 'Loading…';
+        openModal();
+
+        fetch('/admin/blog/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            csrf_token: csrfToken,
+            title: titleEl ? titleEl.value : '',
+            date: dateEl ? dateEl.value : '',
+            body: bodyText,
+          }),
+        }).then(function(r) {
+          return r.text().then(function(text) {
+            var data = null;
+            try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+            return { ok: r.ok, status: r.status, data: data, text: text };
+          });
+        }).then(function(res) {
+          if (!res.ok || !res.data) {
+            var msg = (res.data && res.data.error)
+              || ('Preview failed (HTTP ' + res.status + ').');
+            outErr.textContent = msg;
+            outErr.hidden = false;
+            return;
+          }
+          outTitle.textContent = res.data.title || 'Untitled post';
+          outDate.textContent  = res.data.date_human || '';
+          outBody.innerHTML    = res.data.content_html || '';
+        }).catch(function(err) {
+          outErr.textContent = 'Preview request failed: ' + (err && err.message ? err.message : err);
+          outErr.hidden = false;
+        }).finally(function() {
+          btn.disabled = false;
+          btn.textContent = prevText;
+        });
       });
     })();
     </script>

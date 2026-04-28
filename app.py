@@ -1843,6 +1843,32 @@ def admin_blog_slugify():
     return jsonify({'slug': _blog_slugify(data.get('title', ''))})
 
 
+@app.route('/admin/blog/preview', methods=['POST'])
+def admin_blog_preview():
+    """Render the Markdown body the same way /blog/<slug> does, without saving.
+
+    Used by the admin "Preview" button so authors can spot Markdown formatting
+    issues before publishing.
+    """
+    if not _admin_logged_in():
+        return jsonify({'error': 'Unauthorized'}), 401
+    data = request.get_json(silent=True) or {}
+    # Accept the CSRF token from the JSON body (the form helper uses
+    # request.form, but this endpoint is invoked via fetch + JSON).
+    token = data.get('csrf_token') or request.headers.get('X-CSRF-Token')
+    if not token or token != session.get('csrf_token'):
+        return jsonify({'error': 'Invalid request token'}), 400
+    body = data.get('body', '') or ''
+    title = (data.get('title') or '').strip() or 'Untitled post'
+    date_str = (data.get('date') or '').strip()
+    date_human = _format_blog_date(date_str) if date_str else ''
+    return jsonify({
+        'title': title,
+        'date_human': date_human,
+        'content_html': _render_markdown(body),
+    })
+
+
 # ── Email notification helper ─────────────────────────────────────────────────
 
 def _send_resend_email(to, subject, text_body):
