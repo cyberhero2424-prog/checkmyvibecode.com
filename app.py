@@ -1524,12 +1524,20 @@ def admin_update_project_details():
     if 'cost' in data:
         val = (data['cost'] or '').strip()[:200]
         updates['cost'] = val or None
+    if 'demo' in data:
+        raw = (data['demo'] or '').strip()
+        if not raw:
+            updates['demo'] = None
+        elif re.match(r'^https?://', raw, re.IGNORECASE):
+            updates['demo'] = raw[:500]
+        else:
+            return jsonify({'error': 'URL must start with http:// or https://'}), 400
     if not updates:
         return jsonify({'error': 'Nothing to update'}), 400
     result, err = _sb_service_request('PATCH', f'projects?id=eq.{project_id}', body=updates)
     if err:
         return jsonify({'error': f'Update failed: {err}'}), 500
-    _cache_delete('projects')
+    _cache_delete('projects', 'ssr_projects')
     return jsonify({'ok': True})
 
 

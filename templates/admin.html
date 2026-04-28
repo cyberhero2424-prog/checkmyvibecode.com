@@ -551,11 +551,15 @@
             <button onclick="saveProjectDetails('{{ p.id }}')" style="padding:3px 10px;border-radius:5px;border:none;background:#22c55e;color:#fff;font-size:12px;cursor:pointer;font-weight:600">Save</button>
             <span id="pd_msg_{{ p.id }}" style="font-size:11px;color:#22c55e;display:none">✓ Saved</span>
           </div>
+          <div class="tools" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <b>🔗 URL:</b>
+            <input type="url" value="{{ p.demo if p.demo and p.demo != '#' else '' }}" placeholder="https://example.com" style="padding:3px 7px;border-radius:5px;border:1px solid #444;background:#1a1a1a;color:#eee;font-size:12px;flex:1;min-width:240px" id="du_{{ p.id }}">
+            {% if p.demo and (p.demo.startswith('http://') or p.demo.startswith('https://')) %}
+            <a href="{{ p.demo }}" target="_blank" rel="noopener" style="color:var(--green);font-size:12px;text-decoration:none" title="Open demo in new tab">↗ Open</a>
+            {% endif %}
+          </div>
           {% if p.tools %}
           <div class="tools"><b>Tools:</b> {{ p.tools | join(', ') }}</div>
-          {% endif %}
-          {% if p.demo and p.demo != '#' %}
-          <div class="tools"><b>Demo:</b> <a href="{{ p.demo }}" target="_blank" rel="noopener" style="color:var(--green)">{{ p.demo }}</a></div>
           {% endif %}
         </div>
       </div>
@@ -636,25 +640,33 @@ async function togglePin(btn, projectId, currentlyFeatured) {
 async function saveProjectDetails(projectId) {
   const buildTime = document.getElementById('bt_' + projectId).value.trim();
   const cost = document.getElementById('co_' + projectId).value.trim();
+  const demoEl = document.getElementById('du_' + projectId);
+  const demo = demoEl ? demoEl.value.trim() : '';
   const msgEl = document.getElementById('pd_msg_' + projectId);
   try {
     const resp = await fetch('/admin/update-project-details', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: projectId, build_time: buildTime, cost: cost }),
+      body: JSON.stringify({ id: projectId, build_time: buildTime, cost: cost, demo: demo }),
     });
     const data = await resp.json();
     if (data.ok) {
+      msgEl.textContent = '✓ Saved';
+      msgEl.style.color = 'var(--green, #22c55e)';
       msgEl.style.display = 'inline';
       setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
     } else {
-      msgEl.textContent = '⚠️ Could not save: ' + (data.error || 'unknown error');
+      msgEl.textContent = '⚠️ ' + (data.error || 'Could not save');
       msgEl.style.color = 'var(--red, #ef4444)';
       msgEl.style.display = 'inline';
-      setTimeout(() => { msgEl.style.display = 'none'; msgEl.style.color = ''; msgEl.textContent = '✓ Saved'; }, 3000);
+      setTimeout(() => { msgEl.style.display = 'none'; msgEl.style.color = ''; msgEl.textContent = '✓ Saved'; }, 4000);
     }
   } catch(e) {
     console.error('Request failed:', e);
+    msgEl.textContent = '⚠️ Network error';
+    msgEl.style.color = 'var(--red, #ef4444)';
+    msgEl.style.display = 'inline';
+    setTimeout(() => { msgEl.style.display = 'none'; msgEl.style.color = ''; msgEl.textContent = '✓ Saved'; }, 4000);
   }
 }
 </script>
