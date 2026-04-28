@@ -128,6 +128,12 @@
   .btn-edit:hover { background: rgba(96,165,250,.1); border-color: #60a5fa; text-decoration: none; }
   .btn-view { background: transparent; color: #aaa; font-size: 12px; font-weight: 600; padding: 6px 14px; border: 1px solid #2a2a2e; border-radius: 7px; cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; transition: border-color .15s, color .15s; }
   .btn-view:hover { color: #e8e8e6; border-color: #3a3a3e; text-decoration: none; }
+  .btn-publish { background: rgba(57,255,20,.08); color: #39ff14; font-size: 12px; font-weight: 700; padding: 6px 14px; border: 1px solid #1f4a14; border-radius: 7px; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s; }
+  .btn-publish:hover { background: rgba(57,255,20,.18); border-color: #39ff14; }
+  .btn-unpublish { background: transparent; color: #d8b500; font-size: 12px; font-weight: 600; padding: 6px 14px; border: 1px solid #4a3a14; border-radius: 7px; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s; }
+  .btn-unpublish:hover { background: rgba(216,181,0,.1); border-color: #d8b500; }
+  .blog-status-draft { display: inline-block; vertical-align: middle; margin-left: 8px; background: #4a3a14; color: #ffd84a; font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 2px 7px; border-radius: 4px; border: 1px solid #6a5520; }
+  .blog-status-published { display: inline-block; vertical-align: middle; margin-left: 8px; background: rgba(57,255,20,.1); color: #39ff14; font-size: 10px; font-weight: 700; letter-spacing: .08em; padding: 2px 7px; border-radius: 4px; border: 1px solid #1f4a14; }
 
   .blog-form { background: #1a1a1d; border: 1px solid #2a2a2e; border-radius: 12px; padding: 24px; }
   .blog-form .field { margin-bottom: 18px; }
@@ -263,12 +269,32 @@
         <div class="help">Supports standard Markdown plus fenced code blocks and tables.</div>
       </div>
 
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;color:#e8e8e6;font-weight:500;cursor:pointer">
+          <input type="checkbox" id="bf_draft" name="draft" value="1" {% if blog_form.draft %}checked{% endif %} style="width:16px;height:16px;accent-color:#39ff14;cursor:pointer">
+          Save as draft (hidden from /blog and the sitemap)
+        </label>
+        <div class="help">New posts default to draft. Uncheck to publish immediately.</div>
+      </div>
+
       <div class="blog-form-actions">
-        <button type="submit" class="btn-save">{{ 'Save changes' if blog_form_mode == 'edit' else 'Publish post' }}</button>
+        <button type="submit" class="btn-save" id="bf_save_btn">{% if blog_form.draft %}Save draft{% else %}{{ 'Save changes' if blog_form_mode == 'edit' else 'Publish post' }}{% endif %}</button>
         <button type="button" class="btn-secondary" id="bf_preview_btn">👁 Preview</button>
         <a href="/admin?tab=blog" class="btn-secondary">Cancel</a>
       </div>
     </form>
+
+    <script>
+    (function() {
+      var draftEl = document.getElementById('bf_draft');
+      var saveBtn = document.getElementById('bf_save_btn');
+      if (!draftEl || !saveBtn) return;
+      var publishedLabel = {{ "'Save changes'" if blog_form_mode == 'edit' else "'Publish post'" }};
+      draftEl.addEventListener('change', function() {
+        saveBtn.textContent = draftEl.checked ? 'Save draft' : publishedLabel;
+      });
+    })();
+    </script>
 
     <div id="bf_preview_modal" class="bf-preview-modal" hidden aria-hidden="true" role="dialog" aria-label="Post preview">
       <div class="bf-preview-backdrop" data-close="1"></div>
@@ -438,7 +464,14 @@
       {% for post in blog_posts %}
       <div class="blog-card">
         <div class="blog-card-info">
-          <div class="blog-card-title">{{ post.title }}</div>
+          <div class="blog-card-title">
+            {{ post.title }}
+            {% if post.draft %}
+            <span class="blog-status-draft" title="This post is a draft and is hidden from /blog and the sitemap">DRAFT</span>
+            {% else %}
+            <span class="blog-status-published" title="This post is live on /blog">PUBLISHED</span>
+            {% endif %}
+          </div>
           <div class="blog-card-meta">
             <code>{{ post.slug }}.md</code> &middot;
             <b>{{ post.date_human }}</b>
@@ -450,6 +483,15 @@
         <div class="blog-card-actions">
           <a class="btn-view" href="/blog/{{ post.slug }}" target="_blank" rel="noopener">↗ View</a>
           <a class="btn-edit" href="/admin/blog/edit/{{ post.slug }}">✎ Edit</a>
+          <form method="post" action="/admin/blog/publish-toggle" style="margin:0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="slug" value="{{ post.slug }}">
+            {% if post.draft %}
+            <button type="submit" class="btn-publish">✓ Publish</button>
+            {% else %}
+            <button type="submit" class="btn-unpublish">↶ Unpublish</button>
+            {% endif %}
+          </form>
           <form method="post" action="/admin/blog/delete" style="margin:0" onsubmit="return confirm('Delete the post &quot;{{ post.title|e }}&quot;? This cannot be undone.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="slug" value="{{ post.slug }}">

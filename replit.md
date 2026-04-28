@@ -88,7 +88,8 @@ The notifications table is auto-created at startup via `_apply_notifications_mig
 
 ## Blog
 - File-based Markdown blog. Posts live in `blog_posts/*.md`.
-- Each post has YAML-style frontmatter (`title`, `slug`, `date`, `description`, optional `image`) followed by Markdown body.
+- Each post has YAML-style frontmatter (`title`, `slug`, `date`, `description`, optional `image`, optional `draft`) followed by Markdown body.
+- **Drafts**: posts with `draft: "true"` in frontmatter are hidden from the public `/blog` listing, return 404 on `/blog/<slug>` for non-admins, and are excluded from `/sitemap.xml`. Admins (logged into `/admin`) still see drafts everywhere. Posts without the field default to published (backward-compatible). New posts created via the admin panel default to draft. The admin blog list shows DRAFT/PUBLISHED status badges and offers a one-click "Publish"/"Unpublish" toggle (`/admin/blog/publish-toggle`).
 - **Per-post Open Graph image**: optional `image` frontmatter field. Accepts an absolute http(s) URL or a site path (e.g. `/static/og/my-post.png`). When set, `og:image` and `twitter:image` on `/blog/<slug>` use it; otherwise the site default `/static/og-image.png` is used. Resolved by `_blog_image_url()`. The blog list (`/blog`) shows the image as a small thumbnail on each post card when set. Recommended size 1200×630.
 - Routes: `/blog` (list, sorted newest-first), `/blog/<slug>` (single post with full SEO meta).
 - Templates: `templates/blog_list.html`, `templates/blog_post.html` (dark theme, self-contained).

@@ -1580,7 +1580,7 @@ def _blog_sanitize_inline(value, max_len=300):
     return s
 
 
-def _blog_write_post_file(path, title, slug, date, description, body, image=''):
+def _blog_write_post_file(path, title, slug, date, description, body, image='', draft=False):
     """Atomically write a blog post markdown file with frontmatter."""
     title_s = _blog_sanitize_inline(title, 200)
     slug_s = slug
@@ -1591,6 +1591,7 @@ def _blog_write_post_file(path, title, slug, date, description, body, image=''):
     if not body_norm.endswith('\n'):
         body_norm += '\n'
     image_line = f'image: "{image_s}"\n' if image_s else ''
+    draft_line = f'draft: "{"true" if draft else "false"}"\n'
     contents = (
         '---\n'
         f'title: "{title_s}"\n'
@@ -1598,6 +1599,7 @@ def _blog_write_post_file(path, title, slug, date, description, body, image=''):
         f'date: "{date_s}"\n'
         f'description: "{desc_s}"\n'
         f'{image_line}'
+        f'{draft_line}'
         '---\n\n'
         f'{body_norm}'
     )
@@ -1608,7 +1610,7 @@ def _blog_write_post_file(path, title, slug, date, description, body, image=''):
     os.replace(tmp_path, path)
 
 
-def _blog_validate_form(title, slug, date, description, body, image='', original_slug=None):
+def _blog_validate_form(title, slug, date, description, body, image='', original_slug=None, draft=False):
     """Validate blog form input. Returns (cleaned_dict, error_message)."""
     title = (title or '').strip()
     slug = (slug or '').strip().lower()
@@ -1616,6 +1618,7 @@ def _blog_validate_form(title, slug, date, description, body, image='', original
     description = (description or '').strip()
     image = (image or '').strip()
     body = body or ''
+    draft = bool(draft)
 
     if not title:
         return None, 'Title is required.'
@@ -1661,6 +1664,7 @@ def _blog_validate_form(title, slug, date, description, body, image='', original
         'description': description,
         'image': image,
         'body': body,
+        'draft': draft,
         'path': target_path,
     }, None
 
@@ -1691,7 +1695,7 @@ def admin_blog_new():
         csrf_token=_csrf_token(),
         blog_view='form',
         blog_form_mode='new',
-        blog_form={'title': '', 'slug': '', 'date': today, 'description': '', 'image': '', 'body': ''},
+        blog_form={'title': '', 'slug': '', 'date': today, 'description': '', 'image': '', 'body': '', 'draft': True},
         blog_original_slug='',
     )
 
@@ -1733,6 +1737,7 @@ def admin_blog_edit(slug):
             'description': post.get('description', ''),
             'image': post.get('image', ''),
             'body': post['body'],
+            'draft': bool(post.get('draft', False)),
         },
         blog_original_slug=post['slug'],
     )
@@ -1751,6 +1756,7 @@ def admin_blog_save():
     if original_slug and not _BLOG_SLUG_RE.match(original_slug):
         original_slug = ''
 
+    draft_flag = (request.form.get('draft') or '').strip().lower() in ('1', 'true', 'on', 'yes')
     cleaned, err = _blog_validate_form(
         title=request.form.get('title'),
         slug=request.form.get('slug'),
@@ -1759,6 +1765,7 @@ def admin_blog_save():
         body=request.form.get('body'),
         image=request.form.get('image'),
         original_slug=original_slug or None,
+        draft=draft_flag,
     )
     if err:
         session['flash_msg']  = err
@@ -1785,6 +1792,7 @@ def admin_blog_save():
                 'description': request.form.get('description', ''),
                 'image': request.form.get('image', ''),
                 'body': request.form.get('body', ''),
+                'draft': draft_flag,
             },
             blog_original_slug=original_slug,
         )
@@ -1798,6 +1806,7 @@ def admin_blog_save():
             cleaned['description'],
             cleaned['body'],
             image=cleaned['image'],
+            draft=cleaned['draft'],
         )
     except OSError as e:
         session['flash_msg']  = f'Could not save post: {e}'
@@ -1814,7 +1823,54 @@ def admin_blog_save():
                 pass
 
     _blog_invalidate_cache()
-    session['flash_msg']  = f'Post "{cleaned["title"]}" saved.'
+    status_word = 'saved as draft' if cleaned['draft'] else 'published'
+    session['flash_msg']  = f'Post "{cleaned["title"]}" {status_word}.'
+    session['flash_type'] = 'ok'
+    return redirect(url_for('admin', tab='blog'))
+
+
+@app.route('/admin/blog/publish-toggle', methods=['POST'])
+def admin_blog_publish_toggle():
+    """One-click publish/unpublish toggle for a blog post."""
+    if not _admin_logged_in():
+        return redirect(url_for('admin'))
+    if not _csrf_valid():
+        session['flash_msg']  = 'Invalid request token. Please try again.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    slug = (request.form.get('slug') or '').strip().lower()
+    path = _blog_path_for_slug(slug)
+    if path is None or not os.path.exists(path):
+        session['flash_msg']  = 'That blog post could not be found.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    post = _parse_blog_file(path)
+    if not post:
+        session['flash_msg']  = 'That blog post is malformed and cannot be toggled here.'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    new_draft = not bool(post.get('draft', False))
+    try:
+        _blog_write_post_file(
+            path,
+            post['title'],
+            post['slug'],
+            post['date'],
+            post.get('description', ''),
+            post['body'],
+            image=post.get('image', ''),
+            draft=new_draft,
+        )
+    except OSError as e:
+        session['flash_msg']  = f'Could not update post: {e}'
+        session['flash_type'] = 'err'
+        return redirect(url_for('admin', tab='blog'))
+    _blog_invalidate_cache()
+    session['flash_msg']  = (
+        f'Post "{post["title"]}" moved to drafts.'
+        if new_draft else
+        f'Post "{post["title"]}" published.'
+    )
     session['flash_type'] = 'ok'
     return redirect(url_for('admin', tab='blog'))
 
@@ -3951,9 +4007,9 @@ def sitemap():
             entry['lastmod'] = lastmod
         urls.append(entry)
 
-    # Blog index + individual posts
+    # Blog index + individual posts (drafts are excluded from the sitemap).
     try:
-        blog_posts = _load_blog_posts()
+        blog_posts = [p for p in _load_blog_posts() if not p.get('draft')]
         blog_lastmod = blog_posts[0]['date'] if blog_posts else ''
         blog_index_entry = {'loc': base_url + '/blog', 'changefreq': 'weekly', 'priority': '0.6'}
         if blog_lastmod:
@@ -4053,6 +4109,8 @@ def _parse_blog_file(path):
         meta[key] = val
     if not all(meta.get(k) for k in ('title', 'slug', 'date')):
         return None
+    raw_draft = (meta.get('draft', '') or '').strip().lower()
+    is_draft = raw_draft in ('true', '1', 'yes', 'on')
     return {
         'title': meta['title'],
         'slug': meta['slug'],
@@ -4060,6 +4118,7 @@ def _parse_blog_file(path):
         'description': meta.get('description', ''),
         'image': meta.get('image', ''),
         'body': body,
+        'draft': is_draft,
     }
 
 
@@ -4132,6 +4191,9 @@ def _render_markdown(body):
 @app.route('/blog')
 def blog_index():
     posts = _load_blog_posts()
+    is_admin = _admin_logged_in()
+    if not is_admin:
+        posts = [p for p in posts if not p.get('draft')]
     base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
     # Resolve thumbnail URLs without mutating cached post dicts so site-relative
     # paths like 'static/foo.png' don't get resolved against /blog by the browser.
@@ -4146,11 +4208,16 @@ def blog_index():
 @app.route('/blog/<slug>')
 def blog_post(slug):
     posts = _load_blog_posts()
+    is_admin = _admin_logged_in()
     post = next((p for p in posts if p['slug'] == slug), None)
     base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
+    # Hide drafts from non-admins (404 like a missing post).
+    if post and post.get('draft') and not is_admin:
+        post = None
     if not post:
+        listing = posts if is_admin else [p for p in posts if not p.get('draft')]
         # Bypass the global 404 → home redirect by returning a Response directly.
-        body = render_template('blog_list.html', posts=posts, base_url=base_url)
+        body = render_template('blog_list.html', posts=listing, base_url=base_url)
         return Response(body, mimetype='text/html', status=404)
     content_html = _render_markdown(post['body'])
     return render_template(
