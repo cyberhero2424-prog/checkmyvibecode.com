@@ -196,6 +196,9 @@ nav {
 .notif-item-time { font-size:11px; color:var(--muted); font-family:var(--mono); margin-top:2px; }
 .notif-unread-dot { width:8px; height:8px; border-radius:50%; background:var(--blue); flex-shrink:0; margin-top:6px; }
 .notif-empty { padding:32px 16px; text-align:center; font-size:13px; color:var(--muted); }
+.notif-empty-icon { font-size:30px; margin-bottom:8px; line-height:1; }
+.notif-empty-title { font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px; }
+.notif-empty-sub { font-size:12px; color:var(--muted); line-height:1.5; margin-bottom:14px; }
 
 /* Follow button */
 .profile-follow-btn { display:inline-flex; align-items:center; gap:5px; padding:7px 18px; border-radius:var(--r); font-size:13px; font-weight:600; font-family:var(--sans); cursor:pointer; transition:all .15s var(--ease); border:1px solid var(--border2); background:var(--text); color:var(--bg); }
@@ -2024,7 +2027,7 @@ async function loadNotifications() {
     });
     const notifs = await res.json();
     if (!notifs.length) {
-      list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
+      list.innerHTML = '<div class="notif-empty"><div class="notif-empty-icon">✓</div><div class="notif-empty-title">You\'re all caught up!</div><div class="notif-empty-sub">No new notifications right now</div></div>';
       return;
     }
     list.innerHTML = notifs.map(n => {
@@ -2466,9 +2469,9 @@ function renderProjects(resetPage) {
     document.getElementById('grid').innerHTML = q
       ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔍</div><div class="empty-text">No projects found for "<strong>${esc(q)}</strong>"</div><button class="btn btn-ghost" onclick="clearSearch()">Clear search</button></div>`
       : savedMode
-      ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔖</div><div class="empty-text">No saved projects yet. Bookmark projects you like!</div><button class="btn btn-ghost" style="margin-top:10px" onclick="deactivateSaved()">← Browse all projects</button></div>`
+      ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🔖</div><div class="empty-text">No saved projects yet.</div><button class="btn btn-primary" onclick="deactivateSaved()">Explore projects</button></div>`
       : myBuildsMode
-      ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚀</div><div class="empty-text">You haven't submitted a project yet.</div><button class="btn btn-primary" style="margin-top:10px" onclick="openSubmit()">Submit your first project →</button></div>`
+      ? `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🚀</div><div class="empty-text">You haven't submitted a project yet.</div><button class="btn btn-primary" onclick="openSubmit()">Submit your first project →</button></div>`
       : `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">🌱</div><div class="empty-text">No projects yet.</div><button class="btn btn-primary" onclick="openSubmit()">Be the first →</button></div>`;
     document.getElementById('loadMoreWrap').style.display = 'none';
     return;
@@ -3383,11 +3386,11 @@ function closeMsgDrawer() {
 
 async function loadConversations() {
   const body = document.getElementById('msgDrawerBody');
-  body.innerHTML = '<div class="notif-empty" style="color:var(--muted)">Laden...</div>';
+  body.innerHTML = '<div class="notif-empty" style="color:var(--muted)">Loading…</div>';
   try {
     const res = await fetch('/api/messages/conversations', { headers: { 'Authorization': 'Bearer ' + currentUser.accessToken } });
     const convos = await res.json();
-    if (!convos.length) { body.innerHTML = '<div class="notif-empty">Noch keine Nachrichten.<br>Schreib jemandem über sein Profil!</div>'; return; }
+    if (!convos.length) { body.innerHTML = '<div class="notif-empty"><div class="notif-empty-icon">✉️</div><div class="notif-empty-title">No messages yet</div><div class="notif-empty-sub">Find builders to connect with</div><button class="btn btn-primary" style="margin-top:12px;font-size:12px;padding:6px 14px" onclick="toggleMsgDrawer();switchPage(\'projects\')">Browse projects</button></div>'; return; }
     body.innerHTML = convos.map(c => `
       <div class="msg-convo" onclick="openChat('${c.partner_id}','${escAttr(c.partner_handle)}')">
         <div class="msg-convo-av">${(c.partner_handle||'?').replace('@','').slice(0,2).toUpperCase()}</div>
@@ -3400,7 +3403,7 @@ async function loadConversations() {
           ${c.unread?`<span class="msg-convo-unread">${c.unread}</span>`:''}
         </div>
       </div>`).join('');
-  } catch(e) { body.innerHTML = '<div class="notif-empty">Konversationen konnten nicht geladen werden</div>'; }
+  } catch(e) { body.innerHTML = '<div class="notif-empty">Could not load messages</div>'; }
 }
 
 async function openChat(partnerId, partnerHandle) {
@@ -3680,7 +3683,7 @@ function renderForumThreadList() {
   const el = document.getElementById('forum-thread-list');
   if (!el) return;
   if (!forumThreads.length) {
-    el.innerHTML = `<div class="forum-empty"><div class="forum-empty-icon">🌱</div><div class="forum-empty-title">No conversations yet</div><div class="forum-empty-sub">The forum is fresh and waiting for its first thread. Share a question, tip, or idea with the community!</div>${currentUser?`<button class="forum-new-btn" style="margin-top:18px" onclick="openNewThreadModal()">Start the first thread</button>`:''}</div>`;
+    el.innerHTML = `<div class="forum-empty"><div class="forum-empty-icon">💬</div><div class="forum-empty-title">No threads yet</div><div class="forum-empty-sub">Be the first to start a conversation. Share a question, tip, or idea with the community!</div>${currentUser?`<button class="forum-new-btn" style="margin-top:18px" onclick="openNewThreadModal()">Start the first discussion</button>`:''}</div>`;
     return;
   }
   el.innerHTML = forumThreads.map(t => {

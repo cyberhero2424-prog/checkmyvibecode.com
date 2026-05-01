@@ -194,6 +194,58 @@ def _slug_to_project_id(slug):
     return slug
 
 
+def _generate_unique_slug(name: str) -> str:
+    """Generate a unique slug for a project name, appending -2/-3/… on collision."""
+    base = _slugify_name(name)
+    slug = base
+    counter = 2
+    while True:
+        safe_slug = urllib.parse.quote(slug, safe='')
+        rows, err = _sb_service_request('GET', f'projects?slug=eq.{safe_slug}&select=id&limit=1')
+        if err or not rows:
+            return slug
+        slug = f"{base}-{counter}"
+        counter += 1
+        if counter > 99:
+            return f"{base}-{secrets.token_hex(4)}"
+
+
+def _fetch_project_by_slug(slug: str):
+    """Fetch a single approved project by its DB slug column."""
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return None
+    try:
+        safe_slug = urllib.parse.quote(str(slug), safe='')
+        for select in (
+            'id,name,description,emoji,author,cat,screenshot_url,demo,tools,upvotes,build_time,cost,created_at,score,slug',
+            'id,name,description,emoji,author,cat,demo,tools,upvotes,build_time,cost,created_at,score,slug',
+            'id,name,description,emoji,author,cat',
+        ):
+            api_url = (
+                f"{SUPABASE_URL}/rest/v1/projects"
+                f"?slug=eq.{safe_slug}"
+                f"&select={select}"
+                f"&status=eq.approved"
+                f"&limit=1"
+            )
+            req = urllib.request.Request(api_url, headers={
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            })
+            try:
+                with urllib.request.urlopen(req, timeout=3) as resp:
+                    data = json.loads(resp.read().decode())
+                    return data[0] if data else None
+            except urllib.error.HTTPError as e:
+                body = e.read().decode().lower()
+                if 'slug' in body or ('column' in body and 'does not exist' in body):
+                    continue
+                return None
+        return None
+    except Exception:
+        return None
+
+
 def serve_app():
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
@@ -244,8 +296,9 @@ def _fetch_project(project_id):
     try:
         safe_id = urllib.parse.quote(str(project_id), safe='')
         for select in (
+            'id,name,description,emoji,author,cat,screenshot_url,demo,tools,upvotes,build_time,cost,created_at,score,slug',
+            'id,name,description,emoji,author,cat,demo,tools,upvotes,build_time,cost,created_at,score,slug',
             'id,name,description,emoji,author,cat,screenshot_url,demo,tools,upvotes,build_time,cost,created_at,score',
-            'id,name,description,emoji,author,cat,demo,tools,upvotes,build_time,cost,created_at,score',
             'id,name,description,emoji,author,cat,screenshot_url',
             'id,name,description,emoji,author,cat',
         ):
@@ -1194,16 +1247,42 @@ def forum_thread_page(thread_id):
 
 @app.route('/p/<project_id>')
 def project_detail(project_id):
-    """Legacy UUID URL — 301 redirect to canonical slug URL."""
-    project = _fetch_project(project_id)
+    """Project detail: serves SSR+OG page.
+    Accepts both the DB slug (e.g. /p/needlecast-file-manager) and a raw UUID.
+    UUID links 301-redirect to the slug URL when a slug exists."""
+    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+
+    if _UUID_RE.match(project_id):
+        # Caller used a bare UUID — fetch by ID and redirect to slug if available
+        project = _fetch_project(project_id)
+        if project:
+            db_slug = project.get('slug')
+            if db_slug:
+                return redirect(base_url + '/p/' + urllib.parse.quote(db_slug, safe='-'), 301)
+            # No slug yet — serve SSR at /p/{uuid}
+    else:
+        # Treat as slug — look up by slug column
+        project = _fetch_project_by_slug(project_id)
+
     if project:
-        slug = _project_slug(project)
-        base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
-        return redirect(base_url + '/project/' + urllib.parse.quote(slug, safe='-'), 301)
-    # Project not found or Supabase unavailable — fall back to serving the SPA
+        url_id = project.get('slug') or project_id
+        project_url = base_url + '/p/' + urllib.parse.quote(url_id, safe='-')
+        with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
+            html = f.read()
+        html = html.replace('__BASE_URL__', base_url)
+        html = _inject_project_og(html, project, project_url)
+        ssr_html = _ssr_project_block(project, project_url)
+        jsonld = f'<script type="application/ld+json">{_project_jsonld(project, project_url)}</script>'
+        html = _inject_ssr_content(html, ssr_html, jsonld)
+        html = _inject_config(html)
+        resp = Response(html, mimetype='text/html')
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        return resp
+
+    # Project not found or Supabase unavailable — serve the SPA shell
     with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
         html = f.read()
-    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
     html = html.replace('__BASE_URL__', base_url)
     html = _inject_config(html)
     return Response(html, mimetype='text/html')
@@ -2318,13 +2397,22 @@ def submit_project():
         'cat':         _s('cat', 100) or 'Other',
         'upvotes':     0,
         'status':      'pending',
+        'slug':        _generate_unique_slug(name),
+        'project_status': str(payload.get('project_status', 'finished')).strip()[:20],
     }
+    if new_project['project_status'] not in ('finished', 'in_progress', 'just_started', 'needs_help'):
+        new_project['project_status'] = 'finished'
     # Only include screenshot_url when actually provided — keeps inserts safe on old schemas
     if screenshot_url:
         new_project['screenshot_url'] = screenshot_url
 
     # 3. Insert using service key (bypasses RLS — safe because we verified the JWT)
     _, err = _sb_service_request('POST', 'projects', new_project)
+    if err and ('slug' in err or 'project_status' in err or ('column' in err.lower() and 'does not exist' in err.lower())):
+        app.logger.warning('submit_project: column missing, retrying without slug/project_status: %s', err)
+        new_project.pop('slug', None)
+        new_project.pop('project_status', None)
+        _, err = _sb_service_request('POST', 'projects', new_project)
     if err:
         # If the column is missing, fail visibly so screenshots are never silently dropped
         if screenshot_url and ('screenshot_url' in err or 'column' in err.lower()):
@@ -2452,6 +2540,9 @@ def api_projects():
         return resp
     base_qs = '&status=eq.approved&order=upvotes.desc'
     selects = [
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count,slug,project_status',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count,slug',
+        'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost,view_count,click_count,slug',
         'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost,view_count,click_count',
         'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,build_time,cost,view_count,click_count',
         'id,name,description,idea,emoji,author,cat,upvotes,demo,tools,created_at,score,screenshot_url,featured,build_time,cost',
@@ -2474,7 +2565,7 @@ def api_projects():
             return resp
         except urllib.error.HTTPError as e:
             err_body = e.read().decode().lower()
-            if any(c in err_body for c in ('screenshot_url', 'featured')) or (
+            if any(c in err_body for c in ('screenshot_url', 'featured', 'project_status', 'slug')) or (
                     'column' in err_body and 'does not exist' in err_body):
                 continue
             app.logger.error('api_projects error: %s', e)
@@ -2501,7 +2592,7 @@ def api_my_projects():
     jwt_handle = _derive_author_handle(user)
     safe_h = urllib.parse.quote(jwt_handle, safe='')
 
-    select = 'id,name,description,emoji,author,cat,status,upvotes,demo,tools,created_at,screenshot_url,build_time,cost,score'
+    select = 'id,name,description,emoji,author,cat,status,upvotes,demo,tools,created_at,screenshot_url,build_time,cost,score,project_status'
     path = f"projects?author=eq.{safe_h}&order=created_at.desc&select={select}"
     data, err = _sb_service_request('GET', path)
     if err:
@@ -2513,6 +2604,91 @@ def api_my_projects():
         return {'ok': False, 'error': 'Could not fetch projects'}, 502
 
     return {'ok': True, 'projects': data or []}
+
+
+@app.route('/api/projects/<project_id>', methods=['PATCH'])
+def api_edit_project(project_id):
+    """Allow project owners to edit their own projects.
+    Authenticates via JWT and verifies author matches."""
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return {'ok': False, 'error': 'Unauthorized'}, 401
+    user = _verify_supabase_token(auth_header[7:])
+    if not user:
+        return {'ok': False, 'error': 'Invalid or expired session'}, 401
+
+    jwt_handle = _derive_author_handle(user)
+
+    # Fetch the project to verify ownership
+    safe_id = urllib.parse.quote(str(project_id), safe='')
+    rows, err = _sb_service_request('GET', f'projects?id=eq.{safe_id}&select=id,author')
+    if err or not rows:
+        return {'ok': False, 'error': 'Project not found'}, 404
+    if rows[0].get('author') != jwt_handle:
+        return {'ok': False, 'error': 'You can only edit your own projects'}, 403
+
+    payload = request.get_json(silent=True) or {}
+    def _s(key, limit=500):
+        v = payload.get(key)
+        return str(v).strip()[:limit] if v else None
+
+    VALID_STATUSES = ('finished', 'in_progress', 'just_started', 'needs_help')
+
+    updates = {}
+    if 'name' in payload:
+        name = str(payload['name']).strip()[:200]
+        if not name:
+            return {'ok': False, 'error': 'Name is required'}, 400
+        updates['name'] = name
+    if 'description' in payload:
+        desc = str(payload['description']).strip()[:2000]
+        if not desc:
+            return {'ok': False, 'error': 'Description is required'}, 400
+        updates['description'] = desc
+    if 'idea' in payload:
+        updates['idea'] = _s('idea')
+    if 'build_time' in payload:
+        updates['build_time'] = _s('build_time', 200)
+    if 'cost' in payload:
+        updates['cost'] = _s('cost', 200)
+    if 'demo' in payload:
+        updates['demo'] = _safe_url(_s('demo', 500))
+    if 'tools' in payload:
+        updates['tools'] = [str(t).strip()[:100] for t in (payload.get('tools') or []) if str(t).strip()][:20]
+    if 'emoji' in payload:
+        updates['emoji'] = _s('emoji', 10) or '🚀'
+    if 'cat' in payload:
+        updates['cat'] = _s('cat', 100) or 'Other'
+    if 'project_status' in payload:
+        ps = str(payload['project_status']).strip()
+        updates['project_status'] = ps if ps in VALID_STATUSES else 'finished'
+    if 'screenshot_url' in payload:
+        raw_ss = _s('screenshot_url', 500)
+        ss = _safe_url(raw_ss) if raw_ss else None
+        if ss == '#':
+            ss = None
+        if ss and SUPABASE_URL:
+            storage_host = SUPABASE_URL.rstrip('/').split('://')[-1]
+            if storage_host not in ss:
+                ss = None
+        if ss:
+            updates['screenshot_url'] = ss
+
+    if not updates:
+        return {'ok': False, 'error': 'No changes provided'}, 400
+
+    _, err = _sb_service_request('PATCH', f'projects?id=eq.{safe_id}', updates)
+    if err and ('project_status' in err or ('column' in err.lower() and 'does not exist' in err.lower())):
+        updates.pop('project_status', None)
+        if updates:
+            _, err = _sb_service_request('PATCH', f'projects?id=eq.{safe_id}', updates)
+    if err:
+        app.logger.error('api_edit_project PATCH failed: %s', err)
+        return {'ok': False, 'error': 'Could not update project'}, 500
+
+    _cache_delete('projects')
+    _cache_delete('ssr_projects')
+    return {'ok': True}
 
 
 @app.route('/api/profile/<path:handle>')

@@ -19,41 +19,146 @@
 <link rel="icon" type="image/png" href="/static/favicon-logo.png">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d0d0f; color: #e8e8e6; min-height: 100vh; line-height: 1.55; }
-  a { color: #39ff14; text-decoration: none; }
-  a:hover { text-decoration: underline; }
 
-  header.site-head { background: #111113; border-bottom: 1px solid #1e1e22; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
-  header.site-head .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; color: #e8e8e6; text-decoration: none; }
-  header.site-head .brand img { width: 26px; height: 26px; border-radius: 6px; }
-  header.site-head .brand .muted { color: #888; font-weight: 400; }
-  header.site-head .brand:hover { text-decoration: none; }
-  header.site-head nav a { color: #aaa; font-size: 13px; padding: 6px 12px; border-radius: 7px; transition: background .15s, color .15s; }
-  header.site-head nav a:hover { background: #1a1a1d; color: #e8e8e6; text-decoration: none; }
-
-  .wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
-  .page-eyebrow { font-size: 12px; font-weight: 600; color: #39ff14; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 8px; }
-  .page-title { font-size: 36px; font-weight: 700; letter-spacing: -1px; margin-bottom: 8px; }
-  .page-sub { font-size: 14px; color: #888; margin-bottom: 36px; }
-
-  .post-list { display: flex; flex-direction: column; gap: 14px; }
-  .post-card { display: flex; gap: 18px; align-items: stretch; background: #1a1a1d; border: 1px solid #2a2a2e; border-radius: 14px; padding: 22px 24px; transition: border-color .15s, transform .15s, background .15s; color: #e8e8e6; text-decoration: none; }
-  .post-card:hover { border-color: #39ff14; transform: translateY(-1px); background: #1d1d20; text-decoration: none; }
-  .post-card-thumb { flex: 0 0 auto; width: 96px; height: 96px; border-radius: 10px; overflow: hidden; background: #111113; border: 1px solid #2a2a2e; display: flex; align-items: center; justify-content: center; }
-  .post-card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .post-card-body { flex: 1 1 auto; min-width: 0; }
-  .post-card-date { font-size: 12px; color: #888; font-family: ui-monospace, 'SF Mono', Menlo, monospace; margin-bottom: 6px; }
-  .post-card-title { font-size: 19px; font-weight: 700; color: #e8e8e6; margin-bottom: 6px; letter-spacing: -.3px; }
-  .post-card-desc { font-size: 14px; color: #b8b8b6; line-height: 1.55; }
-  @media (max-width: 520px) {
-    .post-card-thumb { width: 64px; height: 64px; }
+  :root {
+    --bg: #0a0a09;
+    --surface: #111110;
+    --surface2: #161615;
+    --border: #1e1e1c;
+    --border2: #252523;
+    --text: #f0f0ee;
+    --muted: #555;
+    --muted2: #888;
+    --green: #22c55e;
+    --green-bg: rgba(34,197,94,.08);
+    --green-border: rgba(34,197,94,.28);
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+    --ease: cubic-bezier(.25,.46,.45,.94);
   }
 
-  .empty { text-align: center; padding: 80px 20px; color: #555; font-size: 14px; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+  a { color: var(--green); text-decoration: none; }
 
-  .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #1e1e22; font-size: 13px; }
-  .footer a { color: #888; }
-  .footer a:hover { color: #e8e8e6; }
+  /* ── Header ── */
+  header.site-head {
+    background: rgba(17,17,16,.96);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 54px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(14px);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 14px; color: var(--text); text-decoration: none; }
+  .brand img { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; }
+  .brand .muted { color: var(--muted2); font-weight: 400; }
+  .brand:hover { text-decoration: none; }
+  .site-nav { display: flex; align-items: center; gap: 2px; }
+  .site-nav a { color: var(--muted2); font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 8px; transition: background .15s, color .15s; }
+  .site-nav a:hover { background: var(--surface2); color: var(--text); text-decoration: none; }
+  .site-nav a.active { background: var(--surface2); color: var(--text); }
+
+  /* ── Layout ── */
+  .wrap { max-width: 800px; margin: 0 auto; padding: 56px 24px 100px; }
+
+  .page-header { margin-bottom: 48px; }
+  .page-eyebrow { font-size: 11px; font-weight: 700; color: var(--green); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 10px; }
+  .page-title { font-size: clamp(28px, 4vw, 42px); font-weight: 800; letter-spacing: -1.2px; line-height: 1.1; margin-bottom: 10px; }
+  .page-sub { font-size: 15px; color: var(--muted2); line-height: 1.6; }
+
+  /* ── Post list ── */
+  .post-list { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ── Base card ── */
+  .post-card {
+    display: flex; gap: 20px; align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    transition: border-color .2s var(--ease), box-shadow .2s var(--ease), transform .18s var(--ease), background .15s;
+    color: var(--text);
+    text-decoration: none;
+    overflow: hidden;
+  }
+  .post-card:hover {
+    border-color: var(--green-border);
+    box-shadow: 0 0 0 1px var(--green-border), 0 8px 28px rgba(0,0,0,.35);
+    transform: translateY(-2px);
+    background: #131312;
+    text-decoration: none;
+  }
+
+  .post-card-thumb {
+    flex: 0 0 auto; width: 108px; height: 108px;
+    border-radius: 10px; overflow: hidden;
+    background: var(--surface2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; flex-shrink: 0;
+  }
+  .post-card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .post-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+  .post-card-tag {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    padding: 2px 9px; border-radius: 999px;
+    background: var(--green-bg); color: var(--green);
+    border: 1px solid var(--green-border);
+    margin-bottom: 8px; width: fit-content;
+  }
+
+  .post-card-title { font-size: 19px; font-weight: 700; color: var(--text); letter-spacing: -.4px; line-height: 1.3; margin-bottom: 7px; }
+  .post-card:hover .post-card-title { color: #fff; }
+
+  .post-card-desc {
+    font-size: 13px; color: var(--muted2); line-height: 1.6;
+    flex: 1; margin-bottom: 14px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+
+  .post-card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: auto; }
+  .post-card-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--border2); flex-shrink: 0; }
+
+  /* ── Featured (first post) card ── */
+  .post-card.featured { flex-direction: column; padding: 0; gap: 0; }
+  .post-card.featured .post-card-thumb {
+    width: 100%; height: 200px;
+    border-radius: 13px 13px 0 0; border: none;
+    border-bottom: 1px solid var(--border);
+    font-size: 56px;
+  }
+  .post-card.featured .post-card-thumb img { border-radius: 0; }
+  .post-card.featured .post-card-body { padding: 24px 28px 28px; }
+  .post-card.featured .post-card-title { font-size: 24px; font-weight: 800; letter-spacing: -.6px; margin-bottom: 10px; }
+  .post-card.featured .post-card-desc { -webkit-line-clamp: 3; font-size: 14px; }
+  .post-card.featured .post-card-tag { background: rgba(34,197,94,.12); }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 80px 20px; }
+  .empty-icon { font-size: 52px; margin-bottom: 16px; line-height: 1; }
+  .empty-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 8px; letter-spacing: -.3px; }
+  .empty-sub { font-size: 14px; color: var(--muted2); }
+
+  /* ── Page footer ── */
+  .page-footer { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--border); font-size: 13px; display: flex; gap: 16px; }
+  .page-footer a { color: var(--muted2); transition: color .15s; }
+  .page-footer a:hover { color: var(--green); text-decoration: none; }
+
+  /* ── Mobile ── */
+  @media (max-width: 560px) {
+    .wrap { padding: 32px 14px 80px; }
+    header.site-head { padding: 0 14px; }
+    .post-card { gap: 14px; padding: 16px 18px; border-radius: 12px; }
+    .post-card-thumb { width: 72px; height: 72px; font-size: 24px; border-radius: 8px; }
+    .post-card-title { font-size: 16px; }
+    .post-card.featured .post-card-thumb { height: 150px; }
+    .post-card.featured .post-card-body { padding: 18px 20px 22px; }
+    .post-card.featured .post-card-title { font-size: 19px; }
+    .post-card-desc { margin-bottom: 10px; }
+  }
 </style>
 </head>
 <body>
@@ -63,37 +168,68 @@
     <img src="/static/logo2.png" alt="CheckMyVibeCode">
     <span>checkmyvibecode<span class="muted">.com</span></span>
   </a>
-  <nav>
-    <a href="/">← Back to projects</a>
+  <nav class="site-nav">
+    <a href="/">Projects</a>
+    <a href="/blog" class="active">Blog</a>
   </nav>
 </header>
 
 <div class="wrap">
-  <div class="page-eyebrow">CheckMyVibeCode Blog</div>
-  <h1 class="page-title">Blog</h1>
-  <p class="page-sub">Notes on vibe coding, AI tools, and what builders are shipping.</p>
+  <div class="page-header">
+    <div class="page-eyebrow">CheckMyVibeCode</div>
+    <h1 class="page-title">Blog</h1>
+    <p class="page-sub">Notes on vibe coding, AI tools, and what builders are shipping.</p>
+  </div>
 
   {% if posts %}
   <div class="post-list">
     {% for p in posts %}
-    <a class="post-card" href="/blog/{{ p.slug }}">
-      {% if p.thumb_url %}
-      <div class="post-card-thumb"><img src="{{ p.thumb_url }}" alt="" loading="lazy"></div>
-      {% endif %}
+    {% set read_mins = [1, (p.body | length // 900)] | max %}
+    {% if loop.first %}
+    <a class="post-card featured" href="/blog/{{ p.slug }}">
+      <div class="post-card-thumb">
+        {% if p.thumb_url %}<img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">{% else %}📝{% endif %}
+      </div>
       <div class="post-card-body">
-        <div class="post-card-date">{{ p.date_human }}</div>
+        <span class="post-card-tag">✦ Latest post</span>
         <div class="post-card-title">{{ p.title }}</div>
         {% if p.description %}<div class="post-card-desc">{{ p.description }}</div>{% endif %}
+        <div class="post-card-meta">
+          <span>{{ p.date_human }}</span>
+          <span class="dot"></span>
+          <span>{{ read_mins }} min read</span>
+        </div>
       </div>
     </a>
+    {% else %}
+    <a class="post-card" href="/blog/{{ p.slug }}">
+      <div class="post-card-thumb">
+        {% if p.thumb_url %}<img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">{% else %}📄{% endif %}
+      </div>
+      <div class="post-card-body">
+        <span class="post-card-tag">Article</span>
+        <div class="post-card-title">{{ p.title }}</div>
+        {% if p.description %}<div class="post-card-desc">{{ p.description }}</div>{% endif %}
+        <div class="post-card-meta">
+          <span>{{ p.date_human }}</span>
+          <span class="dot"></span>
+          <span>{{ read_mins }} min read</span>
+        </div>
+      </div>
+    </a>
+    {% endif %}
     {% endfor %}
   </div>
   {% else %}
-  <div class="empty">No posts yet. Check back soon.</div>
+  <div class="empty">
+    <div class="empty-icon">📝</div>
+    <div class="empty-title">No posts yet</div>
+    <div class="empty-sub">Check back soon — we're cooking something good.</div>
+  </div>
   {% endif %}
 
-  <div class="footer">
-    <a href="/">← Back to home</a>
+  <div class="page-footer">
+    <a href="/">← Back to projects</a>
   </div>
 </div>
 

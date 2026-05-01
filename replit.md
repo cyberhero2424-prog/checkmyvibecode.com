@@ -77,6 +77,9 @@ The notifications table is auto-created at startup via `_apply_notifications_mig
 - **SSR**: Noscript blocks with project data injected server-side for search engine crawlers
 - **Sitemap**: Dynamic XML sitemap includes homepage, all approved project pages (`/p/<id>`), and all author profile pages (`/u/<handle>`) with lastmod dates
 - **Meta tags**: OG/Twitter tags on project + profile pages; canonical URL + description meta on profile pages
+- **Project slugs**: projects have an optional `slug` column (DB-level, unique). When present, the canonical URL is `/p/<slug>` (e.g. `/p/needlecast-file-manager`). The `/p/<project_id>` route accepts both a slug and a UUID: a UUID 301-redirects to the slug URL (when available), and a slug serves the SSR/OG page directly. New submissions auto-generate a unique slug via `_generate_unique_slug()` (collisions append `-2`, `-3`, … or fall back to a random hex). Backward-compatible: projects without a slug keep working at `/p/<uuid>`. Migration: `migrations/project_slug.sql`.
+- **Project status** (lifecycle): projects have an optional `project_status` column with values `finished` (default), `in_progress`, `just_started`, `needs_help`. Set on submission and editable via the new owner edit endpoint. Migration: `migrations/project_status.sql`.
+- **Owner edit endpoint**: `PATCH /api/projects/<id>` lets the project's author update their own project (name, description, idea, build_time, cost, demo, tools, emoji, cat, project_status, screenshot_url). JWT-authenticated; verifies `author == JWT handle`; 401/403 otherwise. Cache-invalidates `projects` + `ssr_projects`.
 - **XSS protection**: All JSON-LD output escaped with `</ → <\/` to prevent script injection
 
 ## User Profile Features
