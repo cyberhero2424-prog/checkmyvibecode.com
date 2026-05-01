@@ -86,7 +86,7 @@ The notifications table is auto-created at startup via `_apply_notifications_mig
 - **Profile picture**: Users set a URL-based avatar in Account Settings (stored in Supabase `user_metadata.avatar_url`)
 - **Bio**: Short text bio (max 150 chars) in Account Settings (stored in `user_metadata.bio`)
 - **Profile panel**: Shows avatar image + bio on user profiles; falls back to emoji/initial if no avatar
-- **Nav avatar**: Shows profile picture in navbar when set; falls back to initial letter
+- **Nav avatar**: Shows profile picture in navbar when set; falls back to initial letter. Mobile (≤768px): the navbar reserves a right-edge gutter via `padding-right: max(10px, env(safe-area-inset-right))` so the avatar never clips against the viewport edge or notch; `.user-avatar` and `#navLoginBtn` get an invisible 44×44 `::before` tap-target overlay (visual size unchanged). Below 420px the `.msg-bell` is hidden so notif + theme + avatar always fit on the smallest phones (messages stay accessible from the user dropdown / inbox page).
 - **API**: `/api/profile-meta/<handle>` returns `{avatar_url, bio}` for any user (cached 2min, paginated up to 5000 users)
 
 ## Blog

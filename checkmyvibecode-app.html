@@ -643,18 +643,23 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
 ═══════════════════════════════════ */
 @media (max-width:768px) {
   /* Nav */
-  nav { padding:0 8px; gap:0; height:52px; overflow:hidden; }
+  nav { padding:0 8px 0 8px; padding-right:max(10px, env(safe-area-inset-right)); gap:0; height:52px; overflow:hidden; }
   .logo-text { display:none; }
   .logo-muted { display:none; }
   .nav-sep { display:none; }
   .nav-search { display:none; }
   .nav-social { display:none; }
   .mobile-search-btn { display:flex; flex-shrink:0; width:36px; height:36px; }
-  .nav-right { margin-left:auto; gap:3px; flex-shrink:0; }
+  .nav-right { margin-left:auto; gap:2px; flex-shrink:0; padding-right:2px; }
   .nav-tab { padding:6px 10px; font-size:12px; flex-shrink:1; }
   .nav-checker-word { display:none; }
   .btn { padding:5px 9px; font-size:12px; }
   #navSubmitBtn { display:none !important; }
+  /* Enlarge tap target for nav avatar + sign-in button to ≥44px without changing visual size */
+  .user-avatar { position:relative; }
+  .user-avatar::before { content:''; position:absolute; top:50%; left:50%; width:44px; height:44px; transform:translate(-50%,-50%); }
+  #navLoginBtn { position:relative; min-height:32px; }
+  #navLoginBtn::before { content:''; position:absolute; top:50%; left:50%; width:100%; height:44px; transform:translate(-50%,-50%); }
   .mobile-sidebar-section { display:block; margin-top:32px; }
 
   /* Hero */
@@ -754,6 +759,12 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
     font-family:var(--sans); font-size:13px; font-weight:600;
     cursor:pointer; -webkit-tap-highlight-color:transparent;
   }
+}
+
+/* Tighter phones: hide the message bell so notif + theme + avatar always fit on screen
+   (messages remain accessible from the user dropdown / inbox page) */
+@media (max-width:420px) {
+  .msg-bell { display:none !important; }
 }
 
 /* ═══════════════════════════════════
