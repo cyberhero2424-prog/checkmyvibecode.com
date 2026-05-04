@@ -3442,11 +3442,14 @@ def track_project_view(project_id):
 
 @app.route('/api/projects/<project_id>/click', methods=['POST'])
 def track_project_click(project_id):
-    """Increment click_count for a project. Rate-limited per IP+project (5min)."""
-    ok, dedup = _increment_stat(project_id, 'click_count', 'c')
-    if not ok:
-        return jsonify({'ok': False}), 400 if not _UUID_RE.match(project_id) else 502
-    return jsonify({'ok': True, 'dedup': dedup})
+    """Increment click_count for a project. Every click counts — no dedup."""
+    if not _UUID_RE.match(project_id):
+        return jsonify({'ok': False}), 400
+    result, err = _sb_service_request('POST', 'rpc/increment_click_count', {'p_id': project_id})
+    if err:
+        app.logger.warning('click increment failed for %s: %s', project_id, err)
+        return jsonify({'ok': False}), 502
+    return jsonify({'ok': True})
 
 
 @app.route('/api/projects/comment-counts')

@@ -2737,20 +2737,15 @@ function trackView(pid) {
 }
 
 function trackDemoClick(pid) {
-  const k = 'clicked_' + pid;
-  if (sessionStorage.getItem(k)) return;
   fetch('/api/projects/' + pid + '/click', {method:'POST'}).then(r=>{
     if (!r.ok) return;
     return r.json();
   }).then(d=>{
     if (d && d.ok) {
-      sessionStorage.setItem(k, '1');
-      if (!d.dedup) {
-        const el = document.getElementById('drawer-clicks');
-        if (el) el.textContent = parseInt(el.textContent||'0') + 1;
-        const p = projects.find(x=>x.id===pid);
-        if (p) p.click_count = (p.click_count||0) + 1;
-      }
+      const el = document.getElementById('drawer-clicks');
+      if (el) el.textContent = parseInt(el.textContent||'0') + 1;
+      const p = projects.find(x=>x.id===pid);
+      if (p) p.click_count = (p.click_count||0) + 1;
     }
   }).catch(()=>{});
 }
