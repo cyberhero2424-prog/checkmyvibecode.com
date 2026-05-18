@@ -1394,7 +1394,7 @@ def admin():
                                csrf_token=_csrf_token())
 
     tab = request.args.get('tab', 'pending')
-    if tab not in ('pending', 'approved', 'rejected', 'forum', 'blog'):
+    if tab not in ('pending', 'approved', 'rejected', 'forum', 'blog', 'featured'):
         tab = 'pending'
 
     flash_msg  = session.pop('flash_msg', None)
@@ -1439,6 +1439,34 @@ def admin():
             csrf_token=_csrf_token(),
             blog_view='list',
             blog_posts=blog_posts,
+        )
+
+    if tab == 'featured':
+        featured_projects = []
+        for sel in (
+            'id,name,description,emoji,author,cat,status,upvotes,score,screenshot_url,created_at,featured',
+            'id,name,description,emoji,author,cat,status,upvotes,score,created_at,featured',
+            'id,name,description,emoji,author,cat,upvotes,created_at',
+        ):
+            fp, ferr = _sb_service_request(
+                'GET', f'projects?featured=eq.true&order=score.desc.nullslast&select={sel}'
+            )
+            if ferr and ('featured' in ferr.lower() or ('column' in ferr.lower() and 'does not exist' in ferr.lower())):
+                continue
+            featured_projects = fp or []
+            break
+        return render_template(
+            'admin.html',
+            logged_in=True,
+            projects=featured_projects,
+            counts=counts,
+            tab=tab,
+            forum_threads=[],
+            forum_thread_count=forum_thread_count,
+            user_stats=user_stats,
+            flash_msg=flash_msg,
+            flash_type=flash_type,
+            csrf_token=_csrf_token(),
         )
 
     projects, err = _admin_list_projects(tab)
@@ -3338,6 +3366,46 @@ def api_send_message():
     _insert_notification(receiver_id, 'message', None, sender_handle,
                          f'{sender_handle or "Jemand"} hat dir eine Nachricht geschickt')
     return jsonify({'ok': True, 'message': result[0] if result else {}})
+
+
+@app.route('/api/messages/inbox')
+def api_messages_inbox():
+    """Alias for /api/messages/conversations."""
+    return api_message_conversations()
+
+
+@app.route('/api/messages/conversation/<sender_handle>')
+def api_messages_conversation_by_handle(sender_handle):
+    """Return message thread with a user identified by handle. Marks received messages as read."""
+    auth_header = request.headers.get('Authorization', '')
+    token = auth_header[7:] if auth_header.startswith('Bearer ') else ''
+    user_id = _decode_jwt_user_id(token)
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+    partner_id = _resolve_handle_to_user_id(sender_handle.lstrip('@'))
+    if not partner_id:
+        return jsonify({'error': 'User not found'}), 404
+    rows, err = _sb_service_request(
+        'GET',
+        f'messages?or=(and(sender_id.eq.{user_id},receiver_id.eq.{partner_id}),'
+        f'and(sender_id.eq.{partner_id},receiver_id.eq.{user_id}))'
+        f'&select=id,sender_id,receiver_id,body,read,created_at'
+        f'&order=created_at.asc&limit=200'
+    )
+    if err:
+        return jsonify({'error': 'Database error'}), 502
+    _sb_service_request(
+        'PATCH',
+        f'messages?sender_id=eq.{partner_id}&receiver_id=eq.{user_id}&read=eq.false',
+        {'read': True}
+    )
+    return jsonify(rows or [])
+
+
+@app.route('/api/messages/send', methods=['POST'])
+def api_send_message_by_handle():
+    """Alias for POST /api/messages — send a message by receiver_handle or receiver_id."""
+    return api_send_message()
 
 
 @app.route('/api/account/delete', methods=['POST'])

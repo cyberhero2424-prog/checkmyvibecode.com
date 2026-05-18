@@ -532,6 +532,13 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .profile-build-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .profile-build-cat { font-size:11px; color:var(--muted); margin-top:2px; }
 .profile-build-votes { font-size:12px; font-weight:600; color:var(--muted2); flex-shrink:0; }
+/* Profile tabs (own-profile view) */
+.profile-tab-nav { display:flex; gap:2px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+.profile-tab { flex:1; padding:7px 10px; border-radius:var(--r-sm); font-size:12px; font-weight:500; font-family:var(--sans); cursor:pointer; border:none; background:none; color:var(--muted2); transition:all .15s var(--ease); position:relative; text-align:center; }
+.profile-tab:hover { background:var(--surface2); color:var(--text); }
+.profile-tab.active { background:var(--surface2); color:var(--text); font-weight:600; }
+.profile-tab-badge { position:absolute; top:3px; right:6px; min-width:14px; height:14px; padding:0 3px; border-radius:7px; background:#2563eb; color:#fff; font-size:9px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; line-height:1; }
+.profile-chat-wrap { display:flex; flex-direction:column; gap:5px; max-height:260px; overflow-y:auto; padding:2px 0 10px; }
 .author-link { background:none; border:none; padding:0; cursor:pointer; font:inherit; color:inherit; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:2px; }
 .author-link:hover { color:var(--accent,#7c3aed); }
 
@@ -930,6 +937,21 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
 .forum-empty-icon { font-size:48px; margin-bottom:16px; }
 .forum-empty-title { font-size:18px; font-weight:600; color:var(--text); margin-bottom:8px; }
 .forum-empty-sub { font-size:14px; color:var(--muted); line-height:1.5; max-width:320px; margin:0 auto; }
+/* Forum enhanced thread cards */
+.forum-thread-av { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#fff; flex-shrink:0; letter-spacing:-.2px; overflow:hidden; }
+.forum-thread-top { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; }
+.forum-thread-top > div { flex:1; min-width:0; }
+.forum-thread-card { padding:18px 20px; }
+.forum-thread-title { font-size:15px; font-weight:700; letter-spacing:-.3px; line-height:1.3; margin-bottom:6px; }
+.forum-thread-meta { border-top:1px solid var(--border); padding-top:10px; }
+/* Forum reply card style */
+.forum-reply-item { border-left:none; margin-left:0; background:var(--surface); border:1px solid var(--border); border-radius:var(--r); margin-bottom:8px; padding:14px 16px; }
+.forum-reply-item:nth-child(even) { background:var(--surface2); }
+/* Forum floating action button */
+.forum-fab { position:fixed; bottom:80px; right:24px; padding:10px 22px; border-radius:100px; background:var(--text); color:var(--bg); font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 4px 24px rgba(0,0,0,.25); border:none; font-family:var(--sans); z-index:200; opacity:0; transform:translateY(8px); pointer-events:none; transition:opacity .2s var(--ease),transform .2s var(--ease); display:none; }
+.forum-fab.visible { opacity:1; transform:translateY(0); pointer-events:all; }
+[data-theme="dark"] .forum-fab { box-shadow:0 4px 24px rgba(0,0,0,.55); }
+@media(max-width:640px) { .forum-fab { bottom:72px; right:14px; padding:9px 18px; } }
 .forum-skeleton { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:16px 20px; margin-bottom:2px; }
 .forum-skel-line { height:12px; border-radius:4px; background:var(--surface3); margin-bottom:8px; animation:skelPulse 1.4s ease infinite; }
 @keyframes skelPulse { 0%,100%{opacity:.5} 50%{opacity:1} }
@@ -2237,7 +2259,21 @@ function switchPage(page) {
   const noSearch = ['checker', 'privacy', 'terms', 'forum'];
   document.querySelector('.nav-search').style.visibility = noSearch.includes(page) ? 'hidden' : 'visible';
   if (['projects', 'checker'].includes(page)) setMobileNav(page);
-  if (page === 'forum' && !window._forumLoaded) { window._forumLoaded = true; loadForumThreads(); }
+  if (page === 'forum') {
+    if (!window._forumLoaded) { window._forumLoaded = true; loadForumThreads(); }
+    // Wire up sticky FAB — shows once the header "New Thread" button scrolls out of view
+    const fab = document.getElementById('forumFab');
+    const headerBtn = document.getElementById('forumNewBtn');
+    if (fab && headerBtn && currentUser && !window._forumFabObs) {
+      fab.style.display = '';
+      window._forumFabObs = new IntersectionObserver(([entry]) => {
+        fab.classList.toggle('visible', !entry.isIntersecting);
+      }, { threshold: 0 });
+      window._forumFabObs.observe(headerBtn);
+    } else if (fab && currentUser) {
+      fab.style.display = '';
+    }
+  }
   window.scrollTo({ top:0, behavior:'smooth' });
 }
 
@@ -2698,7 +2734,7 @@ function openDrawer(id) {
     <div class="section-title" style="margin-top:24px">💬 Comments <span id="commentCount">(loading...)</span></div>
     <div class="comment-list" id="drawerComments"><div style="color:var(--muted);font-size:13px;padding:8px 0">Loading comments...</div></div>`;
   document.getElementById('drawerActions').innerHTML=`
-    <a href="${p.demo||'#'}" target="_blank" class="btn btn-primary" style="flex:1;justify-content:center;text-decoration:none" onclick="trackDemoClick('${p.id}')">↗ View Project</a>
+    ${p.demo ? `<a href="${escAttr(p.demo)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="flex:1;justify-content:center;text-decoration:none" onclick="trackDemoClick('${p.id}')">↗ View Project</a>` : `<button class="btn btn-primary" style="flex:1;justify-content:center;opacity:.45;cursor:not-allowed" disabled title="No demo link provided">↗ View Project</button>`}
     <button class="upvote-btn${p.voted?' voted':''}" id="dub-${p.id}" onclick="upvote('${p.id}')" style="padding:7px 16px;font-size:13px">↑ <span id="duv-${p.id}">${p.upvotes}</span> upvotes</button>
     <button class="bm-btn${p.bookmarked?' bm-active':''}" id="dbm-${p.id}" onclick="toggleBookmark('${p.id}')" title="${p.bookmarked?'Remove bookmark':'Save'}" style="padding:7px 13px;font-size:12px;flex-shrink:0">${(p.bookmarked?BM_ICON_ON:BM_ICON_OFF)+(p.bookmarked?' Saved':' Save')}</button>
     <button onclick="shareProject('${p.id}',this)" style="padding:7px 13px;border-radius:var(--r-sm);font-size:12px;font-weight:600;border:1px solid var(--border2);background:var(--surface);color:var(--muted2);cursor:pointer;font-family:var(--sans);transition:all .15s;flex-shrink:0">⤴ Copy link</button>
@@ -3283,30 +3319,181 @@ async function openProfile(handle) {
     container.appendChild(img);
   }
 
-  if (!userProjects.length) {
-    document.getElementById('profileBody').innerHTML =
-      '<div style="color:var(--muted);font-size:14px;padding:40px 0;text-align:center">No builds yet.</div>';
-    return;
+  if (isOwnProfile) {
+    // Own profile: show tabbed interface (Builds | Saved | Messages)
+    _lastProfileProjects = userProjects;
+    document.getElementById('profileBody').innerHTML = `
+      <div class="profile-tab-nav">
+        <button class="profile-tab active" id="ptab-builds" onclick="switchProfileTab('builds')">Builds${buildCount ? ' ('+buildCount+')' : ''}</button>
+        <button class="profile-tab" id="ptab-saved" onclick="switchProfileTab('saved')">Saved (${bookmarkedIds.size})</button>
+        <button class="profile-tab" id="ptab-messages" onclick="switchProfileTab('messages')">Messages<span class="profile-tab-badge" id="ptabMsgBadge" style="display:none"></span></button>
+      </div>
+      <div id="profile-tab-content"></div>`;
+    _profileRenderBuilds(userProjects);
+    // Load unread count for the badge
+    if (currentUser?.accessToken) {
+      fetch('/api/messages/unread-count', { headers: { 'Authorization': 'Bearer ' + currentUser.accessToken } })
+        .then(r => r.ok ? r.json() : {count:0})
+        .then(d => {
+          const badge = document.getElementById('ptabMsgBadge');
+          if (badge && d.count > 0) { badge.textContent = d.count > 9 ? '9+' : d.count; badge.style.display = 'inline-flex'; }
+        }).catch(() => {});
+    }
+  } else {
+    if (!userProjects.length) {
+      document.getElementById('profileBody').innerHTML =
+        '<div style="color:var(--muted);font-size:14px;padding:40px 0;text-align:center">No builds yet.</div>';
+      return;
+    }
+    document.getElementById('profileBody').innerHTML = `
+      <div class="profile-builds-label">BUILDS</div>
+      ${userProjects.map(p => `
+        <button class="profile-build-item" onclick="openProfileProject('${p.id}')">
+          ${p.screenshot_url
+            ? `<img src="${escAttr(p.screenshot_url)}" alt="${escAttr(p.name)}" loading="lazy" onerror="this.style.display='none'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;flex-shrink:0">`
+            : `<div class="profile-build-emoji">${esc(p.emoji || '📦')}</div>`}
+          <div class="profile-build-info">
+            <div class="profile-build-name">${esc(p.name)}</div>
+            <div class="profile-build-cat">${esc(p.cat || '')}</div>
+          </div>
+          <div class="profile-build-votes">↑ ${p.upvotes || 0}</div>
+        </button>`).join('')}`;
   }
-
-  document.getElementById('profileBody').innerHTML = `
-    <div class="profile-builds-label">BUILDS</div>
-    ${userProjects.map(p => `
-      <button class="profile-build-item" onclick="openProfileProject('${p.id}')">
-        ${p.screenshot_url
-          ? `<img src="${escAttr(p.screenshot_url)}" alt="${escAttr(p.name)}" loading="lazy" onerror="this.style.display='none'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;flex-shrink:0">`
-          : `<div class="profile-build-emoji">${esc(p.emoji || '📦')}</div>`}
-        <div class="profile-build-info">
-          <div class="profile-build-name">${esc(p.name)}</div>
-          <div class="profile-build-cat">${esc(p.cat || '')}</div>
-        </div>
-        <div class="profile-build-votes">↑ ${p.upvotes || 0}</div>
-      </button>`).join('')}`;
 }
 
 function openProfileProject(projectId) {
   closeProfile();
   openDrawer(projectId);
+}
+
+/* ── Profile Tabs ─────────────────────────────────────────────────── */
+let _lastProfileProjects = [];
+let _profileMsgPartner = null;
+
+function switchProfileTab(tab) {
+  document.querySelectorAll('.profile-tab').forEach(t => t.classList.toggle('active', t.id === 'ptab-' + tab));
+  if (tab === 'builds') _profileRenderBuilds(_lastProfileProjects);
+  else if (tab === 'saved') _profileRenderSaved();
+  else if (tab === 'messages') _profileRenderMessages();
+}
+
+function _profileBuildCard(p, onclick) {
+  return `<button class="profile-build-item" onclick="${onclick}">
+    ${p.screenshot_url
+      ? `<img src="${escAttr(p.screenshot_url)}" alt="${escAttr(p.name)}" loading="lazy" onerror="this.style.display='none'" style="width:34px;height:34px;object-fit:cover;border-radius:6px;flex-shrink:0">`
+      : `<div class="profile-build-emoji">${esc(p.emoji || '📦')}</div>`}
+    <div class="profile-build-info">
+      <div class="profile-build-name">${esc(p.name)}</div>
+      <div class="profile-build-cat">${esc(p.cat || '')}</div>
+    </div>
+    <div class="profile-build-votes">↑ ${p.upvotes || 0}</div>
+  </button>`;
+}
+
+function _profileRenderBuilds(projs) {
+  _lastProfileProjects = projs;
+  const el = document.getElementById('profile-tab-content');
+  if (!el) return;
+  if (!projs.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:32px 0;text-align:center">No builds yet.</div>';
+    return;
+  }
+  el.innerHTML = `<div class="profile-builds-label">BUILDS</div>${projs.map(p => _profileBuildCard(p, `openProfileProject('${p.id}')`)).join('')}`;
+}
+
+function _profileRenderSaved() {
+  const el = document.getElementById('profile-tab-content');
+  if (!el) return;
+  const saved = projects.filter(p => bookmarkedIds.has(p.id));
+  if (!saved.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:32px 0;text-align:center"><div style="font-size:28px;margin-bottom:8px">🔖</div>No saved projects yet.</div>';
+    return;
+  }
+  el.innerHTML = `<div class="profile-builds-label">SAVED (${saved.length})</div>${saved.map(p => _profileBuildCard(p, `closeProfile();setTimeout(()=>openDrawer('${p.id}'),300)`)).join('')}`;
+}
+
+async function _profileRenderMessages() {
+  const el = document.getElementById('profile-tab-content');
+  if (!el || !currentUser) return;
+  el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:24px 0;text-align:center">Loading…</div>';
+  try {
+    const res = await fetch('/api/messages/conversations', { headers: { 'Authorization': 'Bearer ' + currentUser.accessToken } });
+    if (!res.ok) throw new Error();
+    const convos = await res.json();
+    if (!convos.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:32px 0;text-align:center"><div style="font-size:28px;margin-bottom:8px">✉️</div>No messages yet.</div>';
+      return;
+    }
+    el.innerHTML = convos.map(c => `
+      <div class="msg-convo" onclick="_profileOpenChat('${escAttr(c.partner_id)}','${escAttr(c.partner_handle)}')">
+        <div class="msg-convo-av">${(c.partner_handle||'?').replace('@','').slice(0,2).toUpperCase()}</div>
+        <div class="msg-convo-info">
+          <div class="msg-convo-name">${esc(c.partner_handle||'User')}</div>
+          <div class="msg-convo-preview">${esc(c.last_message||'')}</div>
+        </div>
+        <div class="msg-convo-meta">
+          <span class="msg-convo-time">${fmtCardDate(c.last_at)}</span>
+          ${c.unread ? `<span class="msg-convo-unread">${c.unread}</span>` : ''}
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:24px 0;text-align:center">Could not load messages.</div>';
+  }
+}
+
+async function _profileOpenChat(partnerId, partnerHandle) {
+  _profileMsgPartner = { id: partnerId, handle: partnerHandle };
+  const el = document.getElementById('profile-tab-content');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      <button onclick="_profileRenderMessages()" style="background:none;border:none;color:var(--muted2);cursor:pointer;font-size:18px;padding:2px 6px;border-radius:4px;line-height:1" title="Back">←</button>
+      <strong style="font-size:14px">${esc(partnerHandle)}</strong>
+    </div>
+    <div id="profile-chat-msgs" class="profile-chat-wrap"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <textarea id="profile-msg-input" class="msg-input" placeholder="Write a message…" rows="2" style="min-height:38px;max-height:80px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();_profileSendMsg();}"></textarea>
+      <button onclick="_profileSendMsg()" class="msg-send-btn" style="align-self:flex-end">Send</button>
+    </div>`;
+  await _profileLoadChatMsgs(partnerId);
+}
+
+async function _profileLoadChatMsgs(partnerId) {
+  const el = document.getElementById('profile-chat-msgs');
+  if (!el || !currentUser) return;
+  try {
+    const res = await fetch('/api/messages/' + partnerId, { headers: { 'Authorization': 'Bearer ' + currentUser.accessToken } });
+    const msgs = await res.json();
+    const uid = currentUser.id;
+    el.innerHTML = msgs.length
+      ? msgs.map(m => {
+          const sent = m.sender_id === uid;
+          return `<div class="msg-bubble ${sent?'sent':'received'}">${esc(m.body)}<div class="msg-bubble-time">${fmtCardDate(m.created_at)}</div></div>`;
+        }).join('')
+      : '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px 0">Say hello! 👋</div>';
+    el.scrollTop = el.scrollHeight;
+    const badge = document.getElementById('ptabMsgBadge');
+    if (badge) badge.style.display = 'none';
+    fetchMsgUnreadCount();
+  } catch(e) {}
+}
+
+async function _profileSendMsg() {
+  if (!_profileMsgPartner || !currentUser) return;
+  const input = document.getElementById('profile-msg-input');
+  const text = (input?.value || '').trim();
+  if (!text) return;
+  input.value = '';
+  try {
+    const res = await fetch('/api/messages', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + currentUser.accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ receiver_id: _profileMsgPartner.id, body: text })
+    });
+    const data = await res.json();
+    if (data.ok) await _profileLoadChatMsgs(_profileMsgPartner.id);
+    else showToast(data.error || 'Could not send message');
+  } catch(e) { showToast('Failed to send'); }
 }
 
 function closeProfile() {
@@ -3641,6 +3828,14 @@ function forumAvatar(handle) {
   return (handle||'?').replace('@','').slice(0,2).toUpperCase();
 }
 
+function forumAvatarColor(handle) {
+  const palette = ['#3b82f6','#8b5cf6','#f59e0b','#ef4444','#22c55e','#06b6d4','#ec4899','#f97316','#14b8a6','#6366f1'];
+  let h = 0;
+  const s = (handle||'').replace('@','');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff;
+  return palette[h % palette.length];
+}
+
 async function _getAccessToken() {
   try {
     const { data: { session } } = await sb.auth.getSession();
@@ -3695,16 +3890,21 @@ function renderForumThreadList() {
   el.innerHTML = forumThreads.map(t => {
     const voted = forumVotedIds.has(t.id);
     const rc = t.reply_count || 0;
+    const avColor = forumAvatarColor(t.author_handle);
     return `<div class="forum-thread-card" onclick="openForumThread('${t.id}')">
       <button class="forum-thread-upvote${voted?' voted':''}" onclick="event.stopPropagation();toggleThreadUpvote('${t.id}',this)" title="${voted?'Remove upvote':'Upvote'}">
         <svg class="forum-thread-upvote-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 4l9 14H3z"/></svg>
         <span class="forum-thread-upvote-count" id="fuv-${t.id}">${t.upvotes||0}</span>
       </button>
       <div class="forum-thread-content">
-        <div class="forum-thread-title">${escHtml(t.title)}</div>
-        <div class="forum-thread-preview">${escHtml(t.body)}</div>
+        <div class="forum-thread-top">
+          <div class="forum-thread-av" style="background:${avColor}" data-avatar-handle="${escAttr(t.author_handle||'')}" data-profile-handle="${escAttr(t.author_handle||'')}" onclick="event.stopPropagation();openProfile(this.dataset.profileHandle)" title="${escAttr(t.author_handle||'')}">${forumAvatar(t.author_handle)}</div>
+          <div>
+            <div class="forum-thread-title">${escHtml(t.title)}</div>
+            <div class="forum-thread-preview">${escHtml(t.body)}</div>
+          </div>
+        </div>
         <div class="forum-thread-meta">
-          <span class="forum-reply-avatar" data-profile-handle="${escAttr(t.author_handle||'')}" onclick="event.stopPropagation();openProfile(this.dataset.profileHandle)" style="width:24px;height:24px;font-size:9px;border-radius:6px;flex-shrink:0;overflow:hidden;cursor:pointer" data-avatar-handle="${escAttr(t.author_handle||'')}">${forumAvatar(t.author_handle)}</span>
           <span class="t-author" data-profile-handle="${escAttr(t.author_handle||'')}" onclick="event.stopPropagation();openProfile(this.dataset.profileHandle)" style="cursor:pointer">${escHtml(t.author_handle)}</span>
           <span class="t-sep"></span>
           <span class="t-time">${fmtForumDate(t.created_at)}</span>
@@ -3768,7 +3968,7 @@ async function loadForumReplies(threadId) {
 
   const myHandle = currentUser?.handle || '';
   const myUid = currentUser?.id || '';
-  el.innerHTML = `<div class="comment-list">${replies.map(r=>{const canDel=(myHandle && r.author_handle && r.author_handle===myHandle)||(myUid && r.author_id && r.author_id===myUid);const delBtn=canDel?`<button onclick="event.stopPropagation();deleteForumReply('${r.id}','${currentForumThreadId}')" title="Delete reply" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:#dc2626;cursor:pointer;font-size:11px;padding:3px 8px;margin-left:auto;border-radius:4px;font-weight:600;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='rgba(220,38,38,.15)';this.style.borderColor='rgba(220,38,38,.4)'" onmouseout="this.style.background='rgba(220,38,38,.08)';this.style.borderColor='rgba(220,38,38,.2)'">🗑 Delete</button>`:'';const isOwn=(myHandle && r.author_handle===myHandle)||(myUid && r.author_id && r.author_id===myUid);const voted=commentUpvotedIds.has(r.id);const count=commentUpvoteCounts[r.id]||0;const upvoteBtn=r.id?`<button class="c-upvote-btn${voted?' c-upvoted':''}" id="cuv-${r.id}" onclick="event.stopPropagation();toggleCommentUpvote('${r.id}')" title="${isOwn?'Cannot upvote own reply':voted?'Remove upvote':'Upvote'}"${isOwn?' disabled':''}>▲ <span id="cuvc-${r.id}">${count}</span></button>`:'';return `<div class="forum-reply-item"><div class="forum-reply-avatar" data-profile-handle="${escAttr(r.author_handle||'')}" onclick="openProfile(this.dataset.profileHandle)" style="overflow:hidden;cursor:pointer" data-avatar-handle="${escAttr(r.author_handle||'')}">${forumAvatar(r.author_handle)}</div><div style="flex:1"><div class="forum-reply-meta" style="display:flex;align-items:center;gap:6px"><strong data-profile-handle="${escAttr(r.author_handle||'')}" onclick="openProfile(this.dataset.profileHandle)" style="cursor:pointer">${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}${delBtn}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div>${upvoteBtn}</div>`;}).join('')}</div>`;
+  el.innerHTML = `<div class="comment-list">${replies.map(r=>{const canDel=(myHandle && r.author_handle && r.author_handle===myHandle)||(myUid && r.author_id && r.author_id===myUid);const delBtn=canDel?`<button onclick="event.stopPropagation();deleteForumReply('${r.id}','${currentForumThreadId}')" title="Delete reply" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);color:#dc2626;cursor:pointer;font-size:11px;padding:3px 8px;margin-left:auto;border-radius:4px;font-weight:600;font-family:var(--sans);transition:all .15s;flex-shrink:0" onmouseover="this.style.background='rgba(220,38,38,.15)';this.style.borderColor='rgba(220,38,38,.4)'" onmouseout="this.style.background='rgba(220,38,38,.08)';this.style.borderColor='rgba(220,38,38,.2)'">🗑 Delete</button>`:'';const isOwn=(myHandle && r.author_handle===myHandle)||(myUid && r.author_id && r.author_id===myUid);const voted=commentUpvotedIds.has(r.id);const count=commentUpvoteCounts[r.id]||0;const upvoteBtn=r.id?`<button class="c-upvote-btn${voted?' c-upvoted':''}" id="cuv-${r.id}" onclick="event.stopPropagation();toggleCommentUpvote('${r.id}')" title="${isOwn?'Cannot upvote own reply':voted?'Remove upvote':'Upvote'}"${isOwn?' disabled':''}>▲ <span id="cuvc-${r.id}">${count}</span></button>`:'';return `<div class="forum-reply-item"><div class="forum-reply-avatar" data-profile-handle="${escAttr(r.author_handle||'')}" onclick="openProfile(this.dataset.profileHandle)" style="background:${forumAvatarColor(r.author_handle)};color:#fff;overflow:hidden;cursor:pointer" data-avatar-handle="${escAttr(r.author_handle||'')}">${forumAvatar(r.author_handle)}</div><div style="flex:1"><div class="forum-reply-meta" style="display:flex;align-items:center;gap:6px"><strong data-profile-handle="${escAttr(r.author_handle||'')}" onclick="openProfile(this.dataset.profileHandle)" style="cursor:pointer">${escHtml(r.author_handle)}</strong> · ${fmtForumDate(r.created_at)}${delBtn}</div><div class="forum-reply-body">${escHtml(r.body)}</div></div>${upvoteBtn}</div>`;}).join('')}</div>`;
   setTimeout(() => _upgradeAvatarsInContainer(el), 0);
 }
 
@@ -4828,6 +5028,8 @@ loadProjects().then(() => checkDeepLink());
 <!-- ══════════════════════════════════
      PAGE: FORUM
 ══════════════════════════════════ -->
+<button class="forum-fab" id="forumFab" onclick="openNewThreadModal()">+ New Thread</button>
+
 <div class="page" id="page-forum">
   <div class="forum-wrap">
     <div class="forum-page-header">
