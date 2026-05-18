@@ -938,9 +938,9 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
 .forum-empty-title { font-size:18px; font-weight:600; color:var(--text); margin-bottom:8px; }
 .forum-empty-sub { font-size:14px; color:var(--muted); line-height:1.5; max-width:320px; margin:0 auto; }
 /* Forum enhanced thread cards */
-.forum-thread-av { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#fff; flex-shrink:0; letter-spacing:-.2px; overflow:hidden; }
+.forum-thread-av { width:36px; height:36px; min-width:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; flex-shrink:0; flex-grow:0; letter-spacing:.2px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.18); }
 .forum-thread-top { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; }
-.forum-thread-top > div { flex:1; min-width:0; }
+.forum-thread-top > div:not(.forum-thread-av) { flex:1; min-width:0; }
 .forum-thread-card { padding:18px 20px; }
 .forum-thread-title { font-size:15px; font-weight:700; letter-spacing:-.3px; line-height:1.3; margin-bottom:6px; }
 .forum-thread-meta { border-top:1px solid var(--border); padding-top:10px; }
