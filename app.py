@@ -1251,6 +1251,64 @@ def category_page(category):
     return resp
 
 
+@app.route('/forum')
+def forum_index_page():
+    """Forum landing page — serves the SPA with forum-specific OG meta tags."""
+    with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
+        html = f.read()
+    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+    html = html.replace('__BASE_URL__', base_url)
+    forum_url = f"{base_url}/forum"
+    title = "Forum — CheckMyVibeCode"
+    desc = "Join the CheckMyVibeCode community forum. Ask questions, share tips, and discuss vibe coding with AI tools."
+    safe_t = html_module.escape(title)
+    safe_d = html_module.escape(desc)
+    html = re.sub(r'<title>[^<]*</title>', f'<title>{safe_t}</title>', html, count=1)
+    og_tags = (
+        f'<meta property="og:title" content="{safe_t}">\n'
+        f'<meta property="og:description" content="{safe_d}">\n'
+        f'<meta name="description" content="{safe_d}">\n'
+        f'<link rel="canonical" href="{html_module.escape(forum_url)}">\n'
+        f'<meta name="twitter:title" content="{safe_t}">\n'
+        f'<meta name="twitter:description" content="{safe_d}">\n'
+    )
+    html = html.replace('<head>', '<head>\n' + og_tags, 1)
+    html = _inject_config(html)
+    resp = Response(html, mimetype='text/html')
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
+@app.route('/checker')
+def checker_page():
+    """Code Checker landing page — SPA with checker-specific OG meta tags."""
+    with open(os.path.join(BASE_DIR, 'checkmyvibecode-app.html'), 'r', encoding='utf-8') as f:
+        html = f.read()
+    base_url = BASE_URL_OVERRIDE or request.host_url.rstrip('/')
+    html = html.replace('__BASE_URL__', base_url)
+    checker_url = f"{base_url}/checker"
+    title = "Code Checker — CheckMyVibeCode"
+    desc = "AI-powered code quality analysis for vibe-coded projects. Get instant feedback on what you built with AI."
+    safe_t = html_module.escape(title)
+    safe_d = html_module.escape(desc)
+    html = re.sub(r'<title>[^<]*</title>', f'<title>{safe_t}</title>', html, count=1)
+    og_tags = (
+        f'<meta property="og:title" content="{safe_t}">\n'
+        f'<meta property="og:description" content="{safe_d}">\n'
+        f'<meta name="description" content="{safe_d}">\n'
+        f'<link rel="canonical" href="{html_module.escape(checker_url)}">\n'
+        f'<meta name="twitter:title" content="{safe_t}">\n'
+        f'<meta name="twitter:description" content="{safe_d}">\n'
+    )
+    html = html.replace('<head>', '<head>\n' + og_tags, 1)
+    html = _inject_config(html)
+    resp = Response(html, mimetype='text/html')
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
 @app.route('/f/<thread_id>')
 def forum_thread_page(thread_id):
     """Forum thread page — same SPA with thread-specific OG meta tags."""
@@ -4288,6 +4346,10 @@ def sitemap():
     # Category pages
     for cat_key in ('app', 'game', 'tool', 'website'):
         urls.append({'loc': base_url + '/c/' + cat_key, 'changefreq': 'daily', 'priority': '0.65'})
+
+    # Forum + Checker landing pages
+    urls.append({'loc': base_url + '/forum', 'changefreq': 'daily', 'priority': '0.7'})
+    urls.append({'loc': base_url + '/checker', 'changefreq': 'monthly', 'priority': '0.5'})
 
     # Individual forum threads
     try:

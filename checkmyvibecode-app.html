@@ -354,7 +354,8 @@ mark.hl { background:#fef9c3; color:var(--text); border-radius:2px; padding:0 1p
 .card-thumb img.card-screenshot { width:100%; height:100%; object-fit:cover; display:block; border-radius:0; }
 .card-body { padding:14px 16px 14px; display:flex; flex-direction:column; gap:0; }
 .card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:6px; }
-.card-title { font-size:15px; font-weight:700; letter-spacing:-.35px; line-height:1.3; }
+.card-title { font-size:15px; font-weight:700; letter-spacing:-.35px; line-height:1.3; color:var(--text); text-decoration:none; cursor:pointer; }
+.card-title:hover { color:var(--green); text-decoration:none; }
 .score-pill { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:600; font-family:var(--mono); flex-shrink:0; }
 .sp-great { background:var(--green-bg); color:var(--green); border:1px solid var(--green-border); }
 .sp-ok    { background:var(--amber-bg); color:var(--amber); border:1px solid rgba(180,83,9,.15); }
@@ -1073,14 +1074,14 @@ input:checked + .nl-slider::before { transform:translateX(18px); }
 
 <!-- ── NAV ── -->
 <nav>
-  <div class="logo" onclick="switchPage('projects')" style="cursor:pointer" title="Back to Home">
+  <a href="/" class="logo" onclick="event.preventDefault();switchPage('projects')" style="cursor:pointer;text-decoration:none;color:inherit" title="Back to Home">
     <img src="/static/logo2.png" class="logo-icon" alt="CheckMyVibeCode">
     <span class="logo-text">checkmyvibecode</span><span class="logo-muted">.com</span>
-  </div>
+  </a>
   <div class="nav-sep"></div>
-  <button class="nav-tab active" id="tab-projects" onclick="switchPage('projects')">Projects</button>
-  <button class="nav-tab" id="tab-forum" onclick="switchPage('forum')">Forum</button>
-  <button class="nav-tab" id="tab-checker" onclick="switchPage('checker')"><span class="nav-checker-word">Code </span>Checker<span class="nav-soon">Soon</span></button>
+  <a class="nav-tab active" id="tab-projects" href="/" onclick="event.preventDefault();switchPage('projects')" style="text-decoration:none;display:inline-flex;align-items:center">Projects</a>
+  <a class="nav-tab" id="tab-forum" href="/forum" onclick="event.preventDefault();switchPage('forum')" style="text-decoration:none;display:inline-flex;align-items:center">Forum</a>
+  <a class="nav-tab" id="tab-checker" href="/checker" onclick="event.preventDefault();switchPage('checker')" style="text-decoration:none;display:inline-flex;align-items:center"><span class="nav-checker-word">Code </span>Checker<span class="nav-soon">Soon</span></a>
   <a class="nav-tab" id="tab-blog" href="/blog" style="text-decoration:none;display:inline-flex;align-items:center">Blog</a>
 
   <div class="nav-search">
@@ -2538,7 +2539,7 @@ function renderProjects(resetPage) {
       </div>
       <div class="card-body">
         <div class="card-top">
-          <div class="card-title" itemprop="name">${highlight(p.name,q)}</div>
+          <a href="/p/${escAttr(p.slug||p.id)}" class="card-title" itemprop="url" onclick="event.preventDefault();event.stopPropagation();openDrawer('${p.id}')"><span itemprop="name">${highlight(p.name,q)}</span></a>
           ${p.score?`<div class="score-pill ${scoreClass(p.score)}">✦ ${p.score}</div>`:''}
         </div>
         <div class="card-desc" itemprop="description">${highlight(p.desc||'',q)}</div>
