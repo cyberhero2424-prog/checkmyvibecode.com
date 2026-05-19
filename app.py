@@ -278,7 +278,18 @@ def serve_app():
                 "numberOfItems": len(item_list),
                 "itemListElement": item_list
             }, ensure_ascii=False).replace('</', '<\\/')
-            jsonld = f'<script type="application/ld+json">{home_ld}</script>'
+            org_ld = json.dumps({
+                "@context": "https://schema.org",
+                "@type": "Organization",
+                "name": "CheckMyVibeCode",
+                "url": base_url,
+                "logo": base_url + "/static/favicon-logo.png",
+                "description": "The go-to community for developers who build apps with AI tools. Browse, upvote, and submit AI-built projects."
+            }, ensure_ascii=False).replace('</', '<\\/')
+            jsonld = (
+                f'<script type="application/ld+json">{home_ld}</script>\n'
+                f'<script type="application/ld+json">{org_ld}</script>'
+            )
             html = _inject_ssr_content(html, '\n'.join(ssr_parts), jsonld, use_noscript=True)
     except Exception:
         pass
@@ -407,6 +418,8 @@ def _project_jsonld(project, project_url):
     created = project.get('created_at', '') or ''
     screenshot = project.get('screenshot_url', '') or ''
 
+    base_url_for_ld = project_url.split('/p/')[0] if '/p/' in project_url else project_url.split('/project/')[0]
+    bare_author = author.lstrip('@')
     ld = {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
@@ -414,9 +427,11 @@ def _project_jsonld(project, project_url):
         "description": desc,
         "url": project_url,
         "applicationCategory": "WebApplication",
+        "operatingSystem": "Web",
         "author": {
             "@type": "Person",
-            "name": author.lstrip('@')
+            "name": bare_author,
+            "url": f"{base_url_for_ld}/u/{urllib.parse.quote(bare_author, safe='')}"
         },
         "aggregateRating": {
             "@type": "AggregateRating",
@@ -432,7 +447,7 @@ def _project_jsonld(project, project_url):
     if created and len(created) >= 10:
         ld["datePublished"] = created[:10]
     if tools:
-        ld["keywords"] = ', '.join(tools) + ', AI, vibe coding'
+        ld["keywords"] = ', '.join(tools) + ', AI, vibe coding, AI-built, vibe code'
     return json.dumps(ld, ensure_ascii=False).replace('</', '<\\/')
 
 
@@ -441,37 +456,51 @@ def _ssr_project_block(project, project_url):
     esc = html_module.escape
     name = esc(project.get('name', '') or '')
     desc = esc(project.get('description', '') or '')
-    author = esc(project.get('author', '') or '')
+    raw_author = project.get('author', '') or ''
+    author = esc(raw_author)
+    bare_author = raw_author.lstrip('@')
     tools = project.get('tools') or []
     upvotes = project.get('upvotes', 0) or 0
     demo = project.get('demo', '') or ''
     build_time = esc(project.get('build_time', '') or '')
     cost = esc(project.get('cost', '') or '')
-    cat = esc(project.get('cat', '') or '')
+    raw_cat = project.get('cat', '') or ''
+    cat = esc(raw_cat)
     emoji = esc(project.get('emoji', '') or '')
-
+    created = project.get('created_at', '') or ''
     screenshot = project.get('screenshot_url', '') or ''
+
+    base_url_for_ssr = project_url.split('/p/')[0] if '/p/' in project_url else project_url.split('/project/')[0]
+    author_url = f"{base_url_for_ssr}/u/{urllib.parse.quote(bare_author, safe='')}"
+    cat_url = f"{base_url_for_ssr}/c/{urllib.parse.quote(raw_cat, safe='')}"
 
     tools_html = ' '.join(f'<span>{esc(t)}</span>' for t in tools)
     demo_link = ''
     if demo and demo.startswith(('http://', 'https://')):
-        demo_link = f'<p><a href="{esc(demo)}">View Project</a></p>'
+        demo_link = f'<p><a href="{esc(demo)}" itemprop="installUrl">View Project</a></p>'
     screenshot_html = ''
     if screenshot and screenshot.startswith(('http://', 'https://')):
         screenshot_html = f'<img itemprop="image" src="{esc(screenshot)}" alt="{name}" loading="lazy" width="600" height="338">'
+    date_html = ''
+    if created and len(created) >= 10:
+        date_html = f'<time itemprop="datePublished" datetime="{esc(created[:10])}">{esc(created[:10])}</time>'
 
     return (
         f'<article itemscope itemtype="https://schema.org/SoftwareApplication">'
+        f'<meta itemprop="applicationCategory" content="WebApplication">'
+        f'<meta itemprop="operatingSystem" content="Web">'
         f'{screenshot_html}'
         f'<h2 itemprop="name">{emoji} {name}</h2>'
         f'<p itemprop="description">{desc}</p>'
-        f'<p>By <span itemprop="author">{author}</span></p>'
-        f'<p>Category: {cat} | Upvotes: {upvotes}</p>'
+        f'<p>By <a href="{esc(author_url)}" itemprop="author">{author}</a>'
+        f'{f" in <a href=&#34;{esc(cat_url)}&#34;>{cat}</a>" if raw_cat else ""}</p>'
+        f'<p>Upvotes: {upvotes}</p>'
+        f'{date_html}'
         f'{f"<p>Build time: {build_time}</p>" if build_time else ""}'
         f'{f"<p>Cost: {cost}</p>" if cost else ""}'
         f'<p>Tools: {tools_html}</p>'
         f'{demo_link}'
-        f'<a href="{esc(project_url)}">Details</a>'
+        f'<a href="{esc(project_url)}" itemprop="url">Details</a>'
         f'</article>'
     )
 
@@ -1143,16 +1172,23 @@ def user_profile(handle):
         for p in projects:
             p_url = base_url + '/project/' + urllib.parse.quote(_project_slug(p), safe='-')
             ssr_parts.append(_ssr_project_block(p, p_url))
+        person_node = {
+            "@type": "Person",
+            "name": bare_handle,
+            "url": profile_url,
+        }
+        if stats is not None:
+            person_node["description"] = f"{stats['builds']} AI-built project{'s' if stats['builds'] != 1 else ''} · {stats['upvotes']} upvotes on CheckMyVibeCode"
+            person_node["interactionStatistic"] = [
+                {"@type": "InteractionCounter", "interactionType": "https://schema.org/WriteAction", "userInteractionCount": stats['builds']},
+                {"@type": "InteractionCounter", "interactionType": "https://schema.org/LikeAction", "userInteractionCount": stats['upvotes']},
+            ]
         profile_ld = json.dumps({
             "@context": "https://schema.org",
             "@type": "ProfilePage",
             "name": title,
             "url": profile_url,
-            "mainEntity": {
-                "@type": "Person",
-                "name": bare_handle,
-                "url": profile_url
-            }
+            "mainEntity": person_node
         }, ensure_ascii=False).replace('</', '<\\/')
         jsonld = f'<script type="application/ld+json">{profile_ld}</script>'
         html = _inject_ssr_content(html, '\n'.join(ssr_parts), jsonld)
@@ -1198,6 +1234,16 @@ def category_page(category):
         f'<meta name="twitter:description" content="{safe_d}">\n'
     )
     html = html.replace('<head>', '<head>\n' + og_tags, 1)
+    cat_ld = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": title,
+        "description": desc,
+        "url": cat_url,
+        "isPartOf": {"@type": "WebSite", "url": base_url, "name": "CheckMyVibeCode"}
+    }, ensure_ascii=False).replace('</', '<\\/')
+    cat_jsonld = f'<script type="application/ld+json">{cat_ld}</script>'
+    html = _inject_ssr_content(html, '', cat_jsonld)
     html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
@@ -1238,6 +1284,24 @@ def forum_thread_page(thread_id):
         f'<meta name="twitter:description" content="{safe_d}">\n'
     )
     html = html.replace('<head>', '<head>\n' + og_tags, 1)
+    thread_author_handle = thread.get('author_handle', '') or ''
+    bare_thread_author = thread_author_handle.lstrip('@')
+    forum_ld = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "DiscussionForumPosting",
+        "headline": thread.get('title') or 'Forum Thread',
+        "text": (thread.get('body') or '')[:500],
+        "url": thread_url,
+        "datePublished": (thread.get('created_at') or '')[:10],
+        "author": {
+            "@type": "Person",
+            "name": bare_thread_author,
+            "url": f"{base_url}/u/{urllib.parse.quote(bare_thread_author, safe='')}",
+        },
+        "isPartOf": {"@type": "WebSite", "url": base_url, "name": "CheckMyVibeCode"}
+    }, ensure_ascii=False).replace('</', '<\\/')
+    forum_jsonld = f'<script type="application/ld+json">{forum_ld}</script>'
+    html = _inject_ssr_content(html, '', forum_jsonld)
     html = _inject_config(html)
     resp = Response(html, mimetype='text/html')
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
@@ -4189,17 +4253,17 @@ def sitemap():
     latest_date = ''
     try:
         rows = None
-        for sel in ('id,created_at,author', 'id,author'):
+        for sel in ('id,slug,created_at,author,cat', 'id,slug,created_at,author', 'id,created_at,author', 'id,author'):
             raw, err = _sb_get('projects', f'status=eq.approved&select={sel}')
             if raw and not err:
                 rows = json.loads(raw)
                 break
         if rows:
             for row in rows:
-                pid = str(row.get('id', ''))
+                pid = str(row.get('slug') or row.get('id', ''))
                 if not pid:
                     continue
-                loc = base_url + '/p/' + urllib.parse.quote(pid, safe='')
+                loc = base_url + '/p/' + urllib.parse.quote(pid, safe='-')
                 raw_ts = row.get('created_at') or ''
                 lastmod = raw_ts[:10] if len(raw_ts) >= 10 else ''
                 entry = {'loc': loc, 'changefreq': 'weekly', 'priority': '0.7'}
@@ -4221,8 +4285,9 @@ def sitemap():
         home_entry['lastmod'] = latest_date
     urls.insert(0, home_entry)
 
-    # Forum index
-    urls.append({'loc': base_url + '/#forum', 'changefreq': 'daily', 'priority': '0.6'})
+    # Category pages
+    for cat_key in ('app', 'game', 'tool', 'website'):
+        urls.append({'loc': base_url + '/c/' + cat_key, 'changefreq': 'daily', 'priority': '0.65'})
 
     # Individual forum threads
     try:
@@ -4258,7 +4323,7 @@ def sitemap():
     try:
         blog_posts = [p for p in _load_blog_posts() if not p.get('draft')]
         blog_lastmod = blog_posts[0]['date'] if blog_posts else ''
-        blog_index_entry = {'loc': base_url + '/blog', 'changefreq': 'weekly', 'priority': '0.6'}
+        blog_index_entry = {'loc': base_url + '/blog', 'changefreq': 'weekly', 'priority': '0.7'}
         if blog_lastmod:
             blog_index_entry['lastmod'] = blog_lastmod
         urls.append(blog_index_entry)
@@ -4303,8 +4368,72 @@ def robots():
         "Disallow: /api/\n"
         f"Sitemap: {sitemap_url}\n"
         f"Llms-txt: {llms_txt_url}\n"
+        "\n"
+        "User-agent: GPTBot\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
+        "\n"
+        "User-agent: Claude-Web\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
+        "\n"
+        "User-agent: PerplexityBot\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
+        "\n"
+        "User-agent: Googlebot\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
+        "\n"
+        "User-agent: Bingbot\n"
+        "Allow: /\n"
+        "Disallow: /admin\n"
+        "Disallow: /api/\n"
     )
     return Response(body, mimetype='text/plain')
+
+
+@app.route('/feed.xml')
+def rss_feed():
+    """RSS feed for blog posts."""
+    base_url = (BASE_URL_OVERRIDE or request.host_url.rstrip('/')).rstrip('/')
+    try:
+        posts = [p for p in _load_blog_posts() if not p.get('draft')]
+    except Exception:
+        posts = []
+    items = []
+    for p in posts[:20]:
+        url = f"{base_url}/blog/{urllib.parse.quote(p['slug'], safe='')}"
+        items.append(
+            f'  <item>\n'
+            f'    <title>{html_module.escape(p["title"])}</title>\n'
+            f'    <link>{html_module.escape(url)}</link>\n'
+            f'    <guid isPermaLink="true">{html_module.escape(url)}</guid>\n'
+            f'    <pubDate>{html_module.escape(p.get("date", ""))}</pubDate>\n'
+            f'    <description>{html_module.escape(p.get("description", ""))}</description>\n'
+            f'  </item>'
+        )
+    feed_url = f"{base_url}/feed.xml"
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n'
+        '  <channel>\n'
+        f'    <title>CheckMyVibeCode Blog</title>\n'
+        f'    <link>{html_module.escape(base_url)}/blog</link>\n'
+        f'    <description>Articles about AI-built projects, vibe coding and the builder community.</description>\n'
+        f'    <language>en</language>\n'
+        f'    <atom:link href="{html_module.escape(feed_url)}" rel="self" type="application/rss+xml"/>\n'
+        + '\n'.join(items) + '\n'
+        '  </channel>\n'
+        '</rss>'
+    )
+    resp = Response(xml, mimetype='application/rss+xml')
+    resp.headers['Cache-Control'] = 'public, max-age=3600'
+    return resp
 
 
 @app.route('/llms.txt')

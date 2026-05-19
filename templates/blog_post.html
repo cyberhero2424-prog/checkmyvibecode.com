@@ -12,11 +12,19 @@
 <meta property="og:description" content="{{ description }}">
 <meta property="og:url" content="{{ base_url }}/blog/{{ slug }}">
 <meta property="og:image" content="{{ og_image_url }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta property="article:published_time" content="{{ date }}">
+<meta property="article:author" content="CheckMyVibeCode">
+<meta property="article:section" content="Technology">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@checkmyvibecode">
 <meta name="twitter:title" content="{{ title }}">
 <meta name="twitter:description" content="{{ description }}">
 <meta name="twitter:image" content="{{ og_image_url }}">
+<meta name="theme-color" content="#22c55e">
+<link rel="alternate" type="application/rss+xml" title="CheckMyVibeCode Blog" href="{{ base_url }}/feed.xml">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"{{ title | replace('"', '\\"') }}","description":"{{ description | replace('"', '\\"') }}","url":"{{ base_url }}/blog/{{ slug }}","datePublished":"{{ date }}","image":"{{ og_image_url }}","author":{"@type":"Organization","name":"CheckMyVibeCode","url":"{{ base_url }}"},"publisher":{"@type":"Organization","name":"CheckMyVibeCode","url":"{{ base_url }}","logo":{"@type":"ImageObject","url":"{{ base_url }}/static/favicon-logo.png"}},"isPartOf":{"@type":"WebSite","name":"CheckMyVibeCode","url":"{{ base_url }}"}}</script>
 <link rel="icon" type="image/png" href="/static/favicon-logo.png">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
